@@ -136,10 +136,6 @@ def build_text_from_browser_payload(raw_payload) -> tuple[str, str]:
 
     if isinstance(payload, dict):
         source = collapse_spaces(payload.get("source", "browser"))
-        text = collapse_spaces(payload.get("text", ""))
-        if text:
-            return text, source
-
         lines = payload.get("lines") or []
         ordered_lines = []
         for item in lines:
@@ -156,7 +152,12 @@ def build_text_from_browser_payload(raw_payload) -> tuple[str, str]:
                 )
             )
         ordered_lines.sort(key=lambda value: (value[0], value[1], value[2]))
-        return "\n".join(text for _, _, text in ordered_lines), source
+        if ordered_lines:
+            return "\n".join(text for _, _, text in ordered_lines), source
+
+        text = str(payload.get("text", "") or "")
+        if text:
+            return "\n".join(split_text_lines(text)), source
 
     return collapse_spaces(str(payload)), "browser"
 
@@ -528,7 +529,13 @@ def extract_patient_snapshot_from_text(raw_text: str):
         return ""
 
     snapshot = {
-        "patient_code": find_value(["line:codigo de paciente", r"Codigo\s+de?\s*Paciente[:\s]+([A-Z0-9.\-]{6,})"]),
+        "patient_code": find_value(
+            [
+                "line:codigo de paciente",
+                "line:cod. paciente",
+                r"Cod(?:igo|\.)?\s+de?\s*Paciente[:\s]+([A-Z0-9.\-]{6,})",
+            ]
+        ),
         "dni": find_value(["line:dni", "line:documento", r"\bDNI[:\s]+([0-9.\-]{6,})", r"\bDocumento[:\s]+([0-9.\-]{6,})"]),
         "last_name": find_value(["line:apellido", r"Apellido[:\s]+([A-ZÁÉÍÓÚÑ' ]{2,})"]),
         "first_name": find_value(["line:nombre", r"Nombre[:\s]+([A-ZÁÉÍÓÚÑ' ]{2,})"]),

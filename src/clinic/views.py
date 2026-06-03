@@ -142,6 +142,29 @@ def build_result_preview_images(attachment):
     return build_pdf_preview_images(attachment)
 
 
+def normalize_identity_value(value: str) -> str:
+    return normalize_for_match(collapse_spaces(value or ""))
+
+
+def snapshot_matches_patient(patient, snapshot: dict) -> bool:
+    if not patient or not snapshot:
+        return True
+
+    snapshot_dni = normalize_identity_value(snapshot.get("dni") or snapshot.get("patient_code") or "")
+    patient_dni = normalize_identity_value(getattr(patient, "dni", "") or getattr(patient, "patient_code", "") or "")
+    if snapshot_dni and patient_dni:
+        return snapshot_dni == patient_dni
+
+    snapshot_full_name = normalize_identity_value(
+        snapshot.get("full_name")
+        or f"{snapshot.get('last_name', '')} {snapshot.get('first_name', '')}"
+    )
+    patient_full_name = normalize_identity_value(getattr(patient, "full_name", "") or "")
+    if snapshot_full_name and patient_full_name:
+        return snapshot_full_name == patient_full_name
+    return True
+
+
 def get_latest_result_attachment(encounter):
     return (
         encounter.attachments.filter(file_kind__in=[AttachmentKind.PDF_RESULTADO, AttachmentKind.FOTO_RESULTADO])
@@ -2367,12 +2390,15 @@ def doctor_review_detail(request, pk):
                 )
                 attachment.file.save(pdf_file.name, pdf_file, save=True)
                 snapshot, changed_fields = {}, []
+                patient_identity_mismatch = False
                 try:
                     analysis = build_analysis_for_uploaded_result(attachment, analysis_payload_json=analysis_payload_json)
                     snapshot = analysis.get("snapshot") or {}
                     if snapshot:
-                        _, changed_fields = apply_snapshot_to_encounter_patient(encounter, snapshot)
-                        encounter.refresh_from_db()
+                        patient_identity_mismatch = not snapshot_matches_patient(encounter.patient, snapshot)
+                        if not patient_identity_mismatch:
+                            _, changed_fields = apply_snapshot_to_encounter_patient(encounter, snapshot)
+                            encounter.refresh_from_db()
                     if analysis.get("values"):
                         store_spirometry_analysis(encounter, analysis)
                 except Exception as error:
@@ -2388,7 +2414,16 @@ def doctor_review_detail(request, pk):
                         "suggested_code": analysis.get("code", "") if analysis else "",
                     },
                 )
-                if snapshot:
+                if snapshot and patient_identity_mismatch:
+                    extracted_name = snapshot.get("full_name") or "-"
+                    extracted_code = snapshot.get("patient_code") or snapshot.get("dni") or "-"
+                    mismatch_message = (
+                        f" El PDF parece corresponder a otra persona ({extracted_name} / doc {extracted_code}). "
+                        "Se leyo para sugerencia, pero no se actualizaron datos del paciente actual."
+                    )
+                    extraction_message = mismatch_message
+                    messages.warning(request, mismatch_message.strip())
+                elif snapshot:
                     extracted_name = snapshot.get("full_name") or encounter.patient.full_name
                     extracted_code = snapshot.get("patient_code") or snapshot.get("dni") or "-"
                     extraction_message = f" PDF leido: {extracted_name} / doc {extracted_code}."
