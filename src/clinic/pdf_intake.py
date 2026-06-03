@@ -10,8 +10,10 @@ import pypdfium2 as pdfium
 
 try:
     from rapidocr_onnxruntime import RapidOCR
-except Exception:  # pragma: no cover - fallback defensivo
+    RAPIDOCR_IMPORT_ERROR = None
+except Exception as error:  # pragma: no cover - fallback defensivo
     RapidOCR = None
+    RAPIDOCR_IMPORT_ERROR = error
 
 
 OCR_ROW_TOLERANCE = 18
@@ -51,7 +53,8 @@ def looks_like_profile_data(patient) -> bool:
 @lru_cache(maxsize=1)
 def get_ocr_engine():
     if RapidOCR is None:
-        raise RuntimeError("Falta instalar rapidocr_onnxruntime para leer PDFs automaticamente.")
+        detail = f" Detalle: {RAPIDOCR_IMPORT_ERROR}" if RAPIDOCR_IMPORT_ERROR else ""
+        raise RuntimeError(f"No se pudo cargar el motor OCR para leer imagenes automaticamente.{detail}")
     return RapidOCR()
 
 

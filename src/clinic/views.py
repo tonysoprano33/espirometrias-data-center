@@ -1296,6 +1296,33 @@ def build_print_context_for_encounter(encounter):
     }
 
 
+def render_dashboard_response(
+    request,
+    *,
+    today,
+    quick_form,
+    import_form,
+    physician_form,
+    today_encounters,
+    status_cards,
+    operation_alerts,
+):
+    context = {
+        "today": today,
+        "today_encounters": today_encounters,
+        "status_cards": status_cards,
+        "quick_form": quick_form,
+        "import_form": import_form,
+        "physician_form": physician_form,
+        "study_choices": [choice for choice in QuickEncounterForm.base_fields["study_type"].choices],
+        "coverage_choices": [("Mutual", "Mutual"), ("Particular", "Particular")],
+        "physician_choices": ReferringPhysician.objects.filter(active=True).order_by("full_name"),
+        "result_code_suggestions": RESULT_CODE_SUGGESTIONS,
+        "operation_alerts": operation_alerts,
+    }
+    return render(request, "clinic/dashboard.html", context)
+
+
 @login_required
 def dashboard(request):
     today = timezone.localdate()
@@ -1346,7 +1373,27 @@ def dashboard(request):
                 if raw_text:
                     imported_rows.extend(extract_drapp_rows_from_text(raw_text))
                 if screenshot:
-                    imported_rows.extend(extract_drapp_rows_from_screenshot(screenshot))
+                    try:
+                        imported_rows.extend(extract_drapp_rows_from_screenshot(screenshot))
+                    except Exception as error:
+                        import_form.add_error(
+                            "screenshot",
+                            f"No se pudo leer la captura automaticamente: {error}",
+                        )
+                        messages.warning(
+                            request,
+                            "La captura no se pudo leer automaticamente. Pega el texto de Drapp y volve a importar.",
+                        )
+                        return render_dashboard_response(
+                            request,
+                            today=today,
+                            quick_form=quick_form,
+                            import_form=import_form,
+                            physician_form=physician_form,
+                            today_encounters=today_encounters,
+                            status_cards=status_cards,
+                            operation_alerts=operation_alerts,
+                        )
                 created, skipped = import_drapp_rows(imported_rows, request.user)
                 messages.success(
                     request,
@@ -1483,20 +1530,16 @@ def dashboard(request):
         import_form = DrappImportForm()
         physician_form = ReferringPhysicianForm(initial={"active": True})
 
-    context = {
-        "today": today,
-        "today_encounters": today_encounters,
-        "status_cards": status_cards,
-        "quick_form": quick_form,
-        "import_form": import_form,
-        "physician_form": physician_form,
-        "study_choices": [choice for choice in QuickEncounterForm.base_fields["study_type"].choices],
-        "coverage_choices": [("Mutual", "Mutual"), ("Particular", "Particular")],
-        "physician_choices": ReferringPhysician.objects.filter(active=True).order_by("full_name"),
-        "result_code_suggestions": RESULT_CODE_SUGGESTIONS,
-        "operation_alerts": operation_alerts,
-    }
-    return render(request, "clinic/dashboard.html", context)
+    return render_dashboard_response(
+        request,
+        today=today,
+        quick_form=quick_form,
+        import_form=import_form,
+        physician_form=physician_form,
+        today_encounters=today_encounters,
+        status_cards=status_cards,
+        operation_alerts=operation_alerts,
+    )
 
 
 @login_required
