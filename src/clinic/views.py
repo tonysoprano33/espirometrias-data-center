@@ -1430,19 +1430,12 @@ def get_encounter_inconsistencies(encounter):
     attachments = encounter.attachments.all() if hasattr(encounter, "attachments") else []
     flags = []
 
-    if patient.age_reported is None and patient.birth_date is None:
-        flags.append("Edad faltante")
-    if not str(patient.gender or "").strip():
-        flags.append("Sexo faltante")
-
     if encounter.study_type == "Espirometria":
         result_attachment = next(
             (item for item in attachments if item.file_kind in [AttachmentKind.PDF_RESULTADO, AttachmentKind.FOTO_RESULTADO]),
             None,
         )
-        if not result_attachment:
-            flags.append("Falta PDF o foto del resultado original")
-        elif not (patient.dni or patient.patient_code or patient.birth_date):
+        if result_attachment and not (patient.dni or patient.patient_code or patient.birth_date):
             flags.append("Resultado incompleto: faltan identificadores del paciente")
 
     if vital:
@@ -1471,8 +1464,6 @@ def build_inconsistency_message(encounter):
 def get_report_readiness(encounter):
     if encounter.no_show:
         return False, "No llego"
-    if not encounter.attended:
-        return False, "Marcar como atendido"
 
     patient = encounter.patient
     vital = getattr(encounter, "vital_signs", None)
@@ -1492,9 +1483,6 @@ def get_report_readiness(encounter):
             missing.append("SO2 post")
         if getattr(vital, "fc_post", None) is None:
             missing.append("FC post")
-    elif encounter.study_type == "Espirometria":
-        if not get_latest_result_attachment(encounter):
-            missing.append("PDF o foto original de espirometria")
     if not result_code:
         missing.append("resultado")
 
@@ -2577,6 +2565,20 @@ def encounter_generate_report(request, pk):
     )
     if request.method != "POST":
         return redirect("clinic:encounter_detail", pk=encounter.pk)
+
+    if not encounter.attended:
+        encounter.attended = True
+        encounter.no_show = False
+        sync_attendance_status(encounter)
+        encounter.updated_by = request.user
+        encounter.save(update_fields=["attended", "no_show", "status", "updated_by", "updated_at"])
+        record_encounter_event(
+            encounter,
+            EncounterEventType.ATTENDANCE,
+            "Asistencia actualizada automaticamente",
+            actor=request.user,
+            details="Se marco como atendido al generar el informe.",
+        )
 
     can_generate_report, report_block_reason = get_report_readiness(encounter)
     inconsistency_flags = get_encounter_inconsistencies(encounter)
