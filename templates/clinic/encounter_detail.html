@@ -30,6 +30,18 @@
     </div>
 </section>
 
+{% if inconsistency_flags %}
+<section class="card" style="margin-top:20px;background:#fff7ed;border-color:#f3d1b1;">
+    <h2 class="section-title">Inconsistencias detectadas</h2>
+    <ul class="muted" style="margin:0;padding-left:18px;">
+        {% for item in inconsistency_flags %}
+            <li>{{ item }}</li>
+        {% endfor %}
+    </ul>
+    <p class="muted" style="margin:12px 0 0;">Se avisa antes del informe, pero la validación final sigue siendo clínica.</p>
+</section>
+{% endif %}
+
 <section class="grid-2" style="margin-top:20px;">
     <article class="card">
         <h2 class="section-title">Signos y caminata</h2>

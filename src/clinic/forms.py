@@ -270,7 +270,16 @@ class QuickEncounterForm(forms.Form):
 
 
 class DoctorReviewForm(forms.Form):
-    pdf_file = forms.FileField(label="PDF del resultado", required=False)
+    pdf_file = forms.FileField(
+        label="Resultado original (PDF o foto)",
+        required=False,
+        widget=forms.ClearableFileInput(
+            attrs={
+                "accept": ".pdf,.png,.jpg,.jpeg,.webp,image/*,application/pdf",
+                "capture": "environment",
+            }
+        ),
+    )
     respiratory_result = forms.CharField(label="Resultado", required=False, max_length=24)
 
     def __init__(self, *args, **kwargs):
@@ -292,6 +301,20 @@ class DoctorReviewForm(forms.Form):
                 "Usa codigos como N, OL, OM, OMS, OS, RL, RM, RMS, RS o mixtos tipo RLOMS."
             )
         return parsed["canonical_code"]
+
+    def clean_pdf_file(self):
+        uploaded = self.cleaned_data.get("pdf_file")
+        if not uploaded:
+            return uploaded
+
+        content_type = str(getattr(uploaded, "content_type", "") or "").lower()
+        file_name = str(getattr(uploaded, "name", "") or "").lower()
+        allowed_image_exts = (".png", ".jpg", ".jpeg", ".webp")
+        is_pdf = content_type == "application/pdf" or file_name.endswith(".pdf")
+        is_image = content_type.startswith("image/") or file_name.endswith(allowed_image_exts)
+        if not (is_pdf or is_image):
+            raise forms.ValidationError("Subi un PDF o una imagen JPG, PNG o WEBP.")
+        return uploaded
 
 
 class DrappImportForm(forms.Form):

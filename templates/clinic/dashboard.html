@@ -531,6 +531,7 @@
                                 <form method="post" action="{% url 'clinic:encounter_generate_report' encounter.pk %}" data-report-form>
                                     {% csrf_token %}
                                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <input type="hidden" name="confirm_inconsistencies" value="0" data-confirm-inconsistencies>
                                     <button
                                         class="button small"
                                         data-report-button
@@ -567,7 +568,7 @@
                                         <div class="muted" style="font-size:.82rem;">Todavia sin informe.</div>
                                     {% endif %}
                                 </div>
-                                <div class="muted" style="font-size:.82rem;" data-report-help>{% if not encounter.can_generate_report %}{{ encounter.report_block_reason }}{% endif %}</div>
+                                <div class="muted" style="font-size:.82rem;" data-report-help>{% if not encounter.can_generate_report %}{{ encounter.report_block_reason }}{% elif encounter.inconsistency_message %}{{ encounter.inconsistency_message }}{% endif %}</div>
                             </div>
                         </td>
                     </tr>
@@ -1303,11 +1304,13 @@
                 button.disabled = !payload.can_generate_report;
                 if (payload.report_block_reason) {
                     button.setAttribute("title", payload.report_block_reason);
+                } else if (payload.inconsistency_message) {
+                    button.setAttribute("title", payload.inconsistency_message);
                 } else {
                     button.removeAttribute("title");
                 }
             }
-            if (help) help.innerHTML = escapeHtml(payload.report_block_reason || payload.message || "");
+            if (help) help.innerHTML = escapeHtml(payload.report_block_reason || payload.inconsistency_message || payload.message || "");
             if (!links) return;
             if (payload.has_generated_reports) {
                 htmlParts = [];
@@ -1511,12 +1514,15 @@
             var row;
             var button;
             var help;
+            var confirmField;
             if (!hasAttr(form, "data-report-form")) return;
             stopEvent(event);
             row = closestAttr(form, "data-encounter-row");
             button = form.querySelector ? form.querySelector("[data-report-button]") : null;
             help = row && row.querySelector ? row.querySelector("[data-report-help]") : null;
+            confirmField = form.querySelector ? form.querySelector("[data-confirm-inconsistencies]") : null;
             if (button && button.disabled) return false;
+            if (confirmField) confirmField.value = "0";
             if (button) {
                 button.disabled = true;
                 button.setAttribute("data-old-label", button.innerHTML);
@@ -1530,9 +1536,25 @@
                         updateRow(row, payload);
                     },
                     function (payload) {
+                        if (payload && payload.requires_confirmation && window.confirm) {
+                            if (window.confirm(payload.message + "\n\n¿Querés generar el informe igual?")) {
+                                if (confirmField) confirmField.value = "1";
+                                postForm(
+                                    form,
+                                    function (confirmPayload) {
+                                        updateRow(row, confirmPayload);
+                                    },
+                                    function (confirmPayload) {
+                                        updateRow(row, confirmPayload);
+                                    }
+                                );
+                                return;
+                            }
+                        }
                         updateRow(row, payload);
                         if (button) {
                             button.innerHTML = button.getAttribute("data-old-label") || "Generar informe";
+                            button.disabled = false;
                         }
                     }
                 );

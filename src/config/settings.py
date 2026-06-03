@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 from urllib.parse import parse_qs, urlparse
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 
@@ -9,48 +10,83 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 PROJECT_DIR = BASE_DIR.parent
 
 load_dotenv(PROJECT_DIR / ".env")
+load_dotenv(PROJECT_DIR / ".env.local", override=True)
+load_dotenv(PROJECT_DIR / ".env.development.local", override=True)
 
 RUNTIME_DIR = Path(os.getenv("APP_RUNTIME_DIR", Path.home() / "AppData" / "Local" / "ClinicaEspiro"))
 RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def build_database_config():
-    database_url = os.getenv("DATABASE_URL", "").strip()
-    if database_url:
-        parsed = urlparse(database_url)
-        query = parse_qs(parsed.query)
-        engine = "django.db.backends.postgresql"
-        if parsed.scheme.startswith("postgres"):
-            engine = "django.db.backends.postgresql"
-        return {
-            "ENGINE": engine,
-            "NAME": parsed.path.lstrip("/") or os.getenv("DB_NAME", "postgres"),
-            "USER": parsed.username or os.getenv("DB_USER", ""),
-            "PASSWORD": parsed.password or os.getenv("DB_PASSWORD", ""),
-            "HOST": parsed.hostname or os.getenv("DB_HOST", "127.0.0.1"),
-            "PORT": str(parsed.port or os.getenv("DB_PORT", "5432")),
-            "OPTIONS": {
-                "sslmode": query.get("sslmode", [os.getenv("DB_SSLMODE", "require")])[0],
-            },
-        }
+def env_value(name, default=""):
+    return os.getenv(name, default).strip()
 
-    if os.getenv("DB_NAME"):
-        return {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.getenv("DB_NAME"),
-            "USER": os.getenv("DB_USER", ""),
-            "PASSWORD": os.getenv("DB_PASSWORD", ""),
-            "HOST": os.getenv("DB_HOST", "127.0.0.1"),
-            "PORT": os.getenv("DB_PORT", "5432"),
-            "OPTIONS": {
-                "sslmode": os.getenv("DB_SSLMODE", "require"),
-            },
-        }
 
+def sqlite_database_config():
     return {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": RUNTIME_DIR / "dev.sqlite3",
     }
+
+
+def postgres_url_config(database_url):
+    parsed = urlparse(database_url)
+    query = parse_qs(parsed.query)
+    return {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": parsed.path.lstrip("/") or env_value("DB_NAME", "postgres"),
+        "USER": parsed.username or env_value("DB_USER"),
+        "PASSWORD": parsed.password or env_value("DB_PASSWORD"),
+        "HOST": parsed.hostname or env_value("DB_HOST", "127.0.0.1"),
+        "PORT": str(parsed.port or env_value("DB_PORT", "5432")),
+        "OPTIONS": {
+            "sslmode": query.get("sslmode", [env_value("DB_SSLMODE", "require")])[0],
+        },
+    }
+
+
+def build_database_config():
+    database_url = env_value("DATABASE_URL") or env_value("POSTGRES_URL") or env_value("POSTGRES_URL_NON_POOLING")
+    if database_url:
+        return postgres_url_config(database_url)
+
+    db_name = env_value("DB_NAME") or env_value("POSTGRES_DATABASE")
+    db_user = env_value("DB_USER") or env_value("POSTGRES_USER")
+    db_password = env_value("DB_PASSWORD") or env_value("POSTGRES_PASSWORD")
+    db_host = env_value("DB_HOST") or env_value("POSTGRES_HOST")
+
+    if any([db_name, db_user, db_password, db_host]):
+        missing = [
+            name
+            for name, value in {
+                "DB_NAME/POSTGRES_DATABASE": db_name,
+                "DB_USER/POSTGRES_USER": db_user,
+                "DB_PASSWORD/POSTGRES_PASSWORD": db_password,
+                "DB_HOST/POSTGRES_HOST": db_host,
+            }.items()
+            if not value
+        ]
+        if missing:
+            if env_value("REQUIRE_DATABASE", "False").lower() == "true":
+                raise ImproperlyConfigured(
+                    "PostgreSQL environment variables are incomplete. "
+                    f"Missing: {', '.join(missing)}. "
+                    "For Supabase, set DATABASE_URL to the IPv4-compatible Session Pooler connection string."
+                )
+            return sqlite_database_config()
+
+        return {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": db_name,
+            "USER": db_user,
+            "PASSWORD": db_password,
+            "HOST": db_host,
+            "PORT": env_value("DB_PORT", "5432"),
+            "OPTIONS": {
+                "sslmode": env_value("DB_SSLMODE", "require"),
+            },
+        }
+
+    return sqlite_database_config()
 
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-me")
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"

@@ -140,7 +140,7 @@
         <button class="button" type="button" onclick="window.print()">Imprimir</button>
         <a class="button alt" href="{% url 'clinic:dashboard' %}">Volver</a>
         {% if pdf_attachment %}
-            <a class="button alt" href="{{ pdf_attachment.file.url }}" target="_blank" rel="noopener">Abrir PDF original</a>
+            <a class="button alt" href="{{ pdf_attachment.file.url }}" target="_blank" rel="noopener">Abrir resultado original</a>
         {% endif %}
     </div>
 

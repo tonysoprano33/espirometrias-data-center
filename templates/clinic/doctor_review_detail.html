@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Revision del PDF | Clinica Espiro{% endblock %}
+{% block title %}Revision del resultado | Clinica Espiro{% endblock %}
 
 {% block content %}
 <section class="card" style="margin-bottom:20px;">
@@ -12,8 +12,8 @@
 
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;">
         {% if pdf_attachment %}
-            <a class="button" href="{{ pdf_attachment.file.url }}" target="_blank" rel="noopener">Abrir PDF grande</a>
-            <a class="button alt" href="{{ pdf_attachment.file.url }}" download>Descargar PDF</a>
+            <a class="button" href="{{ pdf_attachment.file.url }}" target="_blank" rel="noopener">Abrir archivo grande</a>
+            <a class="button alt" href="{{ pdf_attachment.file.url }}" download>Descargar archivo</a>
         {% endif %}
     </div>
 
@@ -45,6 +45,18 @@
             </div>
         </div>
     {% endif %}
+
+    {% if inconsistency_flags %}
+        <div class="card" style="margin-top:18px;background:#fff7ed;border-color:#f3d1b1;">
+            <h2 class="section-title">Inconsistencias detectadas</h2>
+            <ul class="muted" style="margin:0;padding-left:18px;">
+                {% for item in inconsistency_flags %}
+                    <li>{{ item }}</li>
+                {% endfor %}
+            </ul>
+            <p class="muted" style="margin:12px 0 0;">La IA sugiere y avisa, pero la validación final sigue siendo médica.</p>
+        </div>
+    {% endif %}
 </section>
 
 <section class="panel-grid">
@@ -54,18 +66,20 @@
                 <div style="display:grid; gap:18px;">
                     {% for page in pdf_preview_pages %}
                         <figure style="margin:0;">
-                            <div class="muted" style="margin:0 0 8px;">Pagina {{ page.index }}</div>
+                            <div class="muted" style="margin:0 0 8px;">
+                                {% if result_attachment_is_image %}Foto del resultado{% else %}Pagina {{ page.index }}{% endif %}
+                            </div>
                             <img
                                 src="{{ page.url }}"
-                                alt="Vista previa pagina {{ page.index }}"
+                                alt="{% if result_attachment_is_image %}Foto del resultado{% else %}Vista previa pagina {{ page.index }}{% endif %}"
                                 style="width:100%;height:auto;border:1px solid var(--line);border-radius:12px;background:#fff;display:block;">
                         </figure>
                     {% endfor %}
                 </div>
             {% else %}
                 <div class="card" style="margin:0;background:#fff7ed;border-color:#f3d1b1;">
-                    <h2 class="section-title">No se pudo mostrar el PDF aca</h2>
-                    <p class="muted">Usa "Abrir PDF grande" para verlo en una ventana aparte.</p>
+                    <h2 class="section-title">No se pudo mostrar el archivo aca</h2>
+                    <p class="muted">Usa "Abrir archivo grande" para verlo en una ventana aparte.</p>
                     {% if preview_error %}
                         <p class="muted" style="font-size:.9rem;">{{ preview_error }}</p>
                     {% endif %}
@@ -73,8 +87,8 @@
             {% endif %}
         {% else %}
             <div class="card" style="margin:0;background:#fff7ed;border-color:#f3d1b1;">
-                <h2 class="section-title">Todavia no hay PDF cargado</h2>
-                <p class="muted">Podes subirlo aca mismo y dejar el resultado abajo.</p>
+                <h2 class="section-title">Todavia no hay PDF o foto cargada</h2>
+                <p class="muted">Podes subirlo aca mismo, sacar foto desde el celu o elegir una imagen.</p>
             </div>
         {% endif %}
     </article>
@@ -123,6 +137,9 @@
                     <div class="field">
                         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                         {{ field }}
+                        {% if field.name == "pdf_file" %}
+                            <div class="muted" style="margin-top:8px;">Desde el celular podes elegir PDF, sacar una foto o subir una imagen JPG/PNG/WEBP.</div>
+                        {% endif %}
                         {% if field.errors %}
                             <div class="muted">{{ field.errors }}</div>
                         {% endif %}

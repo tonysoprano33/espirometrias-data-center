@@ -460,16 +460,34 @@ def _document_to_bytes(doc: Document) -> bytes:
 
 
 def _latest_pdf_attachment(encounter):
-    return encounter.attachments.filter(file_kind=AttachmentKind.PDF_RESULTADO).order_by("-created_at").first()
+    return (
+        encounter.attachments.filter(file_kind__in=[AttachmentKind.PDF_RESULTADO, AttachmentKind.FOTO_RESULTADO])
+        .order_by("-created_at")
+        .first()
+    )
 
 
 def _pdf_artifact_from_original(encounter, nombre_archivo_seguro: str, fecha_archivo: str) -> GeneratedArtifact:
     attachment = _latest_pdf_attachment(encounter)
     if not attachment or not getattr(attachment, "file", None):
-        raise ValueError("Para imprimir una espirometria sola, primero subi el PDF original del equipo.")
+        raise ValueError("Para imprimir una espirometria sola, primero subi el PDF o una foto original del equipo.")
 
     with open(attachment.file.path, "rb") as pdf_file:
         bytes_content = pdf_file.read()
+
+    if attachment.file_kind == AttachmentKind.FOTO_RESULTADO:
+        mime_type = str(getattr(attachment, "mime_type", "") or "image/jpeg")
+        extension = ".jpg"
+        original_name = str(getattr(attachment, "original_name", "") or "")
+        if "." in original_name:
+            extension = "." + original_name.split(".")[-1].lower()
+        return GeneratedArtifact(
+            report_type="Espirometria",
+            filename=f"Espirometria_{nombre_archivo_seguro}_{fecha_archivo}{extension}",
+            bytes_content=bytes_content,
+            file_kind=AttachmentKind.OTRO,
+            mime_type=mime_type,
+        )
 
     return GeneratedArtifact(
         report_type="Espirometria",

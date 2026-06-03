@@ -39,11 +39,15 @@ python src/manage.py runserver
 
 La app acepta dos formas de conectar la base:
 
-1. `DATABASE_URL`:
+1. `DATABASE_URL` o `POSTGRES_URL`:
 
 ```env
-DATABASE_URL=postgresql://postgres:[TU_PASSWORD]@db.[TU_PROYECTO].supabase.co:5432/postgres?sslmode=require
+DATABASE_URL=postgresql://postgres.[TU_PROYECTO]:[TU_PASSWORD]@[POOLER_HOST]:5432/postgres?sslmode=require
 ```
+
+La integracion de Supabase en Vercel suele inyectar `POSTGRES_URL`, por lo que la app acepta ambos nombres.
+
+Importante: el host directo de Supabase (`db.[TU_PROYECTO].supabase.co`) usa IPv6 por defecto. Si tu red o plataforma no soporta IPv6, usa la URL de `Session Pooler` de Supabase como `DATABASE_URL`.
 
 2. Variables separadas:
 
@@ -54,7 +58,28 @@ DATABASE_URL=postgresql://postgres:[TU_PASSWORD]@db.[TU_PROYECTO].supabase.co:54
 - `DB_PORT`
 - `DB_SSLMODE`
 
+Tambien reconoce las variables que suele crear Vercel al conectar Supabase:
+
+- `POSTGRES_DATABASE`
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
+- `POSTGRES_HOST`
+
+Si esas variables vienen incompletas, por ejemplo `POSTGRES_PASSWORD=""`, en desarrollo la app vuelve a SQLite. Para exigir PostgreSQL y fallar con un error claro, define:
+
+```env
+REQUIRE_DATABASE=True
+```
+
 Si no existen, usa `SQLite`.
+
+Para desarrollo local con Vercel, tambien podes traer secretos a `.env.local`:
+
+```powershell
+vercel env pull .env.local --yes
+```
+
+La configuracion de Django carga `.env` y luego `.env.local`, asi que si ahi definis `DATABASE_URL` la app usara Supabase automaticamente.
 
 Para deploy tambien conviene definir:
 

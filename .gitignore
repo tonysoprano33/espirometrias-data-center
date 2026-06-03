@@ -8,6 +8,9 @@ src/db.sqlite3
 media/
 src/media/
 .env
+.env.local
+.env.*.local
+.env*.local
 *.log
 
 .vercel

@@ -1,5 +1,6 @@
 import calendar as month_calendar
 from datetime import date, datetime, timedelta
+import mimetypes
 from pathlib import Path
 import re
 from statistics import mean
@@ -89,6 +90,15 @@ def media_url_prefix() -> str:
     return media_url if media_url.startswith("/") else f"/{media_url}"
 
 
+def is_result_image_attachment(attachment) -> bool:
+    if not attachment or not getattr(attachment, "file", None):
+        return False
+
+    mime_type = str(getattr(attachment, "mime_type", "") or "").lower()
+    extension = Path(str(getattr(attachment.file, "name", "") or "")).suffix.lower()
+    return mime_type.startswith("image/") or extension in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"}
+
+
 def build_pdf_preview_images(attachment):
     if not attachment or not getattr(attachment, "file", None):
         return []
@@ -105,6 +115,42 @@ def build_pdf_preview_images(attachment):
         }
         for index, image_path in enumerate(existing)
     ]
+
+
+def build_result_preview_images(attachment):
+    if not attachment or not getattr(attachment, "file", None):
+        return []
+
+    if is_result_image_attachment(attachment):
+        return [{"index": 1, "url": attachment.file.url}]
+    return build_pdf_preview_images(attachment)
+
+
+def get_latest_result_attachment(encounter):
+    return (
+        encounter.attachments.filter(file_kind__in=[AttachmentKind.PDF_RESULTADO, AttachmentKind.FOTO_RESULTADO])
+        .order_by("-created_at")
+        .first()
+    )
+
+
+def classify_result_upload(uploaded_file):
+    content_type = str(getattr(uploaded_file, "content_type", "") or "").lower()
+    file_name = str(getattr(uploaded_file, "name", "") or "")
+    extension = Path(file_name).suffix.lower()
+    guessed_content_type = mimetypes.guess_type(file_name)[0] or ""
+
+    is_pdf = content_type == "application/pdf" or extension == ".pdf" or guessed_content_type == "application/pdf"
+    if is_pdf:
+        return AttachmentKind.PDF_RESULTADO, "application/pdf"
+
+    is_image = content_type.startswith("image/") or guessed_content_type.startswith("image/")
+    if extension in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"}:
+        is_image = True
+    if is_image:
+        return AttachmentKind.FOTO_RESULTADO, content_type or guessed_content_type or "image/jpeg"
+
+    raise ValueError("Subi un PDF o una imagen JPG, PNG o WEBP.")
 
 
 def apply_result_code_to_spirometry(encounter, result_code: str):
@@ -303,6 +349,7 @@ def parse_optional_int(raw_value, max_value=None):
 
 def get_row_state_payload(encounter):
     can_generate_report, report_block_reason = get_report_readiness(encounter)
+    inconsistency_flags = get_encounter_inconsistencies(encounter)
     vital = getattr(encounter, "vital_signs", None)
     current_physician = getattr(encounter, "referring_physician", None)
     default_physician = get_default_physician()
@@ -333,6 +380,8 @@ def get_row_state_payload(encounter):
         "has_cycle_data": encounter_has_cycle_data(encounter),
         "can_generate_report": can_generate_report,
         "report_block_reason": report_block_reason,
+        "inconsistencies": inconsistency_flags,
+        "inconsistency_message": "Advertencias: " + " | ".join(inconsistency_flags) if inconsistency_flags else "",
         "has_generated_reports": encounter.generated_reports.exists(),
         "report_button_label": "Regenerar informe" if encounter.generated_reports.exists() else "Generar informe",
     }
@@ -348,9 +397,7 @@ def get_operational_alerts(queryset):
         can_generate, _ = get_report_readiness(encounter)
         if can_generate and not encounter.generated_reports.exists():
             ready_for_report += 1
-        if encounter.study_type == "Espirometria" and not encounter.attachments.filter(
-            file_kind=AttachmentKind.PDF_RESULTADO
-        ).exists():
+        if encounter.study_type == "Espirometria" and not get_latest_result_attachment(encounter):
             missing_pdf += 1
     return {
         "pending_review": pending_review,
@@ -1107,6 +1154,50 @@ def build_patient_profile_summary(patients):
     }
 
 
+def get_encounter_inconsistencies(encounter):
+    patient = encounter.patient
+    vital = getattr(encounter, "vital_signs", None)
+    attachments = encounter.attachments.all() if hasattr(encounter, "attachments") else []
+    flags = []
+
+    if patient.age_reported is None and patient.birth_date is None:
+        flags.append("Edad faltante")
+    if not str(patient.gender or "").strip():
+        flags.append("Sexo faltante")
+
+    if encounter.study_type == "Espirometria":
+        result_attachment = next(
+            (item for item in attachments if item.file_kind in [AttachmentKind.PDF_RESULTADO, AttachmentKind.FOTO_RESULTADO]),
+            None,
+        )
+        if not result_attachment:
+            flags.append("Falta PDF o foto del resultado original")
+        elif not (patient.dni or patient.patient_code or patient.birth_date):
+            flags.append("Resultado incompleto: faltan identificadores del paciente")
+
+    if vital:
+        impossible_values = []
+        if vital.so2_rest is not None and (vital.so2_rest < 50 or vital.so2_rest > 99):
+            impossible_values.append("SO2 reposo")
+        if vital.so2_post is not None and (vital.so2_post < 50 or vital.so2_post > 99):
+            impossible_values.append("SO2 post")
+        if vital.fc_rest is not None and (vital.fc_rest < 20 or vital.fc_rest > 250):
+            impossible_values.append("FC reposo")
+        if vital.fc_post is not None and (vital.fc_post < 20 or vital.fc_post > 250):
+            impossible_values.append("FC post")
+        if impossible_values:
+            flags.append("Valores imposibles: " + ", ".join(impossible_values))
+
+    return flags
+
+
+def build_inconsistency_message(encounter):
+    flags = get_encounter_inconsistencies(encounter)
+    if not flags:
+        return ""
+    return "Advertencias: " + " | ".join(flags)
+
+
 def get_report_readiness(encounter):
     if encounter.no_show:
         return False, "No llego"
@@ -1132,19 +1223,14 @@ def get_report_readiness(encounter):
         if getattr(vital, "fc_post", None) is None:
             missing.append("FC post")
     elif encounter.study_type == "Espirometria":
-        has_pdf = encounter.attachments.filter(file_kind=AttachmentKind.PDF_RESULTADO).exists()
-        if not has_pdf:
-            missing.append("PDF original de espirometria")
+        if not get_latest_result_attachment(encounter):
+            missing.append("PDF o foto original de espirometria")
     if not result_code:
         missing.append("resultado")
 
     if missing:
         return False, "Completar: " + ", ".join(missing)
     return True, ""
-
-
-def get_latest_pdf_attachment(encounter):
-    return encounter.attachments.filter(file_kind=AttachmentKind.PDF_RESULTADO).order_by("-created_at").first()
 
 
 def build_print_context_for_encounter(encounter):
@@ -1182,8 +1268,8 @@ def build_print_context_for_encounter(encounter):
             for minute in range(7)
         ]
 
-    pdf_attachment = get_latest_pdf_attachment(encounter)
-    pdf_preview_pages = build_pdf_preview_images(pdf_attachment) if pdf_attachment else []
+    pdf_attachment = get_latest_result_attachment(encounter)
+    pdf_preview_pages = build_result_preview_images(pdf_attachment) if pdf_attachment else []
     include_mutual_packet = encounter.coverage_type == CoverageType.MUTUAL and include_walk
 
     return {
@@ -1654,6 +1740,11 @@ def statistics_view(request):
 @login_required
 def patient_list(request):
     query = request.GET.get("q", "").strip()
+    date_filter = (request.GET.get("date") or "").strip()
+    coverage_filter = (request.GET.get("coverage") or "").strip()
+    diagnosis_filter = (request.GET.get("diagnosis") or "").strip()
+    status_filter = (request.GET.get("status") or "").strip()
+    physician_filter = (request.GET.get("physician") or "").strip()
     patients = Patient.objects.annotate(
         encounter_count=Count("encounters"),
         last_encounter_date=Max("encounters__encounter_date"),
@@ -1662,8 +1753,54 @@ def patient_list(request):
         patients = patients.filter(
             Q(full_name__icontains=query) | Q(dni__icontains=query) | Q(patient_code__icontains=query)
         )
-    patients = patients.order_by("full_name")
-    return render(request, "clinic/patient_list.html", {"patients": patients, "query": query})
+    if date_filter:
+        try:
+            parsed_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
+            patients = patients.filter(encounters__encounter_date=parsed_date)
+        except ValueError:
+            pass
+    if coverage_filter:
+        patients = patients.filter(encounters__coverage_type=coverage_filter)
+    if status_filter:
+        patients = patients.filter(encounters__status=status_filter)
+    if physician_filter:
+        patients = patients.filter(encounters__referring_physician_id=physician_filter)
+    if diagnosis_filter:
+        parsed = parse_result_code(diagnosis_filter)
+        if parsed:
+            pattern = parsed["pattern"]
+            patients = patients.filter(encounters__spirometry_result__respiratory_pattern=pattern)
+            if parsed["obstruction_grade"]:
+                patients = patients.filter(encounters__spirometry_result__obstruction_grade=parsed["obstruction_grade"])
+            if parsed["restriction_grade"]:
+                patients = patients.filter(encounters__spirometry_result__restriction_grade=parsed["restriction_grade"])
+        else:
+            normalized = normalize_for_match(diagnosis_filter)
+            if normalized:
+                patients = patients.filter(
+                    Q(encounters__spirometry_result__respiratory_pattern__icontains=diagnosis_filter)
+                    | Q(encounters__spirometry_result__obstruction_grade__icontains=diagnosis_filter)
+                    | Q(encounters__spirometry_result__restriction_grade__icontains=diagnosis_filter)
+                )
+    patients = patients.distinct().order_by("full_name")
+    return render(
+        request,
+        "clinic/patient_list.html",
+        {
+            "patients": patients,
+            "query": query,
+            "filters": {
+                "date": date_filter,
+                "coverage": coverage_filter,
+                "diagnosis": diagnosis_filter,
+                "status": status_filter,
+                "physician": physician_filter,
+            },
+            "coverage_choices": CoverageType.choices,
+            "status_choices": EncounterStatus.choices,
+            "physician_choices": ReferringPhysician.objects.filter(active=True).order_by("full_name"),
+        },
+    )
 
 
 @login_required
@@ -1678,7 +1815,7 @@ def patient_detail(request, pk):
         encounter.result_code = get_result_code_from_encounter(encounter)
         encounter.result_label = get_result_label_from_encounter(encounter)
         encounter.attendance_label = get_attendance_label(encounter)
-        encounter.pdf_attachment = encounter.attachments.filter(file_kind=AttachmentKind.PDF_RESULTADO).first()
+        encounter.pdf_attachment = get_latest_result_attachment(encounter)
         latest_report_info = get_latest_report_info(encounter)
         encounter.latest_report_url = latest_report_info["latest_report_url"]
         encounter.latest_report_name = latest_report_info["latest_report_name"]
@@ -1903,24 +2040,26 @@ def doctor_review_detail(request, pk):
             pdf_file = form.cleaned_data.get("pdf_file")
             extraction_message = ""
             if pdf_file:
+                file_kind, mime_type = classify_result_upload(pdf_file)
                 attachment = Attachment(
                     encounter=encounter,
-                    file_kind=AttachmentKind.PDF_RESULTADO,
+                    file_kind=file_kind,
                     original_name=pdf_file.name,
-                    mime_type=getattr(pdf_file, "content_type", "") or "application/pdf",
+                    mime_type=mime_type,
                     uploaded_by=request.user,
                 )
                 attachment.file.save(pdf_file.name, pdf_file, save=True)
-                try:
-                    snapshot, changed_fields = ingest_pdf_attachment_into_patient(attachment)
-                    encounter.refresh_from_db()
-                except Exception as error:
-                    messages.warning(request, f"El PDF se subio, pero no se pudieron leer datos automaticos: {error}")
-                    snapshot, changed_fields = {}, []
+                snapshot, changed_fields = {}, []
+                if file_kind == AttachmentKind.PDF_RESULTADO:
+                    try:
+                        snapshot, changed_fields = ingest_pdf_attachment_into_patient(attachment)
+                        encounter.refresh_from_db()
+                    except Exception as error:
+                        messages.warning(request, f"El PDF se subio, pero no se pudieron leer datos automaticos: {error}")
                 record_encounter_event(
                     encounter,
                     EncounterEventType.DOCUMENT,
-                    "PDF de espirometria cargado",
+                    "Resultado de espirometria cargado",
                     actor=request.user,
                     details=f"Archivo: {pdf_file.name}",
                 )
@@ -1930,6 +2069,8 @@ def doctor_review_detail(request, pk):
                     extraction_message = f" PDF leido: {extracted_name} / doc {extracted_code}."
                     if changed_fields:
                         extraction_message += f" Datos actualizados: {', '.join(changed_fields)}."
+                elif file_kind == AttachmentKind.FOTO_RESULTADO:
+                    extraction_message = " Foto cargada correctamente."
 
             result_code = form.cleaned_data.get("respiratory_result") or ""
             apply_result_code_to_spirometry(encounter, result_code)
@@ -1951,23 +2092,25 @@ def doctor_review_detail(request, pk):
     else:
         form = DoctorReviewForm(initial={"respiratory_result": current_result})
 
-    pdf_attachment = encounter.attachments.filter(file_kind=AttachmentKind.PDF_RESULTADO).first()
+    pdf_attachment = get_latest_result_attachment(encounter)
     pdf_preview_pages = []
     preview_error = ""
     spirometry_suggestion = None
     if pdf_attachment:
         try:
-            pdf_preview_pages = build_pdf_preview_images(pdf_attachment)
+            pdf_preview_pages = build_result_preview_images(pdf_attachment)
         except Exception as error:
             preview_error = str(error)
-        try:
-            spirometry_suggestion = build_spirometry_suggestion_from_pdf(
-                pdf_attachment.file.path,
-                attachment_id=pdf_attachment.pk,
-            )
-        except Exception as error:
-            if not preview_error:
-                preview_error = str(error)
+        if pdf_attachment.file_kind == AttachmentKind.PDF_RESULTADO:
+            try:
+                spirometry_suggestion = build_spirometry_suggestion_from_pdf(
+                    pdf_attachment.file.path,
+                    attachment_id=pdf_attachment.pk,
+                )
+            except Exception as error:
+                if not preview_error:
+                    preview_error = str(error)
+    inconsistency_flags = get_encounter_inconsistencies(encounter)
     return render(
         request,
         "clinic/doctor_review_detail.html",
@@ -1977,9 +2120,11 @@ def doctor_review_detail(request, pk):
             "pdf_attachment": pdf_attachment,
             "pdf_preview_pages": pdf_preview_pages,
             "preview_error": preview_error,
+            "result_attachment_is_image": bool(pdf_attachment and is_result_image_attachment(pdf_attachment)),
             "result_code_suggestions": RESULT_CODE_SUGGESTIONS,
             "patient_profile_available": looks_like_profile_data(encounter.patient),
             "spirometry_suggestion": spirometry_suggestion,
+            "inconsistency_flags": inconsistency_flags,
         },
     )
 
@@ -1996,7 +2141,14 @@ def encounter_detail(request, pk):
         ).prefetch_related("attachments", "generated_reports", "events__actor"),
         pk=pk,
     )
-    return render(request, "clinic/encounter_detail.html", {"encounter": encounter})
+    return render(
+        request,
+        "clinic/encounter_detail.html",
+        {
+            "encounter": encounter,
+            "inconsistency_flags": get_encounter_inconsistencies(encounter),
+        },
+    )
 
 
 @login_required
@@ -2064,6 +2216,8 @@ def encounter_generate_report(request, pk):
         return redirect("clinic:encounter_detail", pk=encounter.pk)
 
     can_generate_report, report_block_reason = get_report_readiness(encounter)
+    inconsistency_flags = get_encounter_inconsistencies(encounter)
+    confirm_inconsistencies = request.POST.get("confirm_inconsistencies") == "1"
     if not can_generate_report:
         if is_ajax_request(request):
             payload = {"ok": False, "message": f"No se puede generar el informe. {report_block_reason}."}
@@ -2073,6 +2227,18 @@ def encounter_generate_report(request, pk):
         next_url = request.POST.get("next", "")
         if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
             return redirect(next_url)
+        return redirect("clinic:encounter_detail", pk=encounter.pk)
+    if inconsistency_flags and not confirm_inconsistencies:
+        warning_message = "Hay inconsistencias para revisar antes de generar: " + " | ".join(inconsistency_flags)
+        if is_ajax_request(request):
+            payload = {
+                "ok": False,
+                "requires_confirmation": True,
+                "message": warning_message,
+            }
+            payload.update(get_row_state_payload(encounter))
+            return JsonResponse(payload, status=409)
+        messages.warning(request, warning_message)
         return redirect("clinic:encounter_detail", pk=encounter.pk)
 
     try:

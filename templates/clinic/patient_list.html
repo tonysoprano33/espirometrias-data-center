@@ -13,9 +13,50 @@
     </div>
 
     <form method="get" style="margin:16px 0 22px;">
-        <div class="field">
-            <label for="q">Buscar por nombre o DNI</label>
-            <input type="text" id="q" name="q" value="{{ query }}">
+        <div class="form-grid" style="grid-template-columns:repeat(3, minmax(0, 1fr));">
+            <div class="field">
+                <label for="q">Buscar por nombre o DNI</label>
+                <input type="text" id="q" name="q" value="{{ query }}">
+            </div>
+            <div class="field">
+                <label for="date">Fecha</label>
+                <input type="date" id="date" name="date" value="{{ filters.date }}">
+            </div>
+            <div class="field">
+                <label for="coverage">Obra social</label>
+                <select id="coverage" name="coverage">
+                    <option value="">Todas</option>
+                    {% for value, label in coverage_choices %}
+                        <option value="{{ value }}"{% if filters.coverage == value %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="diagnosis">Diagnóstico</label>
+                <input type="text" id="diagnosis" name="diagnosis" value="{{ filters.diagnosis }}" placeholder="N, OL, OMS, RLOMS...">
+            </div>
+            <div class="field">
+                <label for="status">Estado</label>
+                <select id="status" name="status">
+                    <option value="">Todos</option>
+                    {% for value, label in status_choices %}
+                        <option value="{{ value }}"{% if filters.status == value %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="physician">Médico derivante</label>
+                <select id="physician" name="physician">
+                    <option value="">Todos</option>
+                    {% for physician in physician_choices %}
+                        <option value="{{ physician.pk }}"{% if filters.physician == physician.pk|stringformat:"s" %} selected{% endif %}>{{ physician.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
+            <button class="button" type="submit">Filtrar</button>
+            <a class="button alt" href="{% url 'clinic:patient_list' %}">Limpiar</a>
         </div>
     </form>
 
