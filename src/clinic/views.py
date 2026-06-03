@@ -50,8 +50,12 @@ from .models import (
     WalkTest,
 )
 from .pdf_intake import (
+    apply_snapshot_to_encounter_patient,
+    build_analysis_from_browser_payload,
+    build_analysis_from_text,
     build_spirometry_suggestion_from_pdf,
     collapse_spaces,
+    extract_pdf_text_content,
     get_ocr_engine,
     ensure_pdf_preview_pages,
     ingest_pdf_attachment_into_patient,
@@ -165,6 +169,22 @@ def classify_result_upload(uploaded_file):
     raise ValueError("Subi un PDF o una imagen JPG, PNG o WEBP.")
 
 
+def build_analysis_for_uploaded_result(attachment, analysis_payload_json: str = ""):
+    if analysis_payload_json:
+        analysis = build_analysis_from_browser_payload(analysis_payload_json)
+        if analysis:
+            return analysis
+
+    if not attachment or not getattr(attachment, "file", None):
+        return {}
+
+    if attachment.file_kind == AttachmentKind.PDF_RESULTADO:
+        extracted_text = extract_pdf_text_content(attachment.file.path)
+        if extracted_text:
+            return build_analysis_from_text(extracted_text, source="server-pdf-text")
+    return {}
+
+
 def apply_result_code_to_spirometry(encounter, result_code: str):
     parsed = parse_result_code(result_code)
     pattern = ""
@@ -181,9 +201,54 @@ def apply_result_code_to_spirometry(encounter, result_code: str):
     result.obstruction_grade = obstruction_grade
     result.restriction_grade = restriction_grade
     result.bronchodilator_positive = False
-    result.physician_comment = ""
     result.save()
     return result
+
+
+def store_spirometry_analysis(encounter, analysis: dict):
+    if not analysis:
+        return None
+
+    result, _ = SpirometryResult.objects.get_or_create(encounter=encounter)
+    result.measured_values = analysis.get("values") or {}
+    result.suggested_code = analysis.get("code", "") or ""
+    result.suggested_probability = analysis.get("probability")
+    result.suggested_summary = analysis.get("summary", "") or ""
+    result.extracted_source = analysis.get("source", "") or ""
+    result.save(
+        update_fields=[
+            "measured_values",
+            "suggested_code",
+            "suggested_probability",
+            "suggested_summary",
+            "extracted_source",
+            "updated_at",
+        ]
+    )
+    return result
+
+
+def build_stored_suggestion_context(spirometry_result):
+    if not spirometry_result or not spirometry_result.suggested_code:
+        return None
+    stored_summary = spirometry_result.suggested_summary or ""
+    probability_phrase = (
+        f"{spirometry_result.suggested_probability}% probable {spirometry_result.suggested_code}"
+        if spirometry_result.suggested_probability is not None
+        else ""
+    )
+    reason = stored_summary
+    if probability_phrase and stored_summary.startswith(probability_phrase):
+        reason = stored_summary[len(probability_phrase):].lstrip(". ").strip()
+    return {
+        "code": spirometry_result.suggested_code,
+        "reason": reason,
+        "summary": stored_summary,
+        "probability": spirometry_result.suggested_probability,
+        "probability_phrase": probability_phrase,
+        "values": spirometry_result.measured_values or {},
+        "source": spirometry_result.extracted_source or "",
+    }
 
 
 def get_result_code_from_encounter(encounter) -> str:
@@ -1187,6 +1252,155 @@ def build_patient_profile_summary(patients):
     }
 
 
+SEVERITY_RANK = {
+    "Leve": 1,
+    "Moderada": 2,
+    "Moderadamente severa": 3,
+    "Severa": 4,
+}
+
+
+def get_result_severity_score(encounter) -> int | None:
+    code = get_result_code_from_encounter(encounter)
+    parsed = parse_result_code(code)
+    if not parsed:
+        return None
+    if parsed["canonical_code"] == "N":
+        return 0
+    restriction_score = SEVERITY_RANK.get(parsed["restriction_grade"], 0)
+    obstruction_score = SEVERITY_RANK.get(parsed["obstruction_grade"], 0)
+    if parsed["pattern"] == "Mixto":
+        return max(restriction_score, obstruction_score) + min(restriction_score, obstruction_score)
+    return max(restriction_score, obstruction_score)
+
+
+def get_measured_metric(result, metric_name: str, key: str):
+    if not result:
+        return None
+    values = result.measured_values or {}
+    metric_values = values.get(metric_name, {})
+    try:
+        value = metric_values.get(key)
+    except AttributeError:
+        return None
+    return value
+
+
+def describe_progression(previous_encounter, current_encounter):
+    previous_result = getattr(previous_encounter, "spirometry_result", None)
+    current_result = getattr(current_encounter, "spirometry_result", None)
+    if not previous_result or not current_result:
+        return {"label": "Sin base", "tone": "muted", "detail": "Todavia no hay dos estudios comparables."}
+
+    previous_score = get_result_severity_score(previous_encounter)
+    current_score = get_result_severity_score(current_encounter)
+    previous_fev1 = get_measured_metric(previous_result, "fev1", "percent")
+    current_fev1 = get_measured_metric(current_result, "fev1", "percent")
+
+    if previous_score is not None and current_score is not None and current_score < previous_score:
+        return {"label": "Mejoro", "tone": "ok", "detail": "El patron actual es menos severo que el estudio previo."}
+    if previous_score is not None and current_score is not None and current_score > previous_score:
+        return {"label": "Empeoro", "tone": "warn", "detail": "El patron actual es mas severo que el estudio previo."}
+    if previous_fev1 is not None and current_fev1 is not None:
+        delta = float(current_fev1) - float(previous_fev1)
+        if delta >= 8:
+            return {
+                "label": "Mejoro",
+                "tone": "ok",
+                "detail": f"FEV1 % subio {delta:.1f} puntos frente al estudio previo.",
+            }
+        if delta <= -8:
+            return {
+                "label": "Empeoro",
+                "tone": "warn",
+                "detail": f"FEV1 % bajo {abs(delta):.1f} puntos frente al estudio previo.",
+            }
+    return {"label": "Estable", "tone": "muted", "detail": "No hay cambios clinicos marcados respecto del estudio previo."}
+
+
+def get_patient_age_value(patient) -> int | None:
+    if patient.age_reported is not None:
+        return int(patient.age_reported)
+    if patient.birth_date:
+        today = timezone.localdate()
+        return today.year - patient.birth_date.year - (
+            (today.month, today.day) < (patient.birth_date.month, patient.birth_date.day)
+        )
+    return None
+
+
+def get_latest_coded_encounter(patient):
+    encounters = sorted(
+        [
+            encounter
+            for encounter in patient.encounters.all()
+            if get_result_code_from_encounter(encounter)
+        ],
+        key=lambda encounter: (
+            encounter.encounter_date or date.min,
+            encounter.encounter_time or datetime.min.time(),
+            encounter.created_at,
+        ),
+        reverse=True,
+    )
+    return encounters[0] if encounters else None
+
+
+def build_diagnosis_distribution(encounters):
+    rows = []
+    counter = {}
+    for encounter in encounters:
+        code = get_result_code_from_encounter(encounter) or "Sin carga"
+        counter[code] = counter.get(code, 0) + 1
+    total = sum(counter.values())
+    for code, quantity in sorted(counter.items(), key=lambda item: (-item[1], item[0])):
+        rows.append(
+            {
+                "code": code,
+                "label": get_result_label_for_code(code),
+                "total": quantity,
+                "percent": percent(quantity, total),
+            }
+        )
+    return rows
+
+
+def build_cohort_statistics(patients):
+    latest_encounters = []
+    for patient in patients:
+        latest = get_latest_coded_encounter(patient)
+        if latest:
+            latest_encounters.append(latest)
+
+    cohorts = [
+        ("Hombres 60+", lambda patient: normalize_gender_bucket(patient.gender) == "Masculino" and (get_patient_age_value(patient) or -1) >= 60),
+        ("Mujeres 60+", lambda patient: normalize_gender_bucket(patient.gender) == "Femenino" and (get_patient_age_value(patient) or -1) >= 60),
+        ("40 a 59 años", lambda patient: 40 <= (get_patient_age_value(patient) or -1) <= 59),
+        ("Menores de 40", lambda patient: 0 <= (get_patient_age_value(patient) or -1) < 40),
+        ("Fumadores", lambda patient: normalize_smoking_bucket(patient.smoking_status) == "Fumador"),
+        ("No fumadores", lambda patient: normalize_smoking_bucket(patient.smoking_status) == "No fumador"),
+    ]
+
+    rows = []
+    for label, matcher in cohorts:
+        encounters = [encounter for encounter in latest_encounters if matcher(encounter.patient)]
+        total = len(encounters)
+        diagnosis_rows = build_diagnosis_distribution(encounters)
+        top_row = diagnosis_rows[0] if diagnosis_rows else None
+        abnormal = sum(1 for encounter in encounters if (get_result_code_from_encounter(encounter) or "") not in {"", "N"})
+        rows.append(
+            {
+                "label": label,
+                "total": total,
+                "abnormal_percent": percent(abnormal, total),
+                "top_code": top_row["code"] if top_row else "-",
+                "top_percent": top_row["percent"] if top_row else 0,
+                "top_label": top_row["label"] if top_row else "Sin datos",
+            }
+        )
+    return rows, build_diagnosis_distribution(latest_encounters)
+
+
 def get_encounter_inconsistencies(encounter):
     patient = encounter.patient
     vital = getattr(encounter, "vital_signs", None)
@@ -1796,10 +2010,16 @@ def statistics_view(request):
         for patient in Patient.objects.all().order_by("-updated_at")
         if looks_like_profile_data(patient)
     ]
+    cohort_patients = list(
+        Patient.objects.prefetch_related(
+            "encounters__spirometry_result"
+        ).all()
+    )
     month_patient_ids = list(current_month_qs.values_list("patient_id", flat=True).distinct())
     current_month_profiled_patients = [patient for patient in profiled_patients if patient.id in month_patient_ids]
     profile_summary = build_patient_profile_summary(profiled_patients)
     month_profile_summary = build_patient_profile_summary(current_month_profiled_patients)
+    cohort_rows, diagnosis_rows = build_cohort_statistics(cohort_patients)
 
     context = {
         "today": today,
@@ -1812,6 +2032,8 @@ def statistics_view(request):
         "profile_summary": profile_summary,
         "month_profile_summary": month_profile_summary,
         "latest_profiled_patients": profiled_patients[:10],
+        "cohort_rows": cohort_rows,
+        "diagnosis_rows": diagnosis_rows,
     }
     return render(request, "clinic/statistics.html", context)
 
@@ -1885,16 +2107,28 @@ def patient_list(request):
 @login_required
 def patient_detail(request, pk):
     patient = get_object_or_404(Patient, pk=pk)
-    encounters = (
+    encounters = list(
         patient.encounters.select_related("vital_signs", "walk_test", "spirometry_result", "referring_physician")
         .prefetch_related("attachments", "generated_reports__attachment", "events")
         .order_by("-encounter_date", "-encounter_time", "-created_at")
     )
+    ordered_for_progression = list(reversed(encounters))
+    previous_encounter = None
+    progression_map = {}
+    for encounter in ordered_for_progression:
+        progression_map[encounter.pk] = describe_progression(previous_encounter, encounter) if previous_encounter else {
+            "label": "Base",
+            "tone": "muted",
+            "detail": "Primer estudio disponible para comparar.",
+        }
+        previous_encounter = encounter
     for encounter in encounters:
         encounter.result_code = get_result_code_from_encounter(encounter)
         encounter.result_label = get_result_label_from_encounter(encounter)
         encounter.attendance_label = get_attendance_label(encounter)
         encounter.pdf_attachment = get_latest_result_attachment(encounter)
+        encounter.progression = progression_map.get(encounter.pk, {"label": "Sin base", "tone": "muted", "detail": ""})
+        encounter.suggestion = build_stored_suggestion_context(getattr(encounter, "spirometry_result", None))
         latest_report_info = get_latest_report_info(encounter)
         encounter.latest_report_url = latest_report_info["latest_report_url"]
         encounter.latest_report_name = latest_report_info["latest_report_name"]
@@ -1917,6 +2151,7 @@ def patient_detail(request, pk):
         "pending_encounters": patient.encounters.filter(status=EncounterStatus.PENDIENTE).count(),
         "reviewed_encounters": patient.encounters.filter(status=EncounterStatus.REVISADA).count(),
     }
+    latest_comparison = progression_map.get(encounters[0].pk) if encounters else None
 
     profile_items = [
         ("DNI", patient.dni or "-"),
@@ -1941,6 +2176,7 @@ def patient_detail(request, pk):
             "patient_documents": patient_documents,
             "patient_events": patient_events,
             "operational_summary": operational_summary,
+            "latest_comparison": latest_comparison,
         },
     )
 
@@ -2117,7 +2353,9 @@ def doctor_review_detail(request, pk):
         form = DoctorReviewForm(request.POST, request.FILES)
         if form.is_valid():
             pdf_file = form.cleaned_data.get("pdf_file")
+            analysis_payload_json = form.cleaned_data.get("analysis_payload_json", "")
             extraction_message = ""
+            analysis = {}
             if pdf_file:
                 file_kind, mime_type = classify_result_upload(pdf_file)
                 attachment = Attachment(
@@ -2129,18 +2367,26 @@ def doctor_review_detail(request, pk):
                 )
                 attachment.file.save(pdf_file.name, pdf_file, save=True)
                 snapshot, changed_fields = {}, []
-                if file_kind == AttachmentKind.PDF_RESULTADO:
-                    try:
-                        snapshot, changed_fields = ingest_pdf_attachment_into_patient(attachment)
+                try:
+                    analysis = build_analysis_for_uploaded_result(attachment, analysis_payload_json=analysis_payload_json)
+                    snapshot = analysis.get("snapshot") or {}
+                    if snapshot:
+                        _, changed_fields = apply_snapshot_to_encounter_patient(encounter, snapshot)
                         encounter.refresh_from_db()
-                    except Exception as error:
-                        messages.warning(request, f"El PDF se subio, pero no se pudieron leer datos automaticos: {error}")
+                    if analysis.get("values"):
+                        store_spirometry_analysis(encounter, analysis)
+                except Exception as error:
+                    messages.warning(request, f"El archivo se subio, pero no se pudieron leer datos automaticos: {error}")
                 record_encounter_event(
                     encounter,
                     EncounterEventType.DOCUMENT,
                     "Resultado de espirometria cargado",
                     actor=request.user,
                     details=f"Archivo: {pdf_file.name}",
+                    metadata={
+                        "analysis_source": analysis.get("source", "") if analysis else "",
+                        "suggested_code": analysis.get("code", "") if analysis else "",
+                    },
                 )
                 if snapshot:
                     extracted_name = snapshot.get("full_name") or encounter.patient.full_name
@@ -2148,10 +2394,12 @@ def doctor_review_detail(request, pk):
                     extraction_message = f" PDF leido: {extracted_name} / doc {extracted_code}."
                     if changed_fields:
                         extraction_message += f" Datos actualizados: {', '.join(changed_fields)}."
+                elif analysis.get("code"):
+                    extraction_message = f" Sugerencia automatica: {analysis.get('summary')}."
                 elif file_kind == AttachmentKind.FOTO_RESULTADO:
                     extraction_message = " Foto cargada correctamente."
 
-            result_code = form.cleaned_data.get("respiratory_result") or ""
+            result_code = form.cleaned_data.get("respiratory_result") or analysis.get("code") or current_result or ""
             apply_result_code_to_spirometry(encounter, result_code)
             encounter.status = EncounterStatus.REVISADA
             encounter.updated_by = request.user
@@ -2174,18 +2422,19 @@ def doctor_review_detail(request, pk):
     pdf_attachment = get_latest_result_attachment(encounter)
     pdf_preview_pages = []
     preview_error = ""
-    spirometry_suggestion = None
+    spirometry_suggestion = build_stored_suggestion_context(getattr(encounter, "spirometry_result", None))
     if pdf_attachment:
         try:
             pdf_preview_pages = build_result_preview_images(pdf_attachment)
         except Exception as error:
             preview_error = str(error)
-        if pdf_attachment.file_kind == AttachmentKind.PDF_RESULTADO:
+        if pdf_attachment.file_kind == AttachmentKind.PDF_RESULTADO and not spirometry_suggestion:
             try:
                 spirometry_suggestion = build_spirometry_suggestion_from_pdf(
                     pdf_attachment.file.path,
                     attachment_id=pdf_attachment.pk,
                 )
+                store_spirometry_analysis(encounter, {**spirometry_suggestion, "source": "server-pdf-text"})
             except Exception as error:
                 if not preview_error:
                     preview_error = str(error)

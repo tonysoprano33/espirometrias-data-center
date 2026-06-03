@@ -289,6 +289,69 @@
     </article>
 </section>
 
+<section class="grid-2" style="margin-top:20px;">
+    <article class="card">
+        <p class="pill">Probabilidad clinica</p>
+        <h2 class="section-title" style="margin-top:10px;">Cohortes que mas se repiten</h2>
+        <table class="stats-table">
+            <thead>
+                <tr>
+                    <th>Cohorte</th>
+                    <th>Pacientes</th>
+                    <th>% con alteracion</th>
+                    <th>Mas frecuente</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in cohort_rows %}
+                    <tr>
+                        <td>{{ row.label }}</td>
+                        <td>{{ row.total }}</td>
+                        <td>{{ row.abnormal_percent }}%</td>
+                        <td>
+                            {{ row.top_code }}{% if row.top_code != "-" %} - {{ row.top_percent }}%{% endif %}
+                            <div class="muted">{{ row.top_label }}</div>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="4">Todavia no hay espirometrias suficientes para comparar cohortes.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </article>
+
+    <article class="card">
+        <p class="pill">Distribucion diagnostica</p>
+        <h2 class="section-title" style="margin-top:10px;">Ultimo resultado por paciente</h2>
+        <table class="stats-table">
+            <thead>
+                <tr>
+                    <th>Codigo</th>
+                    <th>Lectura</th>
+                    <th>Total</th>
+                    <th>%</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in diagnosis_rows %}
+                    <tr>
+                        <td>{{ row.code }}</td>
+                        <td>{{ row.label }}</td>
+                        <td>{{ row.total }}</td>
+                        <td>{{ row.percent }}%</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="4">Todavia no hay resultados espirometricos consolidados.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </article>
+</section>
+
 <section class="card" style="margin-top:20px;">
     <p class="pill">Ultimos perfiles</p>
     <h2 class="section-title" style="margin-top:10px;">Pacientes leidos desde PDF</h2>

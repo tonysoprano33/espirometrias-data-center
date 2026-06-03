@@ -224,6 +224,11 @@ class SpirometryResult(TimeStampedModel):
     )
     bronchodilator_positive = models.BooleanField("Broncodilatador positivo", default=False)
     physician_comment = models.TextField("Comentario medico", blank=True)
+    measured_values = models.JSONField("Valores extraidos", blank=True, default=dict)
+    suggested_code = models.CharField("Codigo sugerido", max_length=24, blank=True)
+    suggested_probability = models.PositiveSmallIntegerField("Probabilidad sugerida", blank=True, null=True)
+    suggested_summary = models.TextField("Resumen sugerido", blank=True)
+    extracted_source = models.CharField("Fuente de extraccion", max_length=40, blank=True)
 
     class Meta:
         verbose_name = "Resultado espirometrico"

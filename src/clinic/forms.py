@@ -281,6 +281,7 @@ class DoctorReviewForm(forms.Form):
         ),
     )
     respiratory_result = forms.CharField(label="Resultado", required=False, max_length=24)
+    analysis_payload_json = forms.CharField(required=False, widget=forms.HiddenInput())
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -91,6 +91,14 @@
             <strong>{{ operational_summary.reviewed_encounters }}</strong>
         </div>
     </div>
+
+    {% if latest_comparison %}
+        <div class="patient-ops-card" style="margin-top:14px;">
+            <span class="muted">Comparacion mas reciente</span>
+            <strong>{{ latest_comparison.label }}</strong>
+            <div class="muted" style="margin-top:6px;">{{ latest_comparison.detail }}</div>
+        </div>
+    {% endif %}
 </section>
 
 <section class="card" style="margin-top:18px;">
@@ -113,6 +121,7 @@
                     <th>SO2 / FC reposo</th>
                     <th>SO2 / FC post</th>
                     <th>Resultado</th>
+                    <th>Evolucion</th>
                     <th>Asistencia</th>
                     <th>Archivos</th>
                 </tr>
@@ -134,7 +143,16 @@
                             /
                             {{ encounter.vital_signs.fc_post|default:"-" }}
                         </td>
-                        <td><strong>{{ encounter.result_label }}</strong></td>
+                        <td>
+                            <strong>{{ encounter.result_label }}</strong>
+                            {% if encounter.suggestion and encounter.suggestion.probability_phrase %}
+                                <div class="muted" style="margin-top:4px;">{{ encounter.suggestion.probability_phrase }}</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <strong>{{ encounter.progression.label }}</strong>
+                            <div class="muted" style="margin-top:4px;">{{ encounter.progression.detail }}</div>
+                        </td>
                         <td>{{ encounter.attendance_label }}</td>
                         <td>
                             <a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Revision</a> |
@@ -154,7 +172,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="9">Todavia no hay atenciones guardadas para este paciente.</td>
+                        <td colspan="10">Todavia no hay atenciones guardadas para este paciente.</td>
                     </tr>
                 {% endfor %}
             </tbody>

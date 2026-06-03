@@ -104,6 +104,9 @@
                     </div>
                     <button class="button small alt" type="button" data-use-suggestion>Usar sugerido</button>
                 </div>
+                {% if spirometry_suggestion.probability_phrase %}
+                    <p style="margin:10px 0 0;"><strong>{{ spirometry_suggestion.probability_phrase }}</strong></p>
+                {% endif %}
                 <p class="muted" style="margin:10px 0 0;">{{ spirometry_suggestion.reason }}</p>
                 <div class="measurement-grid">
                     <div>
@@ -132,13 +135,15 @@
         {% endif %}
         <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
+            {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
             <div class="form-grid" style="grid-template-columns:1fr;">
-                {% for field in form %}
+                {% for field in form.visible_fields %}
                     <div class="field">
                         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                         {{ field }}
                         {% if field.name == "pdf_file" %}
                             <div class="muted" style="margin-top:8px;">Desde el celular podes elegir PDF, sacar una foto o subir una imagen JPG/PNG/WEBP.</div>
+                            <div class="muted" data-analysis-status style="margin-top:8px;">Si el PDF trae texto, lo leo solo. Si es una imagen, lo analizo en tu navegador antes de guardarlo.</div>
                         {% endif %}
                         {% if field.errors %}
                             <div class="muted">{{ field.errors }}</div>
@@ -158,6 +163,8 @@
         </form>
     </aside>
 </section>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
     (function () {
         var resultInputs = document.querySelectorAll("[data-result-code]");
@@ -174,6 +181,172 @@
             useSuggestion.addEventListener("click", function () {
                 resultInputs[0].value = suggestedCode.textContent.replace(/\s+/g, "");
                 resultInputs[0].focus();
+            });
+        }
+
+        var form = document.querySelector("form[enctype='multipart/form-data']");
+        var fileInput = form ? form.querySelector("input[type='file']") : null;
+        var payloadField = form ? form.querySelector("input[name='analysis_payload_json']") : null;
+        var statusNode = form ? form.querySelector("[data-analysis-status]") : null;
+        var awaitingAnalysisSubmit = false;
+
+        function setStatus(message) {
+            if (statusNode) {
+                statusNode.textContent = message || "";
+            }
+        }
+
+        function normalizeText(value) {
+            return String(value || "").replace(/\s+/g, " ").trim();
+        }
+
+        function groupPdfTextItems(items, pageNumber) {
+            var grouped = [];
+            for (var i = 0; i < items.length; i += 1) {
+                var item = items[i];
+                var text = normalizeText(item.str);
+                if (!text) {
+                    continue;
+                }
+                var y = item.transform && item.transform.length > 5 ? item.transform[5] : 0;
+                var existing = null;
+                for (var j = 0; j < grouped.length; j += 1) {
+                    if (Math.abs(grouped[j].y - y) < 3) {
+                        existing = grouped[j];
+                        break;
+                    }
+                }
+                if (!existing) {
+                    existing = { page: pageNumber, y: y, textParts: [] };
+                    grouped.push(existing);
+                }
+                existing.textParts.push(text);
+            }
+            grouped.sort(function (a, b) { return a.y - b.y; });
+            return grouped.map(function (line) {
+                return {
+                    page: line.page,
+                    y: line.y,
+                    text: normalizeText(line.textParts.join(" ")),
+                };
+            }).filter(function (line) { return line.text; });
+        }
+
+        async function renderPdfPageToCanvas(page) {
+            var viewport = page.getViewport({ scale: 2 });
+            var canvas = document.createElement("canvas");
+            var context = canvas.getContext("2d");
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: context, viewport: viewport }).promise;
+            return canvas;
+        }
+
+        async function extractPdfPayload(file) {
+            var pdfjsLib = window.pdfjsLib || globalThis.pdfjsLib;
+            if (!pdfjsLib) {
+                throw new Error("No se pudo cargar el lector PDF del navegador.");
+            }
+            pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.js";
+            var buffer = await file.arrayBuffer();
+            var pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+            var lines = [];
+            for (var pageNumber = 1; pageNumber <= Math.min(pdf.numPages, 3); pageNumber += 1) {
+                var page = await pdf.getPage(pageNumber);
+                var textContent = await page.getTextContent();
+                var pageLines = groupPdfTextItems(textContent.items || [], pageNumber);
+                lines = lines.concat(pageLines);
+            }
+            var joinedText = normalizeText(lines.map(function (line) { return line.text; }).join("\n"));
+            if (joinedText.length >= 40) {
+                return { source: "browser-pdf-text", text: joinedText, lines: lines };
+            }
+
+            var ocrLines = [];
+            for (var index = 1; index <= Math.min(pdf.numPages, 2); index += 1) {
+                var ocrPage = await pdf.getPage(index);
+                var canvas = await renderPdfPageToCanvas(ocrPage);
+                var result = await window.Tesseract.recognize(canvas, "spa+eng");
+                var extractedLines = (((result || {}).data || {}).lines || []).map(function (line) {
+                    return {
+                        page: index,
+                        y: line.bbox ? line.bbox.y0 : 0,
+                        text: normalizeText(line.text),
+                    };
+                }).filter(function (line) { return line.text; });
+                ocrLines = ocrLines.concat(extractedLines);
+            }
+            return {
+                source: "browser-pdf-ocr",
+                text: normalizeText(ocrLines.map(function (line) { return line.text; }).join("\n")),
+                lines: ocrLines,
+            };
+        }
+
+        async function extractImagePayload(file) {
+            var result = await window.Tesseract.recognize(file, "spa+eng");
+            var lines = (((result || {}).data || {}).lines || []).map(function (line) {
+                return {
+                    page: 1,
+                    y: line.bbox ? line.bbox.y0 : 0,
+                    text: normalizeText(line.text),
+                };
+            }).filter(function (line) { return line.text; });
+            return {
+                source: "browser-image-ocr",
+                text: normalizeText(lines.map(function (line) { return line.text; }).join("\n")),
+                lines: lines,
+            };
+        }
+
+        async function ensureAnalysisPayload() {
+            if (!fileInput || !fileInput.files || !fileInput.files.length || !payloadField) {
+                return;
+            }
+            var file = fileInput.files[0];
+            if (payloadField.value && payloadField.dataset.filename === file.name && payloadField.dataset.size === String(file.size)) {
+                return;
+            }
+            setStatus("Analizando archivo antes de guardarlo...");
+            var payload = file.type === "application/pdf" || /\.pdf$/i.test(file.name)
+                ? await extractPdfPayload(file)
+                : await extractImagePayload(file);
+            payloadField.value = JSON.stringify(payload);
+            payloadField.dataset.filename = file.name;
+            payloadField.dataset.size = String(file.size);
+            setStatus(payload.text ? "Analisis automatico listo para guardar." : "No se pudo extraer texto util automaticamente.");
+        }
+
+        if (fileInput && payloadField) {
+            fileInput.addEventListener("change", function () {
+                payloadField.value = "";
+                delete payloadField.dataset.filename;
+                delete payloadField.dataset.size;
+                if (fileInput.files && fileInput.files.length) {
+                    ensureAnalysisPayload().catch(function (error) {
+                        setStatus("No se pudo analizar el archivo automaticamente: " + error.message);
+                    });
+                } else {
+                    setStatus("Si el PDF trae texto, lo leo solo. Si es una imagen, lo analizo en tu navegador antes de guardarlo.");
+                }
+            });
+            form.addEventListener("submit", function (event) {
+                if (awaitingAnalysisSubmit) {
+                    awaitingAnalysisSubmit = false;
+                    return;
+                }
+                if (!fileInput.files || !fileInput.files.length) {
+                    return;
+                }
+                event.preventDefault();
+                ensureAnalysisPayload()
+                    .catch(function (error) {
+                        setStatus("No se pudo analizar el archivo automaticamente: " + error.message);
+                    })
+                    .finally(function () {
+                        awaitingAnalysisSubmit = true;
+                        form.requestSubmit();
+                    });
             });
         }
     })();

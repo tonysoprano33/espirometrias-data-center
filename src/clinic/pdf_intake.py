@@ -3,6 +3,7 @@ import unicodedata
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
+import json
 from pathlib import Path
 
 from django.conf import settings
@@ -17,6 +18,7 @@ except Exception as error:  # pragma: no cover - fallback defensivo
 
 
 OCR_ROW_TOLERANCE = 18
+SUGGESTION_PROBABILITY_CAP = 99
 
 
 def collapse_spaces(value: str) -> str:
@@ -101,6 +103,138 @@ def ensure_pdf_preview_pages(pdf_path: str, attachment_id: int | None = None) ->
     finally:
         document.close()
     return sorted(preview_dir.glob("page-*.png"))
+
+
+def extract_pdf_text_content(pdf_path: str) -> str:
+    document = pdfium.PdfDocument(str(pdf_path))
+    collected_pages = []
+    try:
+        for page_index in range(len(document)):
+            page = document[page_index]
+            try:
+                text_page = page.get_textpage()
+                try:
+                    page_text = collapse_spaces(text_page.get_text_range())
+                finally:
+                    text_page.close()
+            finally:
+                page.close()
+            if page_text:
+                collected_pages.append(page_text)
+    finally:
+        document.close()
+    return "\n".join(collected_pages).strip()
+
+
+def build_text_from_browser_payload(raw_payload) -> tuple[str, str]:
+    if not raw_payload:
+        return "", ""
+    if isinstance(raw_payload, str):
+        payload = json.loads(raw_payload)
+    else:
+        payload = raw_payload
+
+    if isinstance(payload, dict):
+        source = collapse_spaces(payload.get("source", "browser"))
+        text = collapse_spaces(payload.get("text", ""))
+        if text:
+            return text, source
+
+        lines = payload.get("lines") or []
+        ordered_lines = []
+        for item in lines:
+            if not isinstance(item, dict):
+                continue
+            line_text = collapse_spaces(item.get("text", ""))
+            if not line_text:
+                continue
+            ordered_lines.append(
+                (
+                    int(item.get("page", 1) or 1),
+                    float(item.get("y", 0) or 0),
+                    line_text,
+                )
+            )
+        ordered_lines.sort(key=lambda value: (value[0], value[1], value[2]))
+        return "\n".join(text for _, _, text in ordered_lines), source
+
+    return collapse_spaces(str(payload)), "browser"
+
+
+def split_text_lines(raw_text: str) -> list[str]:
+    return [collapse_spaces(line) for line in str(raw_text or "").splitlines() if collapse_spaces(line)]
+
+
+def extract_line_for_labels(raw_text: str, labels: list[str]) -> str:
+    normalized_labels = [normalize_for_match(label) for label in labels]
+    for line in split_text_lines(raw_text):
+        normalized_line = normalize_for_match(line)
+        if any(label in normalized_line for label in normalized_labels):
+            return line
+    normalized_text = normalize_for_match(raw_text)
+    if not normalized_text:
+        return ""
+    for label in normalized_labels:
+        match = re.search(label + r"(.{0,180})", normalized_text)
+        if match:
+            return match.group(0)
+    return ""
+
+
+def extract_numbers_from_line(line: str) -> list[float]:
+    sanitized_line = re.sub(r"(?i)\bFEV1/FVC\b", " ", str(line or ""))
+    sanitized_line = re.sub(r"(?i)\bFEV1\b", " ", sanitized_line)
+    sanitized_line = re.sub(r"(?i)\bFVC\b", " ", sanitized_line)
+    return [
+        value
+        for value in (parse_measurement_number(token) for token in re.findall(r"\d+(?:[.,]\d+)?", sanitized_line))
+        if value is not None
+    ]
+
+
+def infer_measurement_values_from_numbers(numbers: list[float]) -> dict:
+    if not numbers:
+        return {"lln": None, "predicted": None, "best": None, "percent": None}
+
+    values = {"lln": None, "predicted": None, "best": None, "percent": None}
+    decimal_candidates = [number for number in numbers if number < 20]
+    percent_candidates = [number for number in numbers if 20 <= number <= 160]
+
+    if len(decimal_candidates) >= 1:
+        values["lln"] = decimal_candidates[0]
+    if len(decimal_candidates) >= 2:
+        values["predicted"] = decimal_candidates[1]
+    if len(decimal_candidates) >= 3:
+        values["best"] = decimal_candidates[2]
+    elif len(decimal_candidates) == 2:
+        values["best"] = decimal_candidates[1]
+
+    if percent_candidates:
+        values["percent"] = percent_candidates[-1]
+
+    if values["percent"] is None and values["predicted"] and values["best"]:
+        values["percent"] = round((values["best"] / values["predicted"]) * 100, 1)
+    return values
+
+
+def extract_spirometry_numbers_from_text(raw_text: str) -> dict:
+    fvc_line = extract_line_for_labels(raw_text, ["FVC"])
+    ratio_line = extract_line_for_labels(raw_text, ["FEV1/FVC", "FEV1FVC"])
+    fev1_line = extract_line_for_labels(raw_text, ["FEV1"])
+
+    fvc = infer_measurement_values_from_numbers(extract_numbers_from_line(fvc_line))
+    fev1 = infer_measurement_values_from_numbers(extract_numbers_from_line(fev1_line))
+    ratio = infer_measurement_values_from_numbers(extract_numbers_from_line(ratio_line))
+
+    if ratio.get("best") is None and ratio.get("percent") is not None and ratio.get("predicted") is None:
+        ratio["best"] = ratio["percent"]
+        ratio["percent"] = None
+
+    return {
+        "fvc": fvc,
+        "fev1": fev1,
+        "fev1_fvc": ratio,
+    }
 
 
 def ocr_items_from_pdf(pdf_path: str, attachment_id: int | None = None):
@@ -232,6 +366,14 @@ def spirometry_grade_from_percent(percent_value):
 
 
 def extract_spirometry_numbers_from_pdf(pdf_path: str, attachment_id: int | None = None):
+    text_values = extract_spirometry_numbers_from_text(extract_pdf_text_content(pdf_path))
+    enough_text_data = any(
+        text_values.get(key, {}).get("best") is not None or text_values.get(key, {}).get("percent") is not None
+        for key in ["fvc", "fev1", "fev1_fvc"]
+    )
+    if enough_text_data:
+        return text_values
+
     items = ocr_items_from_pdf(pdf_path, attachment_id=attachment_id)
     rows = {
         "fvc": row_items_for_parameter(items, "FVC"),
@@ -272,6 +414,29 @@ def extract_spirometry_numbers_from_pdf(pdf_path: str, attachment_id: int | None
     }
 
 
+def build_suggestion_probability(values: dict, code: str) -> int:
+    score = 40
+    fvc = values.get("fvc", {})
+    fev1 = values.get("fev1", {})
+    ratio = values.get("fev1_fvc", {})
+
+    if ratio.get("best") is not None:
+        score += 18
+    if ratio.get("lln") is not None:
+        score += 14
+    if fvc.get("best") is not None:
+        score += 12
+    if fvc.get("lln") is not None or fvc.get("percent") is not None:
+        score += 10
+    if fev1.get("percent") is not None:
+        score += 8
+    if fev1.get("best") is not None:
+        score += 4
+    if code == "N":
+        score += 6
+    return min(score, SUGGESTION_PROBABILITY_CAP)
+
+
 def suggest_result_code_from_spirometry(values: dict):
     fvc = values.get("fvc", {})
     fev1 = values.get("fev1", {})
@@ -294,24 +459,38 @@ def suggest_result_code_from_spirometry(values: dict):
     obstruction_grade = spirometry_grade_from_percent(fev1_percent)
     restriction_grade = spirometry_grade_from_percent(fvc_percent)
     if has_obstruction and has_restriction:
-        return "R{}O{}".format(restriction_grade or "L", obstruction_grade or "L"), (
-            "Relacion FEV1/FVC debajo del LLN y FVC reducida."
-        )
+        code = "R{}O{}".format(restriction_grade or "L", obstruction_grade or "L")
+        reason = "Relacion FEV1/FVC debajo del LLN y FVC reducida."
+        return code, reason, build_suggestion_probability(values, code)
     if has_obstruction:
-        return "O{}".format(obstruction_grade or "L"), "Relacion FEV1/FVC debajo del LLN."
+        code = "O{}".format(obstruction_grade or "L")
+        reason = "Relacion FEV1/FVC debajo del LLN."
+        return code, reason, build_suggestion_probability(values, code)
     if has_restriction:
-        return "R{}".format(restriction_grade or "L"), "FVC debajo del LLN o menor al 80% del teorico."
-    return "N", "FEV1/FVC y FVC no sugieren alteracion segun los valores leidos."
+        code = "R{}".format(restriction_grade or "L")
+        reason = "FVC debajo del LLN o menor al 80% del teorico."
+        return code, reason, build_suggestion_probability(values, code)
+    code = "N"
+    reason = "FEV1/FVC y FVC no sugieren alteracion segun los valores leidos."
+    return code, reason, build_suggestion_probability(values, code)
+
+
+def build_spirometry_analysis(values: dict):
+    code, reason, probability = suggest_result_code_from_spirometry(values)
+    probability_phrase = f"{probability}% probable {code}"
+    return {
+        "code": code,
+        "reason": reason,
+        "probability": probability,
+        "probability_phrase": probability_phrase,
+        "summary": f"{probability_phrase}. {reason}",
+        "values": values,
+    }
 
 
 def build_spirometry_suggestion_from_pdf(pdf_path: str, attachment_id: int | None = None):
     values = extract_spirometry_numbers_from_pdf(pdf_path, attachment_id=attachment_id)
-    code, reason = suggest_result_code_from_spirometry(values)
-    return {
-        "code": code,
-        "reason": reason,
-        "values": values,
-    }
+    return build_spirometry_analysis(values)
 
 
 def parse_date(text: str):
@@ -324,7 +503,63 @@ def parse_date(text: str):
     return None
 
 
+def extract_patient_snapshot_from_text(raw_text: str):
+    text_lines = split_text_lines(raw_text)
+    compact_text = " ".join(text_lines)
+    if not compact_text:
+        return {}
+
+    def find_value(patterns: list[str]):
+        for line in text_lines:
+            normalized_line = line.casefold()
+            for pattern in patterns:
+                if pattern.startswith("line:"):
+                    label = pattern.split(":", 1)[1].casefold()
+                    if normalized_line.startswith(label):
+                        separator_match = re.split(r"[:\-]\s*", line, maxsplit=1)
+                        if len(separator_match) == 2:
+                            return collapse_spaces(separator_match[1])
+        for pattern in patterns:
+            if pattern.startswith("line:"):
+                continue
+            match = re.search(pattern, compact_text, flags=re.IGNORECASE)
+            if match:
+                return collapse_spaces(match.group(1))
+        return ""
+
+    snapshot = {
+        "patient_code": find_value(["line:codigo de paciente", r"Codigo\s+de?\s*Paciente[:\s]+([A-Z0-9.\-]{6,})"]),
+        "dni": find_value(["line:dni", "line:documento", r"\bDNI[:\s]+([0-9.\-]{6,})", r"\bDocumento[:\s]+([0-9.\-]{6,})"]),
+        "last_name": find_value(["line:apellido", r"Apellido[:\s]+([A-ZÁÉÍÓÚÑ' ]{2,})"]),
+        "first_name": find_value(["line:nombre", r"Nombre[:\s]+([A-ZÁÉÍÓÚÑ' ]{2,})"]),
+        "birth_date": parse_date(find_value(["line:fecha de nac", r"Fecha\s+de\s+Nac(?:imiento)?[:\s]+([0-9/\-]{8,10})"])),
+        "age_reported": parse_integer(find_value(["line:edad", r"Edad[:\s]+([0-9]{1,3})"])),
+        "gender": find_value(["line:genero", "line:sexo", r"Genero[:\s]+([A-ZÁÉÍÓÚÑ ]{3,})", r"Sexo[:\s]+([A-ZÁÉÍÓÚÑ ]{3,})"]),
+        "height_cm": parse_integer(find_value(["line:altura", r"Altura(?:\s*cm)?[:\s]+([0-9]{2,3})"])),
+        "weight_kg": parse_decimal(find_value(["line:peso", r"Peso(?:\s*kg)?[:\s]+([0-9.,]{2,6})"])),
+        "bmi": parse_decimal(find_value(["line:bmi", r"\bBMI[:\s]+([0-9.,]{2,6})"])),
+        "ethnicity": find_value(["line:grupo etnico", r"Grupo\s+Etnico[:\s]+([A-ZÁÉÍÓÚÑ ]{3,})"]),
+        "smoking_status": find_value(["line:fuma", r"Fuma[:\s]+([A-ZÁÉÍÓÚÑ ]{2,})"]),
+        "pack_years": parse_decimal(find_value(["line:paquete año", "line:paquete anio", r"Paquete(?:\s*[- ]?\s*)?An(?:io|o)[:\s]+([0-9.,]{1,6})"])),
+        "patient_group": find_value(["line:grupo paciente", r"Grupo\s+Paciente[s]?[:\s]+([A-ZÁÉÍÓÚÑ ]{3,})"]),
+    }
+
+    if snapshot["last_name"] and snapshot["first_name"]:
+        snapshot["full_name"] = f"{snapshot['last_name']}, {snapshot['first_name']}"
+    elif snapshot["last_name"]:
+        snapshot["full_name"] = snapshot["last_name"]
+    elif snapshot["first_name"]:
+        snapshot["full_name"] = snapshot["first_name"]
+    else:
+        snapshot["full_name"] = ""
+    return snapshot
+
+
 def extract_patient_snapshot_from_pdf(pdf_path: str, attachment_id: int | None = None):
+    text_snapshot = extract_patient_snapshot_from_text(extract_pdf_text_content(pdf_path))
+    if text_snapshot and any(text_snapshot.get(key) for key in ["patient_code", "dni", "full_name"]):
+        return text_snapshot
+
     items = ocr_items_from_pdf(pdf_path, attachment_id=attachment_id)
     if not items:
         return {}
@@ -435,6 +670,43 @@ def find_existing_patient_for_snapshot(current_patient, snapshot: dict):
             return existing_patient
 
     return None
+
+
+def build_analysis_from_text(raw_text: str, source: str = "text"):
+    text = "\n".join(split_text_lines(raw_text))
+    if not text:
+        return {}
+    values = extract_spirometry_numbers_from_text(text)
+    has_values = any(values.get(key, {}).get("best") is not None or values.get(key, {}).get("percent") is not None for key in values)
+    snapshot = extract_patient_snapshot_from_text(text)
+    analysis = {
+        "source": source,
+        "text": text,
+        "snapshot": snapshot,
+        "values": values,
+    }
+    if has_values:
+        analysis.update(build_spirometry_analysis(values))
+    return analysis
+
+
+def build_analysis_from_browser_payload(raw_payload):
+    text, source = build_text_from_browser_payload(raw_payload)
+    return build_analysis_from_text(text, source=source or "browser")
+
+
+def apply_snapshot_to_encounter_patient(encounter, snapshot: dict):
+    patient = encounter.patient
+    target_patient = find_existing_patient_for_snapshot(patient, snapshot) or patient
+    changed_fields = []
+
+    if target_patient.pk != patient.pk:
+        encounter.patient = target_patient
+        encounter.save(update_fields=["patient", "updated_at"])
+        changed_fields.append("historia_clinica_unificada")
+
+    changed_fields.extend(apply_snapshot_to_patient(target_patient, snapshot))
+    return target_patient, sorted(set(changed_fields))
 
 
 def ingest_pdf_attachment_into_patient(attachment):
