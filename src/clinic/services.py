@@ -498,7 +498,43 @@ def _pdf_artifact_from_original(encounter, nombre_archivo_seguro: str, fecha_arc
     )
 
 
+def _single_page_spirometry_artifact(
+    *,
+    nombre: str,
+    dni: str,
+    deriva: str,
+    fecha_impresion: str,
+    so2: str,
+    fc: str,
+    informe: str,
+    es_normal: bool,
+    broncodilatador_positivo: bool,
+    nombre_archivo_seguro: str,
+    fecha_archivo: str,
+) -> GeneratedArtifact:
+    doc = Document()
+    for section in doc.sections:
+        section.top_margin = Inches(0.8)
+        section.bottom_margin = Inches(0.6)
+        section.left_margin = Inches(1.2)
+        section.right_margin = Inches(1.2)
+
+    crear_encabezado(doc)
+    agregar_fecha(doc, fecha_impresion)
+    agregar_datos_paciente(doc, nombre, dni, deriva)
+    agregar_seccion_espirometria(doc, so2, fc, informe, es_normal, broncodilatador_positivo)
+    agregar_firma(doc, as_footer=True)
+
+    return GeneratedArtifact(
+        report_type="Espirometria",
+        filename=f"Informe_Espirometria_{nombre_archivo_seguro}_{fecha_archivo}.docx",
+        bytes_content=_document_to_bytes(doc),
+    )
+
+
 def _encounter_has_walk_data(encounter) -> bool:
+    if getattr(encounter, "study_type", "") != "Ciclometria":
+        return False
     walk = getattr(encounter, "walk_test", None)
     vitals = getattr(encounter, "vital_signs", None)
     if not walk and not vitals:
@@ -552,7 +588,21 @@ def build_reports_for_encounter(encounter) -> list[GeneratedArtifact]:
     artifacts = []
 
     if not incluir_caminata:
-        artifacts.append(_pdf_artifact_from_original(encounter, nombre_archivo_seguro, fecha_archivo))
+        artifacts.append(
+            _single_page_spirometry_artifact(
+                nombre=nombre,
+                dni=dni,
+                deriva=deriva,
+                fecha_impresion=fecha_impresion,
+                so2=so2,
+                fc=fc,
+                informe=informe,
+                es_normal=es_normal,
+                broncodilatador_positivo=broncodilatador_positivo,
+                nombre_archivo_seguro=nombre_archivo_seguro,
+                fecha_archivo=fecha_archivo,
+            )
+        )
         return artifacts
 
     doc_normal = Document()
