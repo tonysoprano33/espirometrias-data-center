@@ -159,6 +159,21 @@ STATICFILES_DIRS = [PROJECT_DIR / "static"] if (PROJECT_DIR / "static").exists()
 STATIC_ROOT = RUNTIME_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = RUNTIME_DIR / "media"
+SUPABASE_URL = env_value("SUPABASE_URL")
+SUPABASE_STORAGE_API_KEY = env_value("SUPABASE_SECRET_KEY") or env_value("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_STORAGE_BUCKET = env_value("SUPABASE_STORAGE_BUCKET", "attachments")
+SUPABASE_STORAGE_SIGNED_URL_TTL = int(env_value("SUPABASE_STORAGE_SIGNED_URL_TTL", "3600") or "3600")
+USE_SUPABASE_STORAGE = (
+    env_value("USE_SUPABASE_STORAGE", "True").lower() == "true"
+    and bool(SUPABASE_URL)
+    and bool(SUPABASE_STORAGE_API_KEY)
+)
+
+if USE_SUPABASE_STORAGE:
+    STORAGES = {
+        "default": {"BACKEND": "config.storage.SupabaseStorage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True

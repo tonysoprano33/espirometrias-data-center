@@ -1,5 +1,7 @@
 import calendar as month_calendar
+import base64
 from datetime import date, datetime, timedelta
+import json
 import mimetypes
 from pathlib import Path
 import re
@@ -103,9 +105,19 @@ def build_pdf_preview_images(attachment):
     if not attachment or not getattr(attachment, "file", None):
         return []
 
-    if not Path(attachment.file.path).exists():
+    attachment_path = Path(attachment.file.path)
+    if not attachment_path.exists():
         return []
-    existing = ensure_pdf_preview_pages(attachment.file.path, attachment_id=attachment.pk)
+    existing = ensure_pdf_preview_pages(str(attachment_path), attachment_id=attachment.pk)
+
+    if settings.USE_SUPABASE_STORAGE:
+        return [
+            {
+                "index": index + 1,
+                "url": f"data:image/png;base64,{base64.b64encode(image_path.read_bytes()).decode('ascii')}",
+            }
+            for index, image_path in enumerate(existing)
+        ]
 
     prefix = media_url_prefix().rstrip("/")
     return [
@@ -919,6 +931,27 @@ def extract_drapp_rows_from_screenshot(uploaded_file):
         Path(temp_path).unlink(missing_ok=True)
 
 
+def extract_drapp_rows_from_browser_ocr(raw_payload: str):
+    try:
+        payload = json.loads(raw_payload or "[]")
+    except json.JSONDecodeError as error:
+        raise ValueError(f"El OCR del navegador devolvio un formato invalido: {error}") from error
+
+    lines = []
+    for index, item in enumerate(payload):
+        if not isinstance(item, dict):
+            continue
+        text = collapse_spaces(item.get("text", ""))
+        if not text:
+            continue
+        try:
+            y_coord = float(item.get("y", index * 30))
+        except (TypeError, ValueError):
+            y_coord = float(index * 30)
+        lines.append({"text": text, "y": y_coord, "norm": normalize_for_match(text), "items": []})
+    return extract_drapp_rows_from_ocr_lines(lines)
+
+
 def import_drapp_rows(rows, request_user):
     created = 0
     skipped = 0
@@ -1369,10 +1402,13 @@ def dashboard(request):
             if import_form.is_valid():
                 imported_rows = []
                 raw_text = import_form.cleaned_data.get("raw_text", "")
+                ocr_lines_json = import_form.cleaned_data.get("ocr_lines_json", "")
                 screenshot = import_form.cleaned_data.get("screenshot")
                 if raw_text:
                     imported_rows.extend(extract_drapp_rows_from_text(raw_text))
-                if screenshot:
+                if ocr_lines_json:
+                    imported_rows.extend(extract_drapp_rows_from_browser_ocr(ocr_lines_json))
+                elif screenshot:
                     try:
                         imported_rows.extend(extract_drapp_rows_from_screenshot(screenshot))
                     except Exception as error:

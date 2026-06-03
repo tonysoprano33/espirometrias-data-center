@@ -323,6 +323,7 @@
             <form method="post" enctype="multipart/form-data">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="import_drapp">
+                {{ import_form.ocr_lines_json }}
                 <div class="field">
                     <label for="{{ import_form.raw_text.id_for_label }}">{{ import_form.raw_text.label }}</label>
                     {{ import_form.raw_text }}
@@ -589,6 +590,7 @@
         <option value="{{ value }}">{{ label }}</option>
     {% endfor %}
 </datalist>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
     (function () {
         const studySelect = document.getElementById("id_study_type");
@@ -1750,6 +1752,12 @@
             }
         }
 
+        function setDrappPasteStatus(message) {
+            var status = document.querySelector ? document.querySelector("[data-drapp-paste-status]") : null;
+            if (!status) return;
+            status.innerHTML = message;
+        }
+
         function assignPastedImageToInput(fileInput, file) {
             var transfer;
             if (!fileInput || !file) return false;
@@ -1796,6 +1804,108 @@
             updateDrappPasteStatus(fileInput);
         }
 
+        function installDrappBrowserOcr() {
+            var actionInput = document.querySelector ? document.querySelector("input[name='action'][value='import_drapp']") : null;
+            var fileInput = document.getElementById ? document.getElementById("{{ import_form.screenshot.id_for_label }}") : null;
+            var rawTextInput = document.getElementById ? document.getElementById("{{ import_form.raw_text.id_for_label }}") : null;
+            var ocrInput = document.getElementById ? document.getElementById("{{ import_form.ocr_lines_json.id_for_label }}") : null;
+            var form;
+            var submitButton;
+            var submittingAfterOcr = false;
+            var running = false;
+
+            if (!actionInput || !fileInput || !rawTextInput || !ocrInput || !window.Tesseract) return;
+            form = actionInput.form;
+            submitButton = form && form.querySelector ? form.querySelector("button[type='submit']") : null;
+            if (!form) return;
+
+            function setBusy(active, label) {
+                running = active;
+                if (submitButton) {
+                    submitButton.disabled = !!active;
+                    submitButton.innerHTML = active ? (label || "Leyendo captura...") : "Importar";
+                }
+            }
+
+            function buildPayload(result) {
+                var lines = (((result || {}).data || {}).lines || []);
+                var payload = [];
+                var i;
+                var line;
+                for (i = 0; i < lines.length; i += 1) {
+                    line = lines[i];
+                    if (!line || !line.text) continue;
+                    payload.push({
+                        text: String(line.text || "").trim(),
+                        y: line.bbox && typeof line.bbox.y0 !== "undefined" ? line.bbox.y0 : i * 30
+                    });
+                }
+                return payload;
+            }
+
+            function runOcr(file, onDone) {
+                if (!file || running) {
+                    if (onDone) onDone(false);
+                    return;
+                }
+                ocrInput.value = "";
+                setBusy(true);
+                setDrappPasteStatus("Leyendo captura...");
+                window.Tesseract.recognize(file, "spa+eng").then(function (result) {
+                    var payload = buildPayload(result);
+                    if (!payload.length) {
+                        setBusy(false);
+                        setDrappPasteStatus("Captura lista, pero no pude leer texto");
+                        if (onDone) onDone(false);
+                        return;
+                    }
+                    ocrInput.value = JSON.stringify(payload);
+                    if (!String(rawTextInput.value || "").trim()) {
+                        rawTextInput.value = payload.map(function (item) { return item.text; }).join("\n");
+                    }
+                    setBusy(false);
+                    setDrappPasteStatus("Captura lista y texto detectado");
+                    if (onDone) onDone(true);
+                }).catch(function () {
+                    setBusy(false);
+                    setDrappPasteStatus("Captura lista, OCR del navegador no disponible");
+                    if (onDone) onDone(false);
+                });
+            }
+
+            addEvent(fileInput, "change", function () {
+                var file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+                ocrInput.value = "";
+                if (file) {
+                    runOcr(file);
+                }
+            });
+
+            addEvent(form, "submit", function (event) {
+                var file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+                var hasRawText = String(rawTextInput.value || "").trim().length > 0;
+                var hasOcr = String(ocrInput.value || "").trim().length > 0;
+                if (submittingAfterOcr) {
+                    submittingAfterOcr = false;
+                    return true;
+                }
+                if (file && !hasRawText && !hasOcr) {
+                    stopEvent(event);
+                    runOcr(file, function (ok) {
+                        if (!ok) return;
+                        submittingAfterOcr = true;
+                        if (form.requestSubmit) {
+                            form.requestSubmit();
+                        } else {
+                            form.submit();
+                        }
+                    });
+                    return false;
+                }
+                return true;
+            });
+        }
+
         function pollRows() {
             var xhr;
             if (!window.XMLHttpRequest) return;
@@ -1833,6 +1943,7 @@
         }
         installVitalAutosave();
         installDrappPasteZone();
+        installDrappBrowserOcr();
 
         window.setInterval(pollRows, 12000);
         window.setTimeout(pollRows, 2000);

@@ -323,6 +323,7 @@ class DrappImportForm(forms.Form):
         widget=forms.Textarea(attrs={"rows": 8}),
         required=False,
     )
+    ocr_lines_json = forms.CharField(widget=forms.HiddenInput(), required=False)
     screenshot = forms.FileField(label="Captura de Drapp", required=False)
 
     def __init__(self, *args, **kwargs):
@@ -331,7 +332,7 @@ class DrappImportForm(forms.Form):
 
     def clean(self):
         cleaned_data = super().clean()
-        if not cleaned_data.get("raw_text") and not cleaned_data.get("screenshot"):
+        if not cleaned_data.get("raw_text") and not cleaned_data.get("ocr_lines_json") and not cleaned_data.get("screenshot"):
             raise forms.ValidationError("Pega texto de Drapp o subi una captura para importar.")
         return cleaned_data
 
