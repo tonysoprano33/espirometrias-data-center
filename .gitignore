@@ -9,3 +9,5 @@ media/
 src/media/
 .env
 *.log
+
+.vercel
