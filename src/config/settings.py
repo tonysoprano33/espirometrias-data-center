@@ -13,7 +13,8 @@ load_dotenv(PROJECT_DIR / ".env")
 load_dotenv(PROJECT_DIR / ".env.local", override=True)
 load_dotenv(PROJECT_DIR / ".env.development.local", override=True)
 
-RUNTIME_DIR = Path(os.getenv("APP_RUNTIME_DIR", Path.home() / "AppData" / "Local" / "ClinicaEspiro"))
+DEFAULT_RUNTIME_DIR = Path("/tmp/ClinicaEspiro") if os.getenv("VERCEL") else Path.home() / "AppData" / "Local" / "ClinicaEspiro"
+RUNTIME_DIR = Path(os.getenv("APP_RUNTIME_DIR", DEFAULT_RUNTIME_DIR))
 RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 
 
