@@ -1,0 +1,1819 @@
+{% extends "base.html" %}
+
+{% block title %}Inicio | Clinica Espiro{% endblock %}
+
+{% block content %}
+<style>
+    .agenda-entry-panel {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
+        gap: 18px;
+        align-items: start;
+        margin-bottom: 18px;
+    }
+    .quick-add-box,
+    .drapp-box {
+        display: grid;
+        gap: 14px;
+        padding: 16px;
+        border-radius: 18px;
+        border: 1px solid rgba(23,49,63,.08);
+        background: rgba(255,255,255,.86);
+    }
+    .doctor-mini-panel {
+        display: grid;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        background: linear-gradient(180deg, rgba(230,245,244,.75), rgba(255,255,255,.96));
+        border: 1px solid rgba(15,90,95,.12);
+    }
+    .doctor-mini-panel summary {
+        cursor: pointer;
+        font-weight: bold;
+        color: var(--brand);
+        list-style: none;
+    }
+    .doctor-mini-panel summary::-webkit-details-marker {
+        display: none;
+    }
+    .doctor-mini-panel h3 {
+        margin: 0;
+        font-size: .98rem;
+    }
+    .doctor-mini-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 10px;
+        align-items: end;
+    }
+    .doctor-check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+        font-size: .92rem;
+        white-space: nowrap;
+    }
+    .doctor-check input {
+        width: auto;
+        margin: 0;
+    }
+    .drapp-paste-zone {
+        border: 2px dashed rgba(15,90,95,.22);
+        border-radius: 14px;
+        padding: 14px 16px;
+        min-height: 74px;
+        background: linear-gradient(180deg, rgba(230,245,244,.55), rgba(255,255,255,.92));
+        color: var(--ink);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        cursor: text;
+    }
+    .drapp-paste-zone:focus {
+        outline: none;
+        border-color: rgba(15,90,95,.45);
+        box-shadow: 0 0 0 3px rgba(15,90,95,.08);
+    }
+    .drapp-paste-zone strong {
+        display: block;
+        font-size: 1rem;
+    }
+    .drapp-paste-zone span {
+        display: block;
+        color: var(--muted);
+        font-size: .92rem;
+    }
+    .drapp-paste-indicator {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.92);
+        border: 1px solid rgba(23,49,63,.08);
+        color: var(--brand);
+        font-size: .82rem;
+        font-weight: bold;
+        white-space: nowrap;
+    }
+    .link-button {
+        display: inline;
+        border: none;
+        background: transparent;
+        padding: 0;
+        margin: 0;
+        font: inherit;
+        cursor: pointer;
+        text-decoration: underline;
+        color: var(--brand);
+    }
+    .danger-link {
+        color: #b64731;
+    }
+    .ops-strip {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+    .ops-card {
+        padding: 14px 16px;
+        border-radius: 18px;
+        border: 1px solid rgba(23,49,63,.08);
+        background: rgba(255,255,255,.9);
+    }
+    .ops-card strong {
+        display: block;
+        font-size: 1.8rem;
+        margin-top: 6px;
+    }
+    .ops-card.pending { background: linear-gradient(180deg, rgba(255,247,235,.95), rgba(255,255,255,.98)); }
+    .ops-card.report { background: linear-gradient(180deg, rgba(230,245,244,.95), rgba(255,255,255,.98)); }
+    .ops-card.pdf { background: linear-gradient(180deg, rgba(255,241,235,.95), rgba(255,255,255,.98)); }
+    .ops-card.noshow { background: linear-gradient(180deg, rgba(245,241,255,.95), rgba(255,255,255,.98)); }
+    .quick-core-grid {
+        display: grid;
+        grid-template-columns: minmax(260px, 1.5fr) minmax(180px, .7fr) minmax(180px, .7fr) auto;
+        gap: 12px;
+        align-items: end;
+    }
+    .quick-secondary {
+        margin-top: 10px;
+        border-top: 1px dashed rgba(23,49,63,.12);
+        padding-top: 12px;
+    }
+    .quick-secondary summary {
+        cursor: pointer;
+        color: var(--brand);
+        font-weight: bold;
+    }
+    .quick-secondary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 12px;
+    }
+    .quick-hint {
+        margin: 0;
+        color: var(--muted);
+    }
+    @media (max-width: 1100px) {
+        .agenda-entry-panel,
+        .doctor-mini-grid {
+            grid-template-columns: 1fr;
+        }
+        .ops-strip,
+        .quick-core-grid,
+        .quick-secondary-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+<section class="stats-strip">
+    {% for item in status_cards %}
+        <article class="stat">
+            <span class="muted">{{ item.label }}</span>
+            <strong>{{ item.total }}</strong>
+        </article>
+    {% endfor %}
+</section>
+
+<section class="ops-strip">
+    <article class="ops-card pending">
+        <span class="muted">Pendientes de revisión</span>
+        <strong>{{ operation_alerts.pending_review }}</strong>
+    </article>
+    <article class="ops-card report">
+        <span class="muted">Listos para informe</span>
+        <strong>{{ operation_alerts.ready_for_report }}</strong>
+    </article>
+    <article class="ops-card pdf">
+        <span class="muted">Espirometrías sin PDF</span>
+        <strong>{{ operation_alerts.missing_pdf }}</strong>
+    </article>
+    <article class="ops-card noshow">
+        <span class="muted">No llegaron hoy</span>
+        <strong>{{ operation_alerts.no_show }}</strong>
+    </article>
+</section>
+
+<section class="card agenda-card">
+    <div class="agenda-head">
+        <div>
+            <p class="pill">Agenda {{ today|date:"d/m/Y" }}</p>
+            <h1 class="section-title">Pacientes del dia</h1>
+        </div>
+        <a class="button alt" href="{% url 'clinic:daily_print' %}" target="_blank" rel="noopener">Imprimir todo el dia</a>
+    </div>
+
+    <div class="agenda-entry-panel">
+        <div class="quick-add-box">
+            <h2 class="mini-title">Agregar paciente</h2>
+            <p class="quick-hint">Carga rápida de recepción: con el nombre ya alcanza. Estudio y cobertura ya quedan listos con sus valores por defecto.</p>
+            <form method="post">
+                {% csrf_token %}
+                <div class="quick-core-grid">
+                    <div class="field">
+                        <label for="{{ quick_form.patient_name.id_for_label }}">{{ quick_form.patient_name.label }}</label>
+                        {{ quick_form.patient_name }}
+                        {% if quick_form.patient_name.errors %}
+                            <div class="muted">{{ quick_form.patient_name.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="field">
+                        <label for="{{ quick_form.study_type.id_for_label }}">{{ quick_form.study_type.label }}</label>
+                        {{ quick_form.study_type }}
+                    </div>
+                    <div class="field">
+                        <label for="{{ quick_form.coverage_type.id_for_label }}">{{ quick_form.coverage_type.label }}</label>
+                        {{ quick_form.coverage_type }}
+                    </div>
+                    <button class="button" type="submit">Agregar</button>
+                </div>
+
+                <details class="quick-secondary">
+                    <summary>Completar después</summary>
+                    <div class="quick-secondary-grid">
+                        <div class="field">
+                            <label for="{{ quick_form.patient_dni.id_for_label }}">{{ quick_form.patient_dni.label }}</label>
+                            {{ quick_form.patient_dni }}
+                        </div>
+                        <div class="field">
+                            <label for="{{ quick_form.encounter_time.id_for_label }}">{{ quick_form.encounter_time.label }}</label>
+                            {{ quick_form.encounter_time }}
+                        </div>
+                        <div class="field">
+                            <label for="{{ quick_form.referring_physician.id_for_label }}">{{ quick_form.referring_physician.label }}</label>
+                            {{ quick_form.referring_physician }}
+                        </div>
+                        <div class="field">
+                            <label for="{{ quick_form.so2_rest.id_for_label }}">{{ quick_form.so2_rest.label }}</label>
+                            {{ quick_form.so2_rest }}
+                        </div>
+                        <div class="field">
+                            <label for="{{ quick_form.fc_rest.id_for_label }}">{{ quick_form.fc_rest.label }}</label>
+                            {{ quick_form.fc_rest }}
+                        </div>
+                        <div class="field">
+                            <label for="{{ quick_form.so2_post.id_for_label }}">{{ quick_form.so2_post.label }}</label>
+                            {{ quick_form.so2_post }}
+                        </div>
+                        <div class="field">
+                            <label for="{{ quick_form.fc_post.id_for_label }}">{{ quick_form.fc_post.label }}</label>
+                            {{ quick_form.fc_post }}
+                        </div>
+                        <div class="field">
+                            <label for="{{ quick_form.distance_meters.id_for_label }}">{{ quick_form.distance_meters.label }}</label>
+                            {{ quick_form.distance_meters }}
+                        </div>
+                        <div class="field">
+                            <label for="{{ quick_form.borg_final.id_for_label }}">{{ quick_form.borg_final.label }}</label>
+                            {{ quick_form.borg_final }}
+                        </div>
+                        <div class="field">
+                            <label for="{{ quick_form.respiratory_result.id_for_label }}">{{ quick_form.respiratory_result.label }}</label>
+                            {{ quick_form.respiratory_result }}
+                        </div>
+                        <div class="field">
+                            <label for="{{ quick_form.completed.id_for_label }}">{{ quick_form.completed.label }}</label>
+                            {{ quick_form.completed }}
+                        </div>
+                        <div class="field">
+                            <label for="{{ quick_form.attended.id_for_label }}">{{ quick_form.attended.label }}</label>
+                            {{ quick_form.attended }}
+                        </div>
+                        <div class="field">
+                            <label for="{{ quick_form.no_show.id_for_label }}">{{ quick_form.no_show.label }}</label>
+                            {{ quick_form.no_show }}
+                        </div>
+                    </div>
+                </details>
+            </form>
+
+            <details class="doctor-mini-panel">
+                <summary>Agregar doctor derivante</summary>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add_physician">
+                    <div class="doctor-mini-grid">
+                        <div class="field" style="margin:0;">
+                            <label for="{{ physician_form.full_name.id_for_label }}">Nombre</label>
+                            {{ physician_form.full_name }}
+                            {% if physician_form.full_name.errors %}
+                                <div class="muted">{{ physician_form.full_name.errors }}</div>
+                            {% endif %}
+                        </div>
+                        <label class="doctor-check" for="{{ physician_form.is_default.id_for_label }}">
+                            {{ physician_form.is_default }} Por defecto
+                        </label>
+                        <button class="button alt" type="submit">Guardar doctor</button>
+                    </div>
+                    {% if physician_form.non_field_errors %}
+                        <div class="muted">{{ physician_form.non_field_errors }}</div>
+                    {% endif %}
+                </form>
+            </details>
+        </div>
+
+        <div class="drapp-box">
+            <h2 class="mini-title">Pegar Drapp</h2>
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="import_drapp">
+                <div class="field">
+                    <label for="{{ import_form.raw_text.id_for_label }}">{{ import_form.raw_text.label }}</label>
+                    {{ import_form.raw_text }}
+                    {% if import_form.raw_text.errors %}
+                        <div class="muted">{{ import_form.raw_text.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="field">
+                    <label for="{{ import_form.screenshot.id_for_label }}">{{ import_form.screenshot.label }}</label>
+                    <div class="drapp-paste-zone" data-drapp-paste-zone tabindex="0">
+                        <div>
+                            <strong>Pegá una captura con Ctrl+V</strong>
+                            <span>También podés seguir eligiendo el archivo manualmente si querés.</span>
+                        </div>
+                        <span class="drapp-paste-indicator" data-drapp-paste-status>Sin captura</span>
+                    </div>
+                    {{ import_form.screenshot }}
+                    {% if import_form.screenshot.errors %}
+                        <div class="muted">{{ import_form.screenshot.errors }}</div>
+                    {% endif %}
+                </div>
+                {% if import_form.non_field_errors %}
+                    <div class="muted">{{ import_form.non_field_errors }}</div>
+                {% endif %}
+                <button class="button alt" type="submit">Importar</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th class="col-time">Hora</th>
+                    <th class="col-patient">Paciente</th>
+                    <th>DNI</th>
+                    <th>Estudio</th>
+                    <th>Cobertura</th>
+                    <th>Dr. deriva</th>
+                    <th class="col-vitals">SO2 / FC reposo</th>
+                    <th class="col-vitals">SO2 / FC post</th>
+                    <th class="col-result">Resultado</th>
+                    <th class="col-attendance">Asistencia</th>
+                    <th class="col-status">Estado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for encounter in today_encounters %}
+                    <tr
+                        data-encounter-row
+                        data-encounter-id="{{ encounter.pk }}"
+                        data-study-type="{{ encounter.study_type }}"
+                        data-has-cycle-data="{% if encounter.has_cycle_data %}1{% else %}0{% endif %}"
+                    >
+                        <td class="time-cell">
+                            <form method="post" class="inline-cell-form" data-inline-ajax>
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="inline_update">
+                                <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                <input type="hidden" name="field_name" value="encounter_time">
+                                <input type="time" name="value" value="{{ encounter.encounter_time|time:'H:i'|default:'' }}" class="cell-input cell-time" data-inline-submit>
+                            </form>
+                        </td>
+                        <td class="patient-cell">
+                            <form method="post" class="inline-cell-form" data-inline-ajax>
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="inline_update">
+                                <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                <input type="hidden" name="field_name" value="patient_name">
+                                <input type="text" name="value" value="{{ encounter.patient.full_name }}" class="cell-input cell-name" data-inline-submit>
+                            </form>
+                        </td>
+                        <td class="vitals-cell">
+                            <div class="inline-edit" data-inline-edit>
+                                <button class="inline-display" type="button" data-inline-open>
+                                    {{ encounter.patient.dni|default:"Completar DNI" }}
+                                </button>
+                                <form method="post" class="inline-form" data-inline-form data-inline-ajax>
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="update_dni">
+                                    <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                    <input type="text" name="patient_dni" value="{{ encounter.patient.dni|default:'' }}" maxlength="20" class="inline-input">
+                                    <button class="inline-save" type="submit">Guardar</button>
+                                </form>
+                            </div>
+                        </td>
+                        <td class="study-cell">
+                            <form method="post" class="inline-cell-form" data-inline-ajax data-study-form>
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="inline_update">
+                                <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                <input type="hidden" name="field_name" value="study_type">
+                                <select name="value" class="cell-input cell-select study-select" data-inline-submit data-study-select data-original-value="{{ encounter.study_type }}">
+                                    {% for value, label in study_choices %}
+                                        <option value="{{ value }}"{% if encounter.study_type == value %} selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        </td>
+                        <td class="coverage-cell">
+                            <form method="post" class="inline-cell-form" data-inline-ajax>
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="inline_update">
+                                <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                <input type="hidden" name="field_name" value="coverage_type">
+                                <select name="value" class="cell-input cell-select coverage-select" data-inline-submit>
+                                    {% for value, label in coverage_choices %}
+                                        <option value="{{ value }}"{% if encounter.coverage_type == value %} selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        </td>
+                        <td class="coverage-cell">
+                            <form method="post" class="inline-cell-form" data-inline-ajax>
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="inline_update">
+                                <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                <input type="hidden" name="field_name" value="referring_physician">
+                                <select name="value" class="cell-input cell-select" data-inline-submit>
+                                    {% for physician in physician_choices %}
+                                        <option value="{{ physician.pk }}"{% if encounter.referring_physician_id == physician.pk %} selected{% endif %}>{{ physician.full_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        </td>
+                        <td>
+                            <div class="inline-pair">
+                                <form method="post" class="inline-cell-form" data-inline-ajax>
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="inline_update">
+                                    <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                    <input type="hidden" name="field_name" value="so2_rest">
+                                    <input type="number" name="value" value="{{ encounter.vital_signs.so2_rest|default:'' }}" class="cell-input cell-small so2-input" max="99" inputmode="numeric" data-inline-submit>
+                                </form>
+                                <span>/</span>
+                                <form method="post" class="inline-cell-form" data-inline-ajax>
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="inline_update">
+                                    <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                    <input type="hidden" name="field_name" value="fc_rest">
+                                    <input type="number" name="value" value="{{ encounter.vital_signs.fc_rest|default:'' }}" class="cell-input cell-small fc-input" max="999" inputmode="numeric" data-inline-submit>
+                                </form>
+                            </div>
+                        </td>
+                        <td class="vitals-cell">
+                            <div class="inline-pair" data-post-fields {% if encounter.study_type != "Ciclometria" %}style="display:none;"{% endif %}>
+                                <div class="inline-pair">
+                                    <form method="post" class="inline-cell-form" data-inline-ajax>
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="inline_update">
+                                        <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                        <input type="hidden" name="field_name" value="so2_post">
+                                        <input type="number" name="value" value="{{ encounter.vital_signs.so2_post|default:'' }}" class="cell-input cell-small so2-input" max="99" inputmode="numeric" data-inline-submit>
+                                    </form>
+                                    <span>/</span>
+                                    <form method="post" class="inline-cell-form" data-inline-ajax>
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="inline_update">
+                                        <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                        <input type="hidden" name="field_name" value="fc_post">
+                                        <input type="number" name="value" value="{{ encounter.vital_signs.fc_post|default:'' }}" class="cell-input cell-small fc-input" max="999" inputmode="numeric" data-inline-submit>
+                                    </form>
+                                </div>
+                            </div>
+                            <span data-post-placeholder {% if encounter.study_type == "Ciclometria" %}style="display:none;"{% endif %}>-</span>
+                        </td>
+                        <td class="result-cell" data-result-label>
+                            <form method="post" class="inline-cell-form" data-inline-ajax>
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="inline_update">
+                                <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                <input type="hidden" name="field_name" value="respiratory_result">
+                                <input
+                                    type="text"
+                                    name="value"
+                                    value="{{ encounter.result_code }}"
+                                    class="cell-input cell-select result-input"
+                                    data-inline-submit
+                                    data-result-code="1"
+                                    list="result-code-options"
+                                    placeholder="N, OL, RL, RLOMS..."
+                                    autocomplete="off"
+                                >
+                            </form>
+                        </td>
+                        <td class="attendance-cell" data-attendance-label>
+                            <form method="post" class="inline-cell-form" data-inline-ajax data-attendance-form>
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="toggle_attendance">
+                                <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                <button type="submit" class="attendance-button {% if encounter.attended %}attended{% elif encounter.no_show %}no-show{% endif %}" data-attendance-button>
+                                    {% if encounter.attended %}
+                                        Atendido
+                                    {% elif encounter.no_show %}
+                                        No llego
+                                    {% else %}
+                                        Esperado
+                                    {% endif %}
+                                </button>
+                            </form>
+                        </td>
+                        <td class="status-cell" data-status-label><span class="status-badge">{{ encounter.status }}</span></td>
+                        <td>
+                            <div style="display:grid; gap:8px; min-width:150px;">
+                                <form method="post" action="{% url 'clinic:encounter_generate_report' encounter.pk %}" data-report-form>
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <button
+                                        class="button small"
+                                        data-report-button
+                                        type="submit"
+                                        {% if not encounter.can_generate_report %}disabled title="{{ encounter.report_block_reason }}"{% endif %}
+                                    >
+                                        {% if encounter.has_generated_reports %}Regenerar informe{% else %}Generar informe{% endif %}
+                                    </button>
+                                </form>
+                                <div>
+                                    <a href="{% url 'clinic:encounter_edit' encounter.pk %}">Editar</a> |
+                                    <a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Revision</a> |
+                                    <a href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a> |
+                                    <a href="{% url 'clinic:patient_detail' encounter.patient.pk %}" data-history-link>Historia</a> |
+                                    <form method="post" style="display:inline;" data-delete-form>
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="delete_encounter">
+                                        <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                        <button type="submit" class="link-button danger-link" data-delete-button>Eliminar</button>
+                                    </form>
+                                </div>
+                                <div data-report-links>
+                                    {% if encounter.has_generated_reports %}
+                                        {% if encounter.complete_report_url %}
+                                            <div><a href="{{ encounter.complete_report_url }}" target="_blank" rel="noopener">Abrir completo</a></div>
+                                        {% elif encounter.latest_report_url %}
+                                            <div><a href="{{ encounter.latest_report_url }}" target="_blank" rel="noopener">Abrir informe</a></div>
+                                        {% endif %}
+                                        {% if encounter.mutual_report_url %}
+                                            <div><a href="{{ encounter.mutual_report_url }}" target="_blank" rel="noopener">Abrir mutual</a></div>
+                                        {% endif %}
+                                        <div><a href="{{ encounter.detail_url }}">Ver archivos</a></div>
+                                    {% else %}
+                                        <div class="muted" style="font-size:.82rem;">Todavia sin informe.</div>
+                                    {% endif %}
+                                </div>
+                                <div class="muted" style="font-size:.82rem;" data-report-help>{% if not encounter.can_generate_report %}{{ encounter.report_block_reason }}{% endif %}</div>
+                            </div>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="12">Todavia no hay pacientes cargados para hoy.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+<p class="muted" style="margin:12px 4px 20px;">
+    Resultado rapido: N, OL, OM, OMS, OS, RL, RM, RMS, RS o mixto tipo RLOMS.
+</p>
+<datalist id="result-code-options">
+    {% for value, label in result_code_suggestions %}
+        <option value="{{ value }}">{{ label }}</option>
+    {% endfor %}
+</datalist>
+<script>
+    (function () {
+        const studySelect = document.getElementById("id_study_type");
+        const cycleFields = ["id_so2_post", "id_fc_post", "id_distance_meters", "id_completed", "id_borg_final"];
+        const navTargets = Array.from(document.querySelectorAll("[data-nav]"))
+            .sort((a, b) => Number(a.dataset.nav) - Number(b.dataset.nav));
+        const activeRequests = new Map();
+        const autosaveTimers = new Map();
+
+        function toggleStudyFields() {
+            const isCyclometry = studySelect && studySelect.value === "Ciclometria";
+            cycleFields.forEach((fieldId) => {
+                const field = document.getElementById(fieldId);
+                if (!field) return;
+                const wrapper = field.closest(".field");
+                if (wrapper) wrapper.style.display = isCyclometry ? "" : "none";
+            });
+        }
+
+        if (studySelect) {
+            studySelect.addEventListener("change", toggleStudyFields);
+            toggleStudyFields();
+        }
+
+        function getVisibleTargets() {
+            return navTargets.filter((element) => {
+                const wrapper = element.closest(".field");
+                return !wrapper || wrapper.style.display !== "none";
+            });
+        }
+
+        function focusNext(current) {
+            const visible = getVisibleTargets();
+            const index = visible.indexOf(current);
+            if (index >= 0 && visible[index + 1]) {
+                visible[index + 1].focus();
+                if (typeof visible[index + 1].select === "function") {
+                    visible[index + 1].select();
+                }
+            }
+        }
+
+        navTargets.forEach((element) => {
+            element.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    focusNext(element);
+                }
+            });
+
+            element.addEventListener("input", () => {
+                const limit = Number(element.dataset.autoadvanceLength || 0);
+                if (!limit) return;
+                const digits = String(element.value || "").replace(/\D/g, "");
+                if (digits.length >= limit) {
+                    focusNext(element);
+                }
+            });
+
+            if (element.tagName === "SELECT") {
+                element.addEventListener("change", () => {
+                    setTimeout(() => focusNext(element), 0);
+                });
+            }
+        });
+
+        function markFormDirty(form) {
+            if (form) {
+                form.dataset.dirty = "1";
+            }
+        }
+
+        function clearFormDirty(form) {
+            if (form) {
+                form.dataset.dirty = "0";
+            }
+        }
+
+        function getPrimaryField(form) {
+            if (!form) return null;
+            return form.querySelector('input[name="value"], select[name="value"], textarea[name="value"], input[name="patient_dni"]');
+        }
+
+        function isDniForm(form) {
+            return !!(form && form.querySelector('input[name="patient_dni"]'));
+        }
+
+        function getCurrentFieldValue(form) {
+            const field = getPrimaryField(form);
+            if (!field) return "";
+            if (field.type === "checkbox") {
+                return field.checked ? "1" : "0";
+            }
+            return String(field.value || "");
+        }
+
+        function setFieldSavingState(form, state) {
+            const field = getPrimaryField(form);
+            if (!field) return;
+            field.dataset.saveState = state;
+            field.classList.remove("is-saving", "is-saved", "is-error");
+            if (state === "saving") field.classList.add("is-saving");
+            if (state === "saved") field.classList.add("is-saved");
+            if (state === "error") field.classList.add("is-error");
+        }
+
+        function scheduleInlineSubmit(form, delay) {
+            if (!form) return;
+            const previous = autosaveTimers.get(form);
+            if (previous) {
+                window.clearTimeout(previous);
+            }
+            const timerId = window.setTimeout(() => {
+                autosaveTimers.delete(form);
+                submitInlineForm(form, { onlyIfDirty: true }).catch((error) => {
+                    console.error(error);
+                });
+            }, delay || 450);
+            autosaveTimers.set(form, timerId);
+        }
+
+        document.querySelectorAll("[data-inline-edit]").forEach((container) => {
+            const openButton = container.querySelector("[data-inline-open]");
+            const form = container.querySelector("[data-inline-form]");
+            const input = form ? form.querySelector("input[name='patient_dni']") : null;
+            if (!openButton || !form || !input) return;
+
+            openButton.addEventListener("click", () => {
+                container.classList.add("editing");
+                input.focus();
+                input.select();
+            });
+
+            input.addEventListener("keydown", (event) => {
+                if (event.key === "Escape") {
+                    container.classList.remove("editing");
+                }
+            });
+        });
+
+        document.querySelectorAll("[data-inline-submit]").forEach((element) => {
+            if (element.form) {
+                element.addEventListener("input", () => {
+                    markFormDirty(element.form);
+                    if (element.tagName !== "SELECT") {
+                        scheduleInlineSubmit(element.form, 500);
+                    }
+                });
+                element.addEventListener("change", () => markFormDirty(element.form));
+            }
+
+            element.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    submitInlineForm(element.form);
+                }
+            });
+
+            if (element.tagName === "SELECT") {
+                element.addEventListener("change", () => submitInlineForm(element.form));
+            } else {
+                element.addEventListener("change", () => submitInlineForm(element.form));
+                element.addEventListener("blur", () => submitInlineForm(element.form));
+            }
+        });
+
+        document.querySelectorAll("[data-result-code]").forEach((element) => {
+            element.addEventListener("input", () => {
+                element.value = String(element.value || "")
+                    .toUpperCase()
+                    .replace(/[^A-Z]/g, "");
+            });
+        });
+
+        document.querySelectorAll("[data-inline-form]").forEach((form) => {
+            const input = form.querySelector("input, select, textarea");
+            if (input) {
+                input.addEventListener("input", () => {
+                    markFormDirty(form);
+                    if (isDniForm(form)) return;
+                    scheduleInlineSubmit(form, 500);
+                });
+                input.addEventListener("change", () => markFormDirty(form));
+            }
+        });
+
+        function updateAttendanceButton(button, payload) {
+            if (!button) return;
+            button.textContent = payload.attendance_label;
+            button.classList.remove("attended", "no-show");
+            if (payload.attended) {
+                button.classList.add("attended");
+            } else if (payload.no_show) {
+                button.classList.add("no-show");
+            }
+        }
+
+        function updatePostFieldsVisibility(row, studyType) {
+            if (!row) return;
+            row.dataset.studyType = studyType || row.dataset.studyType || "";
+            const postFields = row.querySelector("[data-post-fields]");
+            const postPlaceholder = row.querySelector("[data-post-placeholder]");
+            const isCyclometry = row.dataset.studyType === "Ciclometria";
+
+            if (postFields) {
+                postFields.style.display = isCyclometry ? "" : "none";
+            }
+            if (postPlaceholder) {
+                postPlaceholder.style.display = isCyclometry ? "none" : "";
+            }
+        }
+
+        function updateReportUI(row, payload) {
+            if (!row || !payload) return;
+            const reportButton = row.querySelector("[data-report-button]");
+            const reportHelp = row.querySelector("[data-report-help]");
+            const reportLinks = row.querySelector("[data-report-links]");
+
+            if (reportButton && payload.report_button_label) {
+                reportButton.textContent = payload.report_button_label;
+            }
+            if (reportButton && typeof payload.can_generate_report !== "undefined") {
+                reportButton.disabled = !payload.can_generate_report;
+                if (payload.report_block_reason) {
+                    reportButton.title = payload.report_block_reason;
+                } else {
+                    reportButton.removeAttribute("title");
+                }
+            }
+            if (reportHelp) {
+                reportHelp.textContent = payload.report_block_reason || payload.message || "";
+            }
+            if (reportLinks) {
+                if (payload.has_generated_reports) {
+                    const links = [];
+                    if (payload.complete_report_url) {
+                        links.push('<div><a href="' + payload.complete_report_url + '" target="_blank" rel="noopener">Abrir completo</a></div>');
+                    } else if (payload.latest_report_url) {
+                        links.push('<div><a href="' + payload.latest_report_url + '" target="_blank" rel="noopener">Abrir informe</a></div>');
+                    }
+                    if (payload.mutual_report_url) {
+                        links.push('<div><a href="' + payload.mutual_report_url + '" target="_blank" rel="noopener">Abrir mutual</a></div>');
+                    }
+                    links.push('<div><a href="' + payload.detail_url + '">Ver archivos</a></div>');
+                    reportLinks.innerHTML = links.join("");
+                } else {
+                    reportLinks.innerHTML = '<div class="muted" style="font-size:.82rem;">Todavia sin informe.</div>';
+                }
+            }
+        }
+
+        function applyInlineResponse(form, payload, options) {
+            const config = options || {};
+            const row = form.closest("tr");
+            if (!row || !payload) return;
+
+            const statusCell = row.querySelector("[data-status-label]");
+            const attendanceCell = row.querySelector("[data-attendance-label]");
+            const attendanceButton = attendanceCell ? attendanceCell.querySelector(".attendance-button") : null;
+            const inlineEdit = form.closest("[data-inline-edit]");
+            const inlineDisplay = inlineEdit ? inlineEdit.querySelector("[data-inline-open]") : null;
+
+            if (statusCell && payload.status) {
+                statusCell.textContent = payload.status;
+            }
+            if (payload.attendance_label && attendanceButton) {
+                updateAttendanceButton(attendanceButton, payload);
+            }
+            if (payload.patient_dni_display && inlineDisplay) {
+                const dniInput = inlineEdit ? inlineEdit.querySelector('input[name="patient_dni"]') : null;
+                if (config.forceDniClose || !(dniInput && document.activeElement === dniInput)) {
+                    inlineDisplay.textContent = payload.patient_dni_display;
+                    inlineEdit.classList.remove("editing");
+                }
+            }
+            if (payload.field_name === "patient_name") {
+                const input = form.querySelector('input[name="value"]');
+                if (input && payload.value) input.value = payload.value;
+            }
+            if (payload.field_name === "encounter_time") {
+                const input = form.querySelector('input[name="value"]');
+                if (input) input.value = payload.value || "";
+            }
+            if (payload.field_name === "coverage_type") {
+                const select = form.querySelector('select[name="value"]');
+                if (select && payload.value) select.value = payload.value;
+            }
+            if (payload.field_name === "referring_physician") {
+                const select = form.querySelector('select[name="value"]');
+                if (select && typeof payload.value !== "undefined") select.value = payload.value;
+            }
+            if (payload.field_name === "study_type") {
+                const select = form.querySelector('select[name="value"]');
+                if (select && payload.value) {
+                    select.value = payload.value;
+                    select.dataset.originalValue = payload.value;
+                }
+                updatePostFieldsVisibility(row, payload.value);
+            }
+            if (payload.field_name === "respiratory_result") {
+                const input = form.querySelector('input[name="value"]');
+                if (input) input.value = payload.value || "";
+            }
+            if (["so2_rest", "fc_rest", "so2_post", "fc_post"].includes(payload.field_name)) {
+                const input = form.querySelector('input[name="value"]');
+                if (input) input.value = payload.value || "";
+            }
+            if (typeof payload.has_cycle_data !== "undefined") {
+                row.dataset.hasCycleData = payload.has_cycle_data ? "1" : "0";
+            }
+            updateReportUI(row, payload);
+        }
+
+        async function submitInlineForm(form, options) {
+            const config = options || {};
+            if (!form) return null;
+            if (activeRequests.has(form)) {
+                form.dataset.resubmit = "1";
+                return activeRequests.get(form);
+            }
+            if (config.onlyIfDirty && form.dataset.dirty !== "1") {
+                return null;
+            }
+
+            const pendingTimer = autosaveTimers.get(form);
+            if (pendingTimer) {
+                window.clearTimeout(pendingTimer);
+                autosaveTimers.delete(form);
+            }
+
+            form.dataset.submitting = "1";
+            form.dataset.resubmit = "0";
+            const submittedValue = getCurrentFieldValue(form);
+            form.dataset.lastSubmittedValue = submittedValue;
+            setFieldSavingState(form, "saving");
+            const request = (async () => {
+                try {
+                    const response = await fetch(form.getAttribute("action") || window.location.href, {
+                        method: "POST",
+                        headers: {
+                            "X-Requested-With": "XMLHttpRequest"
+                        },
+                        body: new FormData(form)
+                    });
+                    if (!response.ok) {
+                        throw new Error("No se pudo guardar");
+                    }
+                    const payload = await response.json();
+                    const currentValue = getCurrentFieldValue(form);
+                    applyInlineResponse(form, payload, {
+                        forceDniClose: isDniForm(form) && currentValue === submittedValue
+                    });
+                    if (currentValue === submittedValue) {
+                        clearFormDirty(form);
+                        setFieldSavingState(form, "saved");
+                        window.setTimeout(() => {
+                            if (getPrimaryField(form) && getPrimaryField(form).dataset.saveState === "saved") {
+                                setFieldSavingState(form, "");
+                            }
+                        }, 900);
+                    } else {
+                        markFormDirty(form);
+                        form.dataset.resubmit = "1";
+                    }
+                    return payload;
+                } catch (error) {
+                    console.error(error);
+                    setFieldSavingState(form, "error");
+                    throw error;
+                } finally {
+                    form.dataset.submitting = "0";
+                    activeRequests.delete(form);
+                    if (form.dataset.resubmit === "1" || form.dataset.dirty === "1") {
+                        window.setTimeout(() => {
+                            submitInlineForm(form, { onlyIfDirty: true }).catch((error) => {
+                                console.error(error);
+                            });
+                        }, 0);
+                    }
+                }
+            })();
+            activeRequests.set(form, request);
+            return request;
+        }
+
+        async function flushRowInlineForms(row) {
+            if (!row) return;
+            const forms = Array.from(row.querySelectorAll("form[data-inline-ajax]"));
+            const tasks = [];
+            forms.forEach((form) => {
+                if (activeRequests.has(form)) {
+                    tasks.push(activeRequests.get(form));
+                } else if (form.dataset.dirty === "1") {
+                    tasks.push(submitInlineForm(form, { onlyIfDirty: true }));
+                }
+            });
+            await Promise.all(tasks.filter(Boolean));
+        }
+
+        async function submitReportForm(form) {
+            if (!form || form.dataset.submitting === "1") return;
+            const row = form.closest("tr");
+            const reportButton = form.querySelector("[data-report-button]");
+            if (reportButton && reportButton.disabled) return;
+            let requestSucceeded = false;
+
+            try {
+                await flushRowInlineForms(row);
+            } catch (error) {
+                return;
+            }
+
+            form.dataset.submitting = "1";
+            if (reportButton) {
+                reportButton.disabled = true;
+                reportButton.dataset.originalLabel = reportButton.textContent;
+                reportButton.textContent = "Generando...";
+            }
+            try {
+                const response = await fetch(form.getAttribute("action") || window.location.href, {
+                    method: "POST",
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest"
+                    },
+                    body: new FormData(form)
+                });
+                const payload = await response.json();
+                if (!response.ok || !payload.ok) {
+                    updateReportUI(row, payload || {});
+                    throw new Error(payload && payload.message ? payload.message : "No se pudo generar");
+                }
+                applyInlineResponse(form, payload);
+                requestSucceeded = true;
+            } catch (error) {
+                console.error(error);
+            } finally {
+                form.dataset.submitting = "0";
+                if (reportButton && !requestSucceeded) {
+                    reportButton.textContent = reportButton.dataset.originalLabel || reportButton.textContent;
+                }
+                const help = row ? row.querySelector("[data-report-help]") : null;
+                const latestButton = row ? row.querySelector("[data-report-button]") : null;
+                if (help && latestButton && !latestButton.disabled && help.textContent === "Generando...") {
+                    help.textContent = "";
+                }
+            }
+        }
+
+        document.querySelectorAll("[data-study-select]").forEach((select) => {
+            select.addEventListener("change", (event) => {
+                const row = select.closest("tr");
+                const previousValue = select.dataset.originalValue || "";
+                const nextValue = select.value;
+                const hasCycleData = row && row.dataset.hasCycleData === "1";
+
+                if (
+                    previousValue === "Ciclometria" &&
+                    nextValue === "Espirometria" &&
+                    hasCycleData
+                ) {
+                    const confirmed = window.confirm("Esta atencion ya tiene datos de post caminata. Seguro que queres cambiarla a Espirometria?");
+                    if (!confirmed) {
+                        select.value = previousValue;
+                        clearFormDirty(select.form);
+                        event.preventDefault();
+                        return;
+                    }
+                }
+                markFormDirty(select.form);
+            });
+        });
+
+        document.querySelectorAll("form[data-inline-ajax]").forEach((form) => {
+            form.dataset.dirty = "0";
+            form.addEventListener("submit", (event) => {
+                event.preventDefault();
+                submitInlineForm(form);
+            });
+        });
+
+        document.querySelectorAll("[data-attendance-form]").forEach((form) => {
+            const button = form.querySelector("[data-attendance-button]");
+            if (!button) return;
+
+            button.addEventListener("click", (event) => {
+                event.preventDefault();
+                if (form.dataset.submitting === "1") return;
+                const originalLabel = button.textContent;
+                button.disabled = true;
+                button.textContent = "Guardando...";
+                submitInlineForm(form).catch((error) => {
+                    console.error(error);
+                }).finally(() => {
+                    button.disabled = false;
+                    if (button.textContent === "Guardando...") {
+                        button.textContent = originalLabel;
+                    }
+                });
+            });
+        });
+
+        document.querySelectorAll("form[data-report-form]").forEach((form) => {
+            form.addEventListener("submit", (event) => {
+                event.preventDefault();
+                const row = form.closest("tr");
+                const help = row ? row.querySelector("[data-report-help]") : null;
+                if (help) {
+                    help.textContent = "Generando...";
+                }
+                submitReportForm(form).catch((error) => {
+                    console.error(error);
+                });
+            });
+        });
+
+        document.querySelectorAll("[data-encounter-row]").forEach((row) => {
+            updatePostFieldsVisibility(row, row.dataset.studyType);
+        });
+
+        document.querySelectorAll("[data-inline-edit] input[name='patient_dni']").forEach((input) => {
+            input.addEventListener("blur", () => {
+                if (input.form && input.form.dataset.dirty === "1") {
+                    submitInlineForm(input.form);
+                }
+            });
+        });
+
+        document.querySelectorAll("[data-inline-edit] input[name='patient_dni']").forEach((input) => {
+            input.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    submitInlineForm(input.form);
+                }
+            });
+        });
+
+        document.querySelectorAll("[data-inline-edit] input[name='patient_dni']").forEach((input) => {
+            input.addEventListener("input", () => {
+                markFormDirty(input.form);
+            });
+        });
+
+        document.querySelectorAll("[data-inline-edit] input[name='patient_dni']").forEach((input) => {
+            input.addEventListener("change", () => {
+                markFormDirty(input.form);
+            });
+        });
+
+        window.addEventListener("beforeunload", () => {
+            activeRequests.clear();
+        });
+        window.espiroModernDashboardReady = true;
+    })();
+</script>
+<script>
+    (function () {
+        var stateUrl = "{% url 'clinic:dashboard_rows_state' %}";
+
+        function addEvent(element, eventName, handler, capture) {
+            if (!element) return;
+            if (element.addEventListener) {
+                element.addEventListener(eventName, handler, !!capture);
+            } else if (element.attachEvent) {
+                element.attachEvent("on" + eventName, handler);
+            }
+        }
+
+        function stopEvent(event) {
+            event = event || window.event;
+            if (event.preventDefault) event.preventDefault();
+            event.returnValue = false;
+            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+            if (event.stopPropagation) event.stopPropagation();
+            event.cancelBubble = true;
+            return false;
+        }
+
+        function hasAttr(element, attrName) {
+            return element && element.nodeType === 1 && element.getAttribute(attrName) !== null;
+        }
+
+        function closestAttr(element, attrName) {
+            while (element && element.nodeType === 1) {
+                if (hasAttr(element, attrName)) return element;
+                element = element.parentNode;
+            }
+            return null;
+        }
+
+        function closestTag(element, tagName) {
+            tagName = String(tagName || "").toUpperCase();
+            while (element && element.nodeType === 1) {
+                if (element.tagName === tagName) return element;
+                element = element.parentNode;
+            }
+            return null;
+        }
+
+        function escapeHtml(value) {
+            return String(value === null || typeof value === "undefined" ? "" : value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function addClass(element, className) {
+            if (!element) return;
+            if ((" " + element.className + " ").indexOf(" " + className + " ") === -1) {
+                element.className = (element.className ? element.className + " " : "") + className;
+            }
+        }
+
+        function removeClass(element, className) {
+            if (!element) return;
+            element.className = (" " + element.className + " ").replace(" " + className + " ", " ");
+            element.className = element.className.replace(/^\s+|\s+$/g, "");
+        }
+
+        function findRowById(encounterId) {
+            var rows = document.querySelectorAll ? document.querySelectorAll("[data-encounter-row]") : [];
+            var i;
+            for (i = 0; i < rows.length; i += 1) {
+                if (String(rows[i].getAttribute("data-encounter-id")) === String(encounterId)) {
+                    return rows[i];
+                }
+            }
+            return null;
+        }
+
+        function getPrimaryField(form) {
+            if (!form || !form.querySelector) return null;
+            return form.querySelector('input[name="value"], select[name="value"], textarea[name="value"], input[name="patient_dni"]');
+        }
+
+        function getCurrentValue(form) {
+            var field = getPrimaryField(form);
+            if (!field) return "";
+            if (field.type === "checkbox") return field.checked ? "1" : "0";
+            return String(field.value || "");
+        }
+
+        function isDniFormOld(form) {
+            return !!(form && form.querySelector && form.querySelector('input[name="patient_dni"]'));
+        }
+
+        function findInlineForm(row, fieldName) {
+            if (!row) return null;
+            var forms = row.getElementsByTagName("form");
+            var i;
+            var hidden;
+            for (i = 0; i < forms.length; i += 1) {
+                hidden = forms[i].querySelector ? forms[i].querySelector('input[name="field_name"]') : null;
+                if (hidden && hidden.value === fieldName) return forms[i];
+            }
+            return null;
+        }
+
+        function setInlineValue(row, fieldName, value) {
+            var form = findInlineForm(row, fieldName);
+            var field = getPrimaryField(form);
+            var editedAt;
+            if (!field || document.activeElement === field) return;
+            editedAt = field.getAttribute("data-last-local-edit");
+            if (form && form.getAttribute("data-dirty") === "1") return;
+            if (form && form.getAttribute("data-vital-saving") === "1") return;
+            if (editedAt && new Date().getTime() - Number(editedAt) < 6000) return;
+            field.value = value || "";
+        }
+
+        function setDniValue(row, payload, forceClose) {
+            var editBox = row && row.querySelector ? row.querySelector("[data-inline-edit]") : null;
+            var display = editBox && editBox.querySelector ? editBox.querySelector("[data-inline-open]") : null;
+            var input = editBox && editBox.querySelector ? editBox.querySelector('input[name="patient_dni"]') : null;
+            var editing = editBox && (" " + editBox.className + " ").indexOf(" editing ") !== -1;
+            if (!forceClose && input && (document.activeElement === input || editing)) return;
+            if (display && payload.patient_dni_display) display.innerHTML = escapeHtml(payload.patient_dni_display);
+            if (input) input.value = payload.patient_dni || "";
+            if (editBox) removeClass(editBox, "editing");
+        }
+
+        function updatePostFields(row, studyType) {
+            var postFields;
+            var postPlaceholder;
+            var isCyclometry;
+            if (!row) return;
+            if (studyType) row.setAttribute("data-study-type", studyType);
+            postFields = row.querySelector ? row.querySelector("[data-post-fields]") : null;
+            postPlaceholder = row.querySelector ? row.querySelector("[data-post-placeholder]") : null;
+            isCyclometry = (row.getAttribute("data-study-type") === "Ciclometria");
+            if (postFields) postFields.style.display = isCyclometry ? "" : "none";
+            if (postPlaceholder) postPlaceholder.style.display = isCyclometry ? "none" : "";
+        }
+
+        function updateAttendance(row, payload) {
+            var button = row && row.querySelector ? row.querySelector("[data-attendance-button]") : null;
+            if (!button || !payload.attendance_label) return;
+            button.innerHTML = escapeHtml(payload.attendance_label);
+            removeClass(button, "attended");
+            removeClass(button, "no-show");
+            if (payload.attended) addClass(button, "attended");
+            if (payload.no_show) addClass(button, "no-show");
+        }
+
+        function updateReport(row, payload) {
+            var button = row && row.querySelector ? row.querySelector("[data-report-button]") : null;
+            var help = row && row.querySelector ? row.querySelector("[data-report-help]") : null;
+            var links = row && row.querySelector ? row.querySelector("[data-report-links]") : null;
+            var htmlParts;
+
+            if (button && payload.report_button_label) button.innerHTML = escapeHtml(payload.report_button_label);
+            if (button && typeof payload.can_generate_report !== "undefined") {
+                button.disabled = !payload.can_generate_report;
+                if (payload.report_block_reason) {
+                    button.setAttribute("title", payload.report_block_reason);
+                } else {
+                    button.removeAttribute("title");
+                }
+            }
+            if (help) help.innerHTML = escapeHtml(payload.report_block_reason || payload.message || "");
+            if (!links) return;
+            if (payload.has_generated_reports) {
+                htmlParts = [];
+                if (payload.complete_report_url) {
+                    htmlParts.push('<div><a href="' + escapeHtml(payload.complete_report_url) + '" target="_blank" rel="noopener">Abrir completo</a></div>');
+                } else if (payload.latest_report_url) {
+                    htmlParts.push('<div><a href="' + escapeHtml(payload.latest_report_url) + '" target="_blank" rel="noopener">Abrir informe</a></div>');
+                }
+                if (payload.mutual_report_url) {
+                    htmlParts.push('<div><a href="' + escapeHtml(payload.mutual_report_url) + '" target="_blank" rel="noopener">Abrir mutual</a></div>');
+                }
+                htmlParts.push('<div><a href="' + escapeHtml(payload.detail_url || "#") + '">Ver archivos</a></div>');
+                links.innerHTML = htmlParts.join("");
+            } else {
+                links.innerHTML = '<div class="muted" style="font-size:.82rem;">Todavia sin informe.</div>';
+            }
+        }
+
+        function updateRow(row, payload) {
+            var statusCell;
+            var historyLink;
+            if (!row || !payload) return;
+
+            statusCell = row.querySelector ? row.querySelector("[data-status-label]") : null;
+            if (statusCell && payload.status) {
+                statusCell.innerHTML = '<span class="status-badge">' + escapeHtml(payload.status) + '</span>';
+            }
+
+            if (payload.study_type) updatePostFields(row, payload.study_type);
+            if (typeof payload.has_cycle_data !== "undefined") {
+                row.setAttribute("data-has-cycle-data", payload.has_cycle_data ? "1" : "0");
+            }
+
+            setInlineValue(row, "patient_name", payload.patient_name);
+            setInlineValue(row, "encounter_time", payload.encounter_time);
+            setInlineValue(row, "study_type", payload.study_type);
+            setInlineValue(row, "coverage_type", payload.coverage_type);
+            setInlineValue(row, "referring_physician", payload.referring_physician);
+            setInlineValue(row, "respiratory_result", payload.result_code);
+            setInlineValue(row, "so2_rest", payload.so2_rest);
+            setInlineValue(row, "fc_rest", payload.fc_rest);
+            setInlineValue(row, "so2_post", payload.so2_post);
+            setInlineValue(row, "fc_post", payload.fc_post);
+            setDniValue(row, payload);
+            updateAttendance(row, payload);
+            updateReport(row, payload);
+
+            historyLink = row.querySelector ? row.querySelector("[data-history-link]") : null;
+            if (historyLink && payload.patient_url) historyLink.setAttribute("href", payload.patient_url);
+        }
+
+        function ensureEmptyAgendaRow() {
+            var tbody = document.querySelector ? document.querySelector(".table tbody") : null;
+            var rows;
+            var emptyRow;
+            if (!tbody) return;
+            rows = tbody.querySelectorAll ? tbody.querySelectorAll("[data-encounter-row]") : [];
+            if (rows.length > 0) return;
+            emptyRow = document.createElement("tr");
+            emptyRow.innerHTML = '<td colspan="12">Todavia no hay pacientes cargados para hoy.</td>';
+            tbody.appendChild(emptyRow);
+        }
+
+        function removeAgendaRow(row) {
+            var tbody;
+            var i;
+            var rows;
+            if (!row || !row.parentNode) return;
+            tbody = row.parentNode;
+            row.parentNode.removeChild(row);
+            rows = tbody.querySelectorAll ? tbody.querySelectorAll("tr") : [];
+            for (i = rows.length - 1; i >= 0; i -= 1) {
+                if (!hasAttr(rows[i], "data-encounter-row")) {
+                    tbody.removeChild(rows[i]);
+                }
+            }
+            ensureEmptyAgendaRow();
+        }
+
+        function setSavingState(form, state) {
+            var field = getPrimaryField(form);
+            if (!field) return;
+            removeClass(field, "is-saving");
+            removeClass(field, "is-saved");
+            removeClass(field, "is-error");
+            if (state) addClass(field, "is-" + state);
+        }
+
+        function postForm(form, onDone, onFail) {
+            var xhr;
+            var data;
+            if (!form || !window.XMLHttpRequest || !window.FormData) {
+                if (form) form.submit();
+                return;
+            }
+            try {
+                data = new FormData(form);
+            } catch (error) {
+                form.submit();
+                return;
+            }
+            xhr = new XMLHttpRequest();
+            xhr.open("POST", form.getAttribute("action") || window.location.href, true);
+            xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+            xhr.onreadystatechange = function () {
+                var payload = {};
+                if (xhr.readyState !== 4) return;
+                try {
+                    payload = JSON.parse(xhr.responseText || "{}");
+                } catch (error) {
+                    payload = {};
+                }
+                if (xhr.status >= 200 && xhr.status < 300 && payload.ok !== false) {
+                    if (onDone) onDone(payload);
+                } else if (onFail) {
+                    onFail(payload);
+                }
+            };
+            xhr.send(data);
+        }
+
+        function submitInlineForm(form, onDone) {
+            var row = form ? closestAttr(form, "data-encounter-row") : null;
+            var submittedValue = getCurrentValue(form);
+            if (!form) return;
+            setSavingState(form, "saving");
+            postForm(
+                form,
+                function (payload) {
+                    updateRow(row, payload);
+                    if (isDniFormOld(form) && getCurrentValue(form) === submittedValue) {
+                        setDniValue(row, payload, true);
+                    }
+                    setSavingState(form, "saved");
+                    form.setAttribute("data-dirty", "0");
+                    window.setTimeout(function () { setSavingState(form, ""); }, 700);
+                    if (onDone) onDone(payload);
+                },
+                function (payload) {
+                    updateRow(row, payload);
+                    setSavingState(form, "error");
+                    if (onDone) onDone(payload);
+                }
+            );
+        }
+
+        function collectInlineForms(row) {
+            var forms = row ? row.querySelectorAll("form[data-inline-ajax]") : [];
+            var list = [];
+            var i;
+            for (i = 0; i < forms.length; i += 1) {
+                if (!hasAttr(forms[i], "data-attendance-form")) list.push(forms[i]);
+            }
+            return list;
+        }
+
+        function submitFormsInOrder(forms, index, done) {
+            if (!forms || index >= forms.length) {
+                done();
+                return;
+            }
+            submitInlineForm(forms[index], function () {
+                submitFormsInOrder(forms, index + 1, done);
+            });
+        }
+
+        function handleAttendanceClick(event) {
+            var target = event.target || event.srcElement;
+            var button = closestAttr(target, "data-attendance-button");
+            var form;
+            var row;
+            var oldLabel;
+            if (!button) return;
+            stopEvent(event);
+            form = button.form || closestTag(button, "form");
+            row = closestAttr(button, "data-encounter-row");
+            if (!form || form.getAttribute("data-live-saving") === "1") return false;
+            form.setAttribute("data-live-saving", "1");
+            oldLabel = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = "Guardando...";
+            postForm(
+                form,
+                function (payload) {
+                    updateRow(row, payload);
+                    button.disabled = false;
+                    form.setAttribute("data-live-saving", "0");
+                },
+                function (payload) {
+                    updateRow(row, payload);
+                    button.innerHTML = oldLabel;
+                    button.disabled = false;
+                    form.setAttribute("data-live-saving", "0");
+                }
+            );
+            return false;
+        }
+
+        function handleReportSubmit(event) {
+            var form = event.target || event.srcElement;
+            var row;
+            var button;
+            var help;
+            if (!hasAttr(form, "data-report-form")) return;
+            stopEvent(event);
+            row = closestAttr(form, "data-encounter-row");
+            button = form.querySelector ? form.querySelector("[data-report-button]") : null;
+            help = row && row.querySelector ? row.querySelector("[data-report-help]") : null;
+            if (button && button.disabled) return false;
+            if (button) {
+                button.disabled = true;
+                button.setAttribute("data-old-label", button.innerHTML);
+                button.innerHTML = "Generando...";
+            }
+            if (help) help.innerHTML = "Guardando datos y generando...";
+            submitFormsInOrder(collectInlineForms(row), 0, function () {
+                postForm(
+                    form,
+                    function (payload) {
+                        updateRow(row, payload);
+                    },
+                    function (payload) {
+                        updateRow(row, payload);
+                        if (button) {
+                            button.innerHTML = button.getAttribute("data-old-label") || "Generar informe";
+                        }
+                    }
+                );
+            });
+            return false;
+        }
+
+        function handleDeleteSubmit(event) {
+            var form = event.target || event.srcElement;
+            var row;
+            var button;
+            if (!hasAttr(form, "data-delete-form")) return;
+            stopEvent(event);
+            row = closestAttr(form, "data-encounter-row");
+            button = form.querySelector ? form.querySelector("[data-delete-button]") : null;
+            if (!window.confirm || !window.confirm("¿Eliminar este paciente agendado?")) return false;
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = "Eliminando...";
+            }
+            postForm(
+                form,
+                function (payload) {
+                    if (payload && payload.deleted) {
+                        removeAgendaRow(row);
+                    }
+                },
+                function () {
+                    if (button) {
+                        button.disabled = false;
+                        button.innerHTML = "Eliminar";
+                    }
+                }
+            );
+            return false;
+        }
+
+        function installOldBrowserInlineFallback() {
+            var forms = document.querySelectorAll ? document.querySelectorAll("form[data-inline-ajax]") : [];
+            var fields = document.querySelectorAll ? document.querySelectorAll("[data-inline-submit]") : [];
+            var openers = document.querySelectorAll ? document.querySelectorAll("[data-inline-open]") : [];
+            var dniInputs = document.querySelectorAll ? document.querySelectorAll("[data-inline-edit] input[name='patient_dni']") : [];
+            var i;
+
+            for (i = 0; i < forms.length; i += 1) {
+                forms[i].setAttribute("data-dirty", "0");
+                addEvent(forms[i], "submit", function (event) {
+                    stopEvent(event);
+                    submitInlineForm(event.target || event.srcElement);
+                    return false;
+                });
+            }
+            for (i = 0; i < fields.length; i += 1) {
+                addEvent(fields[i], "change", function (event) {
+                    var field = event.target || event.srcElement;
+                    if (field.form) submitInlineForm(field.form);
+                });
+                addEvent(fields[i], "blur", function (event) {
+                    var field = event.target || event.srcElement;
+                    if (field.form) submitInlineForm(field.form);
+                });
+                addEvent(fields[i], "keydown", function (event) {
+                    event = event || window.event;
+                    if (event.keyCode === 13) {
+                        stopEvent(event);
+                        if ((event.target || event.srcElement).form) submitInlineForm((event.target || event.srcElement).form);
+                    }
+                });
+            }
+            for (i = 0; i < openers.length; i += 1) {
+                addEvent(openers[i], "click", function (event) {
+                    var box = closestAttr(event.target || event.srcElement, "data-inline-edit");
+                    var input = box && box.querySelector ? box.querySelector("input") : null;
+                    if (box) addClass(box, "editing");
+                    if (input) {
+                        input.focus();
+                        if (input.select) input.select();
+                    }
+                });
+            }
+            for (i = 0; i < dniInputs.length; i += 1) {
+                addEvent(dniInputs[i], "change", function (event) {
+                    var input = event.target || event.srcElement;
+                    if (input.form) submitInlineForm(input.form);
+                });
+                addEvent(dniInputs[i], "keydown", function (event) {
+                    event = event || window.event;
+                    if (event.keyCode === 13) {
+                        stopEvent(event);
+                        if ((event.target || event.srcElement).form) submitInlineForm((event.target || event.srcElement).form);
+                    }
+                });
+            }
+        }
+
+        function getFieldName(form) {
+            var input = form && form.querySelector ? form.querySelector('input[name="field_name"]') : null;
+            return input ? input.value : "";
+        }
+
+        function isVitalField(field) {
+            var fieldName = getFieldName(field ? field.form : null);
+            return fieldName === "so2_rest" || fieldName === "fc_rest" || fieldName === "so2_post" || fieldName === "fc_post";
+        }
+
+        function markLocalEdit(field) {
+            if (!field || !field.form) return;
+            field.setAttribute("data-last-local-edit", String(new Date().getTime()));
+            field.form.setAttribute("data-dirty", "1");
+        }
+
+        function stopBubbleOnly(event) {
+            event = event || window.event;
+            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+            if (event.stopPropagation) event.stopPropagation();
+            event.cancelBubble = true;
+        }
+
+        function scheduleVitalSubmit(field, delay) {
+            var form;
+            if (!field || !field.form || !isVitalField(field)) return;
+            form = field.form;
+            markLocalEdit(field);
+            if (form._vitalTimer) window.clearTimeout(form._vitalTimer);
+            form._vitalTimer = window.setTimeout(function () {
+                form._vitalTimer = null;
+                form.setAttribute("data-vital-saving", "1");
+                submitInlineForm(form, function () {
+                    form.setAttribute("data-vital-saving", "0");
+                });
+            }, delay);
+        }
+
+        function installVitalAutosave() {
+            var fields = document.querySelectorAll ? document.querySelectorAll(".so2-input, .fc-input") : [];
+            var i;
+            for (i = 0; i < fields.length; i += 1) {
+                addEvent(fields[i], "input", function (event) {
+                    var field = event.target || event.srcElement;
+                    if (!isVitalField(field)) return;
+                    stopBubbleOnly(event);
+                    scheduleVitalSubmit(field, 450);
+                }, true);
+                addEvent(fields[i], "keyup", function (event) {
+                    var field = event.target || event.srcElement;
+                    if (!isVitalField(field)) return;
+                    scheduleVitalSubmit(field, 450);
+                }, true);
+                addEvent(fields[i], "change", function (event) {
+                    var field = event.target || event.srcElement;
+                    if (!isVitalField(field)) return;
+                    stopBubbleOnly(event);
+                    scheduleVitalSubmit(field, 10);
+                }, true);
+                addEvent(fields[i], "blur", function (event) {
+                    var field = event.target || event.srcElement;
+                    if (!isVitalField(field)) return;
+                    scheduleVitalSubmit(field, 10);
+                }, true);
+            }
+        }
+
+        function capNumericInputs(event) {
+            var field = event.target || event.srcElement;
+            var value;
+            if (!field || !field.className) return;
+            value = String(field.value || "").replace(/\D/g, "");
+            if ((" " + field.className + " ").indexOf(" so2-input ") !== -1 && value.length > 2) {
+                field.value = value.substring(0, 2);
+            }
+            if ((" " + field.className + " ").indexOf(" fc-input ") !== -1 && value.length > 3) {
+                field.value = value.substring(0, 3);
+            }
+            if (hasAttr(field, "data-result-code")) {
+                field.value = String(field.value || "").toUpperCase().replace(/[^A-Z]/g, "");
+            }
+        }
+
+        function formatBytes(bytes) {
+            if (!bytes) return "0 KB";
+            if (bytes < 1024) return bytes + " B";
+            return Math.round(bytes / 1024) + " KB";
+        }
+
+        function updateDrappPasteStatus(fileInput) {
+            var status = document.querySelector ? document.querySelector("[data-drapp-paste-status]") : null;
+            var file = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+            if (!status) return;
+            if (file) {
+                status.innerHTML = "Captura lista: " + formatBytes(file.size);
+            } else {
+                status.innerHTML = "Sin captura";
+            }
+        }
+
+        function assignPastedImageToInput(fileInput, file) {
+            var transfer;
+            if (!fileInput || !file) return false;
+            try {
+                transfer = new DataTransfer();
+                transfer.items.add(file);
+                fileInput.files = transfer.files;
+                updateDrappPasteStatus(fileInput);
+                return true;
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function installDrappPasteZone() {
+            var pasteZone = document.querySelector ? document.querySelector("[data-drapp-paste-zone]") : null;
+            var fileInput = document.getElementById ? document.getElementById("{{ import_form.screenshot.id_for_label }}") : null;
+            if (!pasteZone || !fileInput) return;
+
+            addEvent(fileInput, "change", function () {
+                updateDrappPasteStatus(fileInput);
+            });
+            addEvent(pasteZone, "click", function () {
+                if (pasteZone.focus) pasteZone.focus();
+            });
+            addEvent(pasteZone, "paste", function (event) {
+                var clipboard = event.clipboardData || window.clipboardData;
+                var items;
+                var i;
+                var file;
+                if (!clipboard || !clipboard.items) return;
+                items = clipboard.items;
+                for (i = 0; i < items.length; i += 1) {
+                    if (items[i] && items[i].type && items[i].type.indexOf("image/") === 0) {
+                        file = items[i].getAsFile ? items[i].getAsFile() : null;
+                        if (file && assignPastedImageToInput(fileInput, file)) {
+                            stopEvent(event);
+                            return false;
+                        }
+                    }
+                }
+            });
+
+            updateDrappPasteStatus(fileInput);
+        }
+
+        function pollRows() {
+            var xhr;
+            if (!window.XMLHttpRequest) return;
+            xhr = new XMLHttpRequest();
+            xhr.open("GET", stateUrl + "?_=" + new Date().getTime(), true);
+            xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+            xhr.onreadystatechange = function () {
+                var payload;
+                var rows;
+                var i;
+                var row;
+                if (xhr.readyState !== 4 || xhr.status !== 200) return;
+                try {
+                    payload = JSON.parse(xhr.responseText || "{}");
+                } catch (error) {
+                    return;
+                }
+                rows = payload.rows || [];
+                for (i = 0; i < rows.length; i += 1) {
+                    row = findRowById(rows[i].encounter_id);
+                    updateRow(row, rows[i]);
+                }
+            };
+            xhr.send(null);
+        }
+
+        addEvent(document, "click", handleAttendanceClick, true);
+        addEvent(document, "submit", handleReportSubmit, true);
+        addEvent(document, "submit", handleDeleteSubmit, true);
+        addEvent(document, "input", capNumericInputs, true);
+        addEvent(document, "keyup", capNumericInputs, true);
+
+        if (!window.espiroModernDashboardReady) {
+            installOldBrowserInlineFallback();
+        }
+        installVitalAutosave();
+        installDrappPasteZone();
+
+        window.setInterval(pollRows, 12000);
+        window.setTimeout(pollRows, 2000);
+    })();
+</script>
+{% endblock %}

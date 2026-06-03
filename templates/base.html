@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Clinica Espiro{% endblock %}</title>
+    <style>
+        :root {
+            --bg: #eef6f8;
+            --card: #ffffff;
+            --ink: #102b3c;
+            --muted: #58707f;
+            --line: #c8d8df;
+            --brand: #0d6f8a;
+            --brand-2: #e38b22;
+            --ok: #178a55;
+            --warn: #c35f16;
+            --danger: #b73535;
+            --info: #2f6fbb;
+            --result: #fff0a8;
+            --so2: #d9f7f4;
+            --fc: #ffe7cf;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: Georgia, "Times New Roman", serif;
+            color: var(--ink);
+            background: #eef6f8;
+            background: linear-gradient(180deg, #eef6f8 0%, #f7fbfc 52%, #edf3f6 100%);
+        }
+        a { color: var(--brand); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .shell {
+            width: 100%;
+            max-width: none;
+            margin: 0;
+            padding: 18px 28px 32px;
+        }
+        .topbar {
+            background: #ffffff;
+            border-bottom: 3px solid #0d6f8a;
+        }
+        .topbar-inner {
+            width: 100%;
+            max-width: none;
+            margin: 0;
+            padding: 14px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        }
+        .brand {
+            font-size: 1.25rem;
+            font-weight: bold;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            color: #0d3f55;
+        }
+        .brand small {
+            display: block;
+            font-size: .72rem;
+            color: var(--muted);
+            letter-spacing: .1em;
+        }
+        .nav {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .nav a {
+            display: inline-block;
+            padding: 9px 13px;
+            border: 1px solid #c8d8df;
+            border-radius: 8px;
+            background: #f7fbfc;
+            color: #0d3f55;
+            font-weight: bold;
+        }
+        .nav a:hover {
+            background: #e3f3f6;
+            text-decoration: none;
+        }
+        .nav form {
+            margin: 0;
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            box-shadow: 0 8px 18px rgba(16,43,60,.10);
+            padding: 18px 20px;
+            min-width: 0;
+        }
+        .hero {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+            align-items: start;
+        }
+        .hero-title {
+            font-size: clamp(2rem, 4.6vw, 4.6rem);
+            line-height: .92;
+            margin: 0 0 12px;
+            max-width: 18ch;
+        }
+        .muted { color: var(--muted); }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 20px;
+        }
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 16px;
+        }
+        .stats-strip {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .stat {
+            padding: 10px 14px;
+            border-radius: 8px;
+            background: #ffffff;
+            border-left: 6px solid #0d6f8a;
+            border-top: 1px solid #c8d8df;
+            border-right: 1px solid #c8d8df;
+            border-bottom: 1px solid #c8d8df;
+        }
+        .stat strong {
+            display: block;
+            font-size: 1.65rem;
+            margin-top: 6px;
+        }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: auto;
+        }
+        .table th, .table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid var(--line);
+            text-align: left;
+            vertical-align: middle;
+        }
+        .table th {
+            font-size: .78rem;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            color: #254c61;
+            background: #e6f3f6;
+            border-top: 1px solid #c8d8df;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+        }
+        .field label {
+            display: block;
+            font-size: .9rem;
+            margin-bottom: 6px;
+            color: var(--muted);
+        }
+        .field input,
+        .field select,
+        .field textarea {
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: #fff;
+            padding: 12px 14px;
+            font: inherit;
+            color: var(--ink);
+        }
+        .field input[type="checkbox"] {
+            width: auto;
+            transform: scale(1.2);
+            margin-right: 8px;
+        }
+        .button {
+            display: inline-block;
+            background: var(--brand);
+            color: #fff;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            font: inherit;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .button.small {
+            padding: 8px 12px;
+            font-size: .92rem;
+        }
+        .button:disabled {
+            background: #bdc6cb;
+            cursor: not-allowed;
+        }
+        .button.alt { background: var(--brand-2); }
+        .button.danger { background: #b64731; }
+        .messages {
+            margin-bottom: 18px;
+        }
+        .message {
+            padding: 12px 16px;
+            border-radius: 12px;
+            background: rgba(31,122,76,.1);
+            border: 1px solid rgba(31,122,76,.18);
+            margin-bottom: 10px;
+        }
+        .section-title {
+            margin: 0 0 14px;
+            font-size: 1.3rem;
+        }
+        .pill {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 8px;
+            background: #d9f7f4;
+            color: var(--brand);
+            font-size: .85rem;
+            font-weight: bold;
+        }
+        .detail-list {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px 18px;
+        }
+        .detail-list div {
+            padding: 10px 12px;
+            background: rgba(255,255,255,.7);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            min-width: 0;
+        }
+        .detail-list strong {
+            display: block;
+            color: var(--muted);
+            font-size: .82rem;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            margin-bottom: 4px;
+        }
+        .table-wrap {
+            width: 100%;
+            overflow-x: auto;
+        }
+        .table-wrap .table {
+            min-width: 1100px;
+        }
+        .inline-edit {
+            min-width: 0;
+        }
+        .inline-display {
+            border: none;
+            background: transparent;
+            color: var(--brand);
+            font: inherit;
+            padding: 0;
+            cursor: pointer;
+            text-align: left;
+        }
+        .inline-form {
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+        .inline-edit.editing .inline-display {
+            display: none;
+        }
+        .inline-edit.editing .inline-form {
+            display: flex;
+        }
+        .inline-input {
+            width: 120px;
+            border-radius: 6px;
+            border: 1px solid var(--line);
+            padding: 8px 10px;
+            font: inherit;
+        }
+        .inline-save {
+            border: none;
+            border-radius: 8px;
+            background: var(--brand);
+            color: #fff;
+            padding: 8px 12px;
+            font: inherit;
+            cursor: pointer;
+        }
+        .inline-cell-form {
+            margin: 0;
+        }
+        .cell-input {
+            width: 100%;
+            min-width: 0;
+            border: 1px solid transparent;
+            background: rgba(255,255,255,.88);
+            border-radius: 6px;
+            padding: 8px 10px;
+            font: inherit;
+            color: var(--ink);
+        }
+        .cell-input:focus {
+            outline: none;
+            border-color: rgba(15,90,95,.35);
+            background: #fff;
+        }
+        .cell-input.is-saving {
+            border-color: rgba(214,124,50,.45);
+            background: #fff7ed;
+        }
+        .cell-input.is-saved {
+            border-color: rgba(31,122,76,.35);
+            background: #f0fbf5;
+        }
+        .cell-input.is-error {
+            border-color: rgba(176,94,26,.45);
+            background: #fff1eb;
+        }
+        .cell-small {
+            width: 54px;
+            text-align: center;
+            padding-left: 6px;
+            padding-right: 6px;
+            font-weight: bold;
+        }
+        .cell-time {
+            width: 92px;
+        }
+        .cell-name {
+            min-width: 220px;
+        }
+        .cell-select {
+            min-width: 140px;
+        }
+        .inline-pair {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .attendance-button {
+            border: 1px solid rgba(15,90,95,.18);
+            background: rgba(255,255,255,.9);
+            color: var(--ink);
+            border-radius: 999px;
+            padding: 8px 12px;
+            font: inherit;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .attendance-button.attended {
+            background: rgba(31,122,76,.12);
+            border-color: rgba(31,122,76,.24);
+            color: #1f7a4c;
+        }
+        .attendance-button.no-show {
+            background: rgba(176,94,26,.12);
+            border-color: rgba(176,94,26,.22);
+            color: #b05e1a;
+        }
+        .panel-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
+            gap: 20px;
+            align-items: start;
+        }
+        .calendar-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+        .calendar-nav {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .calendar-nav a,
+        .calendar-nav button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 42px;
+            height: 42px;
+            padding: 0 14px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: #fff;
+            color: var(--ink);
+            font: inherit;
+            cursor: pointer;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .calendar-weekday {
+            text-align: center;
+            font-size: .82rem;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+            color: var(--muted);
+            padding-bottom: 6px;
+        }
+        .calendar-day {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 100px;
+            border-radius: 16px;
+            border: 1px solid rgba(23,49,63,.08);
+            background: rgba(255,255,255,.8);
+            padding: 12px 10px;
+            color: var(--ink);
+            text-decoration: none;
+            transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+        }
+        .calendar-day:hover {
+            transform: translateY(-1px);
+            border-color: rgba(15,90,95,.25);
+            box-shadow: 0 12px 24px rgba(23,49,63,.08);
+            text-decoration: none;
+        }
+        .calendar-day.outside {
+            opacity: .36;
+        }
+        .calendar-day.today {
+            border-color: rgba(214,124,50,.4);
+            background: linear-gradient(180deg, rgba(255,244,217,.92), rgba(255,255,255,.92));
+        }
+        .calendar-day.selected {
+            border-color: rgba(15,90,95,.5);
+            background: linear-gradient(180deg, rgba(15,90,95,.1), rgba(255,255,255,.98));
+        }
+        .calendar-day.has-encounters {
+            border-color: rgba(15,90,95,.22);
+        }
+        .calendar-day.all-attended {
+            background: linear-gradient(180deg, rgba(31,122,76,.12), rgba(255,255,255,.98));
+        }
+        .calendar-day-number {
+            font-size: 1rem;
+            font-weight: bold;
+        }
+        .calendar-day-meta {
+            display: grid;
+            gap: 4px;
+            margin-top: 10px;
+        }
+        .calendar-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: fit-content;
+            min-width: 28px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: rgba(15,90,95,.1);
+            color: var(--brand);
+            font-size: .82rem;
+        }
+        .calendar-mini {
+            font-size: .76rem;
+            color: var(--muted);
+        }
+        .stats-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .stats-table th,
+        .stats-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid var(--line);
+            text-align: left;
+            vertical-align: top;
+        }
+        .stats-table th {
+            font-size: .82rem;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            color: var(--muted);
+        }
+        .metric-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+        }
+        .metric {
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(15,90,95,.1);
+            background: rgba(255,255,255,.72);
+        }
+        .metric span {
+            display: block;
+            color: var(--muted);
+            font-size: .82rem;
+            margin-bottom: 4px;
+        }
+        .metric strong {
+            font-size: 1.45rem;
+        }
+        .period-card {
+            display: grid;
+            gap: 14px;
+        }
+        .hint-card {
+            background: linear-gradient(135deg, rgba(15,90,95,.06), rgba(214,124,50,.08));
+        }
+        .agenda-card {
+            padding: 16px;
+        }
+        .agenda-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+        .agenda-head .section-title {
+            font-size: 1.55rem;
+            margin-top: 8px;
+        }
+        .agenda-entry-panel {
+            display: grid;
+            grid-template-columns: minmax(0, 1.25fr) minmax(300px, .75fr);
+            gap: 14px;
+            margin-bottom: 16px;
+            padding: 12px;
+            border: 1px solid #b7d7e2;
+            border-radius: 8px;
+            background: #f2fbfd;
+        }
+        .quick-add-box,
+        .drapp-box {
+            background: #ffffff;
+            border: 1px solid #d5e4ea;
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .mini-title {
+            margin: 0 0 10px;
+            font-size: 1.05rem;
+            color: #0d3f55;
+        }
+        .compact-form-grid {
+            grid-template-columns: repeat(6, minmax(110px, 1fr));
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .compact-form-grid .field label {
+            margin-bottom: 4px;
+            font-size: .78rem;
+            font-weight: bold;
+            color: #36586a;
+        }
+        .compact-form-grid .field input,
+        .compact-form-grid .field select {
+            padding: 8px 9px;
+            border-radius: 6px;
+        }
+        .drapp-box textarea {
+            min-height: 92px;
+            padding: 9px 10px;
+            border-radius: 6px;
+        }
+        .table tbody tr:nth-child(even) {
+            background: #f8fcfd;
+        }
+        .table tbody tr:hover {
+            background: #eef8fb;
+        }
+        .time-cell {
+            background: #eef5ff;
+        }
+        .patient-cell .cell-input {
+            font-weight: bold;
+            color: #0d3f55;
+            background: #ffffff;
+            border-left: 5px solid #2f6fbb;
+        }
+        .study-select {
+            background: #eef7ff;
+            border-color: #b9d7f2;
+            font-weight: bold;
+        }
+        .coverage-select {
+            background: #f4edff;
+            border-color: #d8c5f2;
+            font-weight: bold;
+        }
+        .vitals-cell {
+            background: #fbfdff;
+        }
+        .so2-input {
+            background: #d9f7f4;
+            border-color: #88d4cc;
+            color: #075b59;
+        }
+        .fc-input {
+            background: #ffe7cf;
+            border-color: #f0b36f;
+            color: #7a3a00;
+        }
+        .result-cell {
+            background: #fff7ce;
+        }
+        .result-input {
+            min-width: 165px;
+            background: #fff0a8;
+            border: 2px solid #d3a900;
+            color: #4b3900;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .attendance-cell {
+            background: #f4fbf7;
+        }
+        .attendance-button {
+            border-radius: 8px;
+            background: #ffffff;
+            border-color: #b7cbd5;
+            font-weight: bold;
+        }
+        .attendance-button.attended {
+            background: #dff6e9;
+            border-color: #8bc9a6;
+            color: #126f44;
+        }
+        .attendance-button.no-show {
+            background: #ffe4db;
+            border-color: #e8a28c;
+            color: #9d3d22;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 6px 8px;
+            border-radius: 6px;
+            background: #eaf0f3;
+            color: #294859;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .review-panel {
+            background: #ffffff;
+            border-left: 6px solid #0d6f8a;
+        }
+        .suggestion-box {
+            margin: 14px 0;
+            padding: 12px;
+            border: 2px solid #d3a900;
+            border-radius: 8px;
+            background: #fff8d8;
+        }
+        .suggestion-code {
+            display: inline-block;
+            min-width: 54px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: #d3a900;
+            color: #fff;
+            font-size: 1.3rem;
+            font-weight: bold;
+            text-align: center;
+        }
+        .measurement-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .measurement-grid div {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #e0c86d;
+            background: #fffdf2;
+            font-size: .9rem;
+        }
+        @media (max-width: 1400px) {
+            .form-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .compact-form-grid {
+                grid-template-columns: repeat(4, minmax(110px, 1fr));
+            }
+        }
+        @media (max-width: 900px) {
+            .hero, .grid-2, .grid-3, .form-grid, .detail-list, .panel-grid, .agenda-entry-panel, .compact-form-grid, .measurement-grid { grid-template-columns: 1fr; }
+            .topbar-inner { align-items: flex-start; flex-direction: column; }
+            .shell, .topbar-inner { padding-left: 16px; padding-right: 16px; }
+            .hero-title { max-width: none; }
+            .agenda-head { align-items: flex-start; flex-direction: column; }
+            .calendar-day {
+                min-height: 82px;
+                padding: 10px 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <div class="brand">
+                Clinica Espiro
+                <small>Agenda respiratoria e informes</small>
+            </div>
+            <nav class="nav">
+                {% if request.user.is_authenticated %}
+                    <a href="{% url 'clinic:dashboard' %}">Inicio</a>
+                    <a href="{% url 'clinic:calendar' %}">Calendario</a>
+                    <a href="{% url 'clinic:statistics' %}">Estadistica</a>
+                    <a href="{% url 'clinic:patient_list' %}">Pacientes</a>
+                <a href="{% url 'clinic:doctor_review_list' %}">Revision medica</a>
+                    <a href="{% url 'admin:index' %}">Admin</a>
+                    <form method="post" action="{% url 'logout' %}">
+                        {% csrf_token %}
+                        <button class="button alt" type="submit">Salir</button>
+                    </form>
+                {% endif %}
+            </nav>
+        </div>
+    </header>
+    <main class="shell">
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                    <div class="message">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

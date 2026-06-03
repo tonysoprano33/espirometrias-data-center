@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Nueva atencion | Clinica Espiro{% endblock %}
+
+{% block content %}
+<section class="card">
+    <p class="pill">Carga rapida</p>
+    <h1 class="section-title">Nueva atencion</h1>
+    <p class="muted" style="margin-top:0;">Solo lo importante para recibir al paciente. La fecha queda en hoy automaticamente y el PDF se carga aparte en revision medica.</p>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="form-grid">
+            {% for field in form %}
+                <div class="field">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                        <div class="muted">{{ field.errors }}</div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+        <p class="muted" style="margin:12px 0 0;">
+            Codigos: N, OL, OM, OMS, OS, RL, RM, RMS, RS o mixto tipo RLOMS.
+        </p>
+        <datalist id="result-code-options">
+            {% for value, label in result_code_suggestions %}
+                <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+        </datalist>
+        <button class="button" type="submit" style="margin-top:24px;">Guardar atencion</button>
+    </form>
+</section>
+<script>
+    (function () {
+        var studySelect = document.getElementById("id_study_type");
+        var cycleFields = ["id_so2_post", "id_fc_post", "id_distance_meters", "id_completed", "id_borg_final"];
+
+        function findFieldWrapper(element) {
+            while (element && element.nodeType === 1) {
+                if ((" " + element.className + " ").indexOf(" field ") !== -1) {
+                    return element;
+                }
+                element = element.parentNode;
+            }
+            return null;
+        }
+
+        function toggleStudyFields() {
+            var isCyclometry = studySelect && studySelect.value === "Ciclometria";
+            var i;
+            for (i = 0; i < cycleFields.length; i += 1) {
+                var field = document.getElementById(cycleFields[i]);
+                if (!field) return;
+                var wrapper = findFieldWrapper(field);
+                if (wrapper) wrapper.style.display = isCyclometry ? "" : "none";
+            }
+        }
+
+        if (studySelect) {
+            studySelect.addEventListener("change", toggleStudyFields);
+            toggleStudyFields();
+        }
+
+        var resultInputs = document.querySelectorAll("[data-result-code]");
+        var j;
+        for (j = 0; j < resultInputs.length; j += 1) {
+            resultInputs[j].addEventListener("input", function () {
+                this.value = String(this.value || "")
+                    .toUpperCase()
+                    .replace(/[^A-Z]/g, "");
+            });
+        }
+    })();
+</script>
+{% endblock %}

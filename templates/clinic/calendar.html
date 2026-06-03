@@ -1,0 +1,548 @@
+{% extends "base.html" %}
+
+{% block title %}Calendario | Clinica Espiro{% endblock %}
+
+{% block content %}
+<style>
+    .calendar-page {
+        display: grid;
+        gap: 20px;
+    }
+    .calendar-hero {
+        background:
+            radial-gradient(circle at top left, rgba(214,124,50,.16), transparent 32%),
+            radial-gradient(circle at top right, rgba(15,90,95,.12), transparent 28%),
+            rgba(255,255,255,.92);
+    }
+    .calendar-hero .section-title {
+        font-size: 2.1rem;
+        max-width: 860px;
+        line-height: 1.02;
+    }
+    .calendar-shell {
+        display: grid;
+        gap: 18px;
+    }
+    .calendar-shell .calendar-toolbar {
+        align-items: flex-start;
+    }
+    .calendar-subtitle {
+        margin: 10px 0 0;
+        max-width: 780px;
+    }
+    .calendar-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
+    }
+    .calendar-legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.8);
+        border: 1px solid rgba(23,49,63,.08);
+        font-size: .84rem;
+        color: var(--ink);
+    }
+    .calendar-legend-swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        flex: 0 0 auto;
+    }
+    .swatch-busy { background: #0f5a5f; }
+    .swatch-attended { background: #1f7a4c; }
+    .swatch-offday { background: #d67c32; }
+    .swatch-empty { background: #d9e1e5; }
+    .calendar-board {
+        padding: 18px;
+        border-radius: 20px;
+        background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(247,243,235,.96));
+        border: 1px solid rgba(23,49,63,.08);
+    }
+    .calendar-grid {
+        gap: 12px;
+    }
+    .calendar-weekday {
+        font-size: .8rem;
+        font-weight: bold;
+        letter-spacing: .08em;
+    }
+    .calendar-day {
+        min-height: 136px;
+        border-radius: 20px;
+        padding: 14px 12px 12px;
+        overflow: hidden;
+        position: relative;
+    }
+    .calendar-day.outside {
+        opacity: .28;
+    }
+    .calendar-day.is-default-offday {
+        background: linear-gradient(180deg, rgba(246,239,228,.96), rgba(255,255,255,.96));
+        border-color: rgba(214,124,50,.22);
+    }
+    .calendar-day.has-encounters {
+        border-color: rgba(15,90,95,.26);
+        background:
+            radial-gradient(circle at top right, rgba(15,90,95,.12), transparent 34%),
+            linear-gradient(180deg, rgba(230,245,244,.95), rgba(255,255,255,.98));
+        box-shadow: 0 14px 30px rgba(15,90,95,.08);
+    }
+    .calendar-day.has-encounters.is-default-offday {
+        background:
+            radial-gradient(circle at top right, rgba(214,124,50,.18), transparent 32%),
+            linear-gradient(180deg, rgba(255,247,235,.96), rgba(255,255,255,.98));
+        border-color: rgba(214,124,50,.32);
+    }
+    .calendar-day.all-attended {
+        background:
+            radial-gradient(circle at top right, rgba(31,122,76,.14), transparent 36%),
+            linear-gradient(180deg, rgba(240,251,245,.98), rgba(255,255,255,.98));
+    }
+    .calendar-day.selected {
+        border-color: rgba(15,90,95,.5);
+        box-shadow: 0 18px 36px rgba(15,90,95,.12);
+    }
+    .calendar-day.today {
+        border-width: 2px;
+    }
+    .calendar-day-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+    }
+    .calendar-day-number {
+        font-size: 1.1rem;
+    }
+    .calendar-day-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 28px;
+        height: 28px;
+        padding: 0 8px;
+        border-radius: 999px;
+        font-size: .8rem;
+        font-weight: bold;
+    }
+    .calendar-day-chip.busy {
+        background: rgba(15,90,95,.12);
+        color: var(--brand);
+    }
+    .calendar-day-chip.offday {
+        background: rgba(214,124,50,.14);
+        color: #a95f1d;
+    }
+    .calendar-day-meta {
+        gap: 6px;
+    }
+    .calendar-day-flags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .calendar-flag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: bold;
+        background: rgba(255,255,255,.85);
+        border: 1px solid rgba(23,49,63,.08);
+    }
+    .calendar-flag.pending { color: #9b5b16; background: rgba(255,242,220,.95); }
+    .calendar-flag.attended { color: #1f7a4c; background: rgba(240,251,245,.95); }
+    .calendar-flag.mutual { color: #1b5c85; background: rgba(232,245,255,.95); }
+    .calendar-flag.no-show { color: #b05e1a; background: rgba(255,241,235,.95); }
+    .calendar-flag.offday { color: #a95f1d; background: rgba(255,247,235,.95); }
+    .calendar-mini.strong {
+        color: var(--ink);
+        font-weight: bold;
+    }
+    .calendar-detail {
+        display: grid;
+        gap: 18px;
+    }
+    .calendar-detail-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+    .calendar-detail-note {
+        margin: 8px 0 0;
+        color: var(--muted);
+        max-width: 760px;
+    }
+    .calendar-day-state {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        border-radius: 14px;
+        background: rgba(255,247,235,.9);
+        border: 1px solid rgba(214,124,50,.22);
+        color: #8e5418;
+        font-weight: bold;
+    }
+    .calendar-day-state.busy {
+        background: rgba(230,245,244,.95);
+        border-color: rgba(15,90,95,.18);
+        color: var(--brand);
+    }
+    .calendar-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 12px;
+    }
+    .calendar-summary-card {
+        padding: 16px;
+        border-radius: 18px;
+        border: 1px solid rgba(23,49,63,.08);
+        background: rgba(255,255,255,.92);
+    }
+    .calendar-summary-card span {
+        display: block;
+        font-size: .82rem;
+        color: var(--muted);
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+    .calendar-summary-card strong {
+        display: block;
+        font-size: 2rem;
+        line-height: 1;
+    }
+    .calendar-summary-card.total { background: linear-gradient(180deg, rgba(230,245,244,.96), rgba(255,255,255,.98)); }
+    .calendar-summary-card.mutual { background: linear-gradient(180deg, rgba(232,245,255,.96), rgba(255,255,255,.98)); }
+    .calendar-summary-card.attended { background: linear-gradient(180deg, rgba(240,251,245,.98), rgba(255,255,255,.98)); }
+    .calendar-summary-card.pending { background: linear-gradient(180deg, rgba(255,247,235,.96), rgba(255,255,255,.98)); }
+    .calendar-summary-card.no-show { background: linear-gradient(180deg, rgba(255,241,235,.98), rgba(255,255,255,.98)); }
+    .calendar-table-wrap {
+        overflow-x: auto;
+        border-radius: 18px;
+        border: 1px solid rgba(23,49,63,.08);
+        background: rgba(255,255,255,.88);
+    }
+    .calendar-table {
+        width: 100%;
+        min-width: 980px;
+        border-collapse: collapse;
+    }
+    .calendar-table th,
+    .calendar-table td {
+        padding: 14px 12px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+    }
+    .calendar-table th {
+        font-size: .78rem;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: var(--muted);
+        background: rgba(246,248,249,.88);
+    }
+    .calendar-patient {
+        min-width: 220px;
+    }
+    .calendar-patient strong {
+        display: block;
+        font-size: 1.05rem;
+        line-height: 1.02;
+    }
+    .calendar-dni {
+        color: #688393;
+        margin-top: 6px;
+        font-size: .92rem;
+        font-weight: bold;
+    }
+    .calendar-reading {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 10px;
+        border-radius: 12px;
+        background: rgba(15,90,95,.06);
+        font-weight: bold;
+        white-space: nowrap;
+    }
+    .calendar-reading.post {
+        background: rgba(214,124,50,.08);
+    }
+    .calendar-result {
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 10px;
+        border-radius: 12px;
+        background: rgba(255,247,235,.95);
+        color: #8f5418;
+        font-weight: bold;
+    }
+    .calendar-attendance {
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 10px;
+        border-radius: 999px;
+        font-weight: bold;
+        white-space: nowrap;
+        background: rgba(255,255,255,.9);
+        border: 1px solid rgba(23,49,63,.08);
+    }
+    .calendar-attendance.attended {
+        background: rgba(240,251,245,.95);
+        border-color: rgba(31,122,76,.18);
+        color: #1f7a4c;
+    }
+    .calendar-attendance.no-show {
+        background: rgba(255,241,235,.95);
+        border-color: rgba(176,94,26,.18);
+        color: #b05e1a;
+    }
+    .calendar-attendance.pending {
+        background: rgba(255,247,235,.95);
+        border-color: rgba(214,124,50,.18);
+        color: #a95f1d;
+    }
+    .calendar-link-button {
+        border: none;
+        background: transparent;
+        padding: 0;
+        margin: 0;
+        font: inherit;
+        cursor: pointer;
+        color: #b64731;
+        text-decoration: underline;
+        font-weight: bold;
+    }
+    @media (max-width: 900px) {
+        .calendar-day {
+            min-height: 122px;
+        }
+        .calendar-hero .section-title {
+            font-size: 1.8rem;
+        }
+    }
+</style>
+
+<div class="calendar-page">
+    <section class="card calendar-hero">
+        <p class="pill">Calendario inteligente</p>
+        <h1 class="section-title">Mira rápido qué días tienen pacientes, cuáles están completos y cuáles necesitan atención.</h1>
+        <p class="muted calendar-subtitle">
+            Dejé esta vista más parecida al Inicio: con color, prioridades claras y lectura rápida. Los días normalmente no laborales siguen visibles para que, si aparece un lunes o un sábado trabajado, salte enseguida.
+        </p>
+    </section>
+
+    <section class="card calendar-shell">
+        <div class="calendar-toolbar">
+            <div>
+                <p class="pill">Mes activo</p>
+                <h2 class="section-title" style="margin-top:10px;">{{ current_month_label }}</h2>
+                <p class="muted" style="margin:10px 0 0;">
+                    Días normalmente no laborales: {{ default_offday_labels|join:", " }}.
+                </p>
+            </div>
+            <div class="calendar-nav">
+                <a href="{% url 'clinic:calendar' %}?month={{ previous_month_param }}&date={{ selected_date|date:'Y-m-d' }}">Anterior</a>
+                <a href="{% url 'clinic:calendar' %}?month={{ today|date:'Y-m' }}&date={{ today|date:'Y-m-d' }}">Hoy</a>
+                <a href="{% url 'clinic:calendar' %}?month={{ next_month_param }}&date={{ selected_date|date:'Y-m-d' }}">Siguiente</a>
+            </div>
+        </div>
+
+        <div class="calendar-legend">
+            <span class="calendar-legend-item"><span class="calendar-legend-swatch swatch-busy"></span> Día con pacientes</span>
+            <span class="calendar-legend-item"><span class="calendar-legend-swatch swatch-attended"></span> Día completo / todos atendidos</span>
+            <span class="calendar-legend-item"><span class="calendar-legend-swatch swatch-offday"></span> Día no habitual</span>
+            <span class="calendar-legend-item"><span class="calendar-legend-swatch swatch-empty"></span> Sin agenda cargada</span>
+        </div>
+
+        <div class="calendar-board">
+            <div class="calendar-grid" style="margin-bottom:10px;">
+                {% for label in weekday_labels %}
+                    <div class="calendar-weekday">{{ label }}</div>
+                {% endfor %}
+            </div>
+
+            <div class="calendar-grid">
+                {% for week in calendar_weeks %}
+                    {% for day in week %}
+                        <a
+                            href="{% url 'clinic:calendar' %}?month={{ day.month_param }}&date={{ day.iso }}"
+                            class="calendar-day {% if not day.in_month %}outside{% endif %} {% if day.is_today %}today{% endif %} {% if day.is_selected %}selected{% endif %} {% if day.total %}has-encounters{% endif %} {% if day.all_attended %}all-attended{% endif %} {% if day.is_default_offday %}is-default-offday{% endif %}"
+                        >
+                            <div class="calendar-day-top">
+                                <span class="calendar-day-number">{{ day.day_number }}</span>
+                                {% if day.total %}
+                                    <span class="calendar-day-chip busy">{{ day.total }}</span>
+                                {% elif day.is_default_offday %}
+                                    <span class="calendar-day-chip offday">No</span>
+                                {% endif %}
+                            </div>
+
+                            <div class="calendar-day-meta">
+                                {% if day.total %}
+                                    <span class="calendar-mini strong">
+                                        {{ day.total }} paciente{{ day.total|pluralize }}
+                                    </span>
+                                    <div class="calendar-day-flags">
+                                        {% if day.attended %}
+                                            <span class="calendar-flag attended">Atendidos {{ day.attended }}</span>
+                                        {% endif %}
+                                        {% if day.pending %}
+                                            <span class="calendar-flag pending">Pendientes {{ day.pending }}</span>
+                                        {% endif %}
+                                        {% if day.no_show %}
+                                            <span class="calendar-flag no-show">No llego {{ day.no_show }}</span>
+                                        {% endif %}
+                                        {% if day.mutual %}
+                                            <span class="calendar-flag mutual">Mutual {{ day.mutual }}</span>
+                                        {% endif %}
+                                        {% if day.is_default_offday %}
+                                            <span class="calendar-flag offday">Dia no habitual</span>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    {% if day.is_default_offday %}
+                                        <span class="calendar-mini strong">Dia normalmente libre</span>
+                                        <span class="calendar-mini">Sin pacientes cargados</span>
+                                    {% else %}
+                                        <span class="calendar-mini strong">Sin pacientes</span>
+                                        <span class="calendar-mini">Agenda libre</span>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </a>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <section class="card calendar-detail">
+        <div class="calendar-detail-head">
+            <div>
+                <p class="pill">Dia seleccionado</p>
+                <h2 class="section-title" style="margin-top:10px;">{{ selected_date_label }}</h2>
+                <p class="calendar-detail-note">
+                    {% if selected_summary.total %}
+                        Aca tenes el resumen del dia y la lista completa de pacientes, para revisar rápido cómo quedó la jornada.
+                    {% else %}
+                        Ese dia todavia no tiene pacientes guardados, pero igual queda disponible para revisar o cargar después.
+                    {% endif %}
+                </p>
+            </div>
+            <div class="calendar-day-state {% if selected_summary.total %}busy{% endif %}">
+                {% if selected_summary.is_default_offday %}
+                    Dia normalmente no laboral
+                {% elif selected_summary.total %}
+                    Dia con actividad
+                {% else %}
+                    Dia sin actividad
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="calendar-summary-grid">
+            <div class="calendar-summary-card total">
+                <span>Pacientes</span>
+                <strong>{{ selected_summary.total }}</strong>
+            </div>
+            <div class="calendar-summary-card mutual">
+                <span>Mutuales</span>
+                <strong>{{ selected_summary.mutual }}</strong>
+            </div>
+            <div class="calendar-summary-card attended">
+                <span>Atendidos</span>
+                <strong>{{ selected_summary.attended }}</strong>
+            </div>
+            <div class="calendar-summary-card pending">
+                <span>Pendientes</span>
+                <strong>{{ selected_summary.pending }}</strong>
+            </div>
+            <div class="calendar-summary-card no-show">
+                <span>No llego</span>
+                <strong>{{ selected_summary.no_show }}</strong>
+            </div>
+        </div>
+
+        <div>
+            {% if selected_encounters %}
+                <div class="calendar-table-wrap">
+                    <table class="calendar-table">
+                        <thead>
+                            <tr>
+                                <th>Hora</th>
+                                <th>Paciente</th>
+                                <th>Estudio</th>
+                                <th>Cobertura</th>
+                                <th>SO2 / FC reposo</th>
+                                <th>SO2 / FC post</th>
+                                <th>Resultado</th>
+                                <th>Asistencia</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for encounter in selected_encounters %}
+                                <tr>
+                                    <td><strong>{{ encounter.encounter_time|time:"H:i"|default:"-" }}</strong></td>
+                                    <td class="calendar-patient">
+                                        <strong>{{ encounter.patient.full_name }}</strong>
+                                        {% if encounter.patient.dni %}
+                                            <div class="calendar-dni">{{ encounter.patient.dni }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ encounter.study_type }}</td>
+                                    <td>{{ encounter.coverage_type }}</td>
+                                    <td>
+                                        <span class="calendar-reading">
+                                            {{ encounter.vital_signs.so2_rest|default:"-" }} / {{ encounter.vital_signs.fc_rest|default:"-" }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if encounter.study_type == "Ciclometria" %}
+                                            <span class="calendar-reading post">
+                                                {{ encounter.vital_signs.so2_post|default:"-" }} / {{ encounter.vital_signs.fc_post|default:"-" }}
+                                            </span>
+                                        {% else %}
+                                            <span class="calendar-reading post">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><span class="calendar-result">{{ encounter.result_label|default:"-" }}</span></td>
+                                    <td>
+                                        <span class="calendar-attendance {% if encounter.no_show %}no-show{% elif encounter.attended %}attended{% else %}pending{% endif %}">
+                                            {{ encounter.attendance_label }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <form method="post" onsubmit="return confirm('¿Eliminar este paciente agendado?');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="delete_encounter">
+                                            <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                            <input type="hidden" name="month" value="{{ current_month_param }}">
+                                            <input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}">
+                                            <button type="submit" class="calendar-link-button">Eliminar</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="muted" style="margin:0;">Ese dia no hay pacientes guardados.</p>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

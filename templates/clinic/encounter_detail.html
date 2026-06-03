@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle de atencion | Clinica Espiro{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+        <div>
+            <p class="pill">{{ encounter.study_type }}</p>
+            <h1 class="section-title">{{ encounter.patient.full_name }}</h1>
+            <p class="muted">DNI {{ encounter.patient.dni }} · {{ encounter.encounter_date|date:"d/m/Y" }}</p>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;">
+            <div class="pill">{{ encounter.status }}</div>
+            <a class="button alt" href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a>
+            <form method="post" action="{% url 'clinic:encounter_generate_report' encounter.pk %}">
+                {% csrf_token %}
+                <button class="button" type="submit">Generar informe</button>
+            </form>
+        </div>
+    </div>
+
+    <h2 class="section-title" style="margin-top:20px;">Resumen</h2>
+    <div class="detail-list">
+        <div><strong>Cobertura</strong>{{ encounter.coverage_type }}</div>
+        <div><strong>Medico derivante</strong>{{ encounter.referring_physician|default:"-" }}</div>
+        <div><strong>Hora</strong>{{ encounter.encounter_time|default:"-" }}</div>
+        <div><strong>Creado por</strong>{{ encounter.created_by|default:"-" }}</div>
+        <div><strong>Validado por</strong>{{ encounter.validated_by|default:"-" }}</div>
+    </div>
+</section>
+
+<section class="grid-2" style="margin-top:20px;">
+    <article class="card">
+        <h2 class="section-title">Signos y caminata</h2>
+        <div class="detail-list">
+            <div><strong>SO2 reposo</strong>{{ encounter.vital_signs.so2_rest|default:"-" }}</div>
+            <div><strong>FC reposo</strong>{{ encounter.vital_signs.fc_rest|default:"-" }}</div>
+            <div><strong>SO2 post</strong>{{ encounter.vital_signs.so2_post|default:"-" }}</div>
+            <div><strong>FC post</strong>{{ encounter.vital_signs.fc_post|default:"-" }}</div>
+            <div><strong>TA reposo</strong>{{ encounter.vital_signs.ta_rest|default:"-" }}</div>
+            <div><strong>Distancia</strong>{{ encounter.walk_test.distance_meters|default:"-" }}</div>
+            <div><strong>Concluida</strong>{% if encounter.walk_test.completed %}Si{% else %}No{% endif %}</div>
+            <div><strong>Se detuvo</strong>{% if encounter.walk_test.stopped %}Si{% else %}No{% endif %}</div>
+            <div><strong>Sintomas</strong>{% if encounter.walk_test.symptoms %}Si{% else %}No{% endif %}</div>
+            <div><strong>Borg final</strong>{{ encounter.walk_test.borg_final|default:"-" }}</div>
+        </div>
+    </article>
+    <article class="card">
+        <h2 class="section-title">Resultado respiratorio</h2>
+        <div class="detail-list">
+            <div><strong>Patron</strong>{{ encounter.spirometry_result.respiratory_pattern|default:"-" }}</div>
+            <div><strong>Obstruccion</strong>{{ encounter.spirometry_result.obstruction_grade|default:"-" }}</div>
+            <div><strong>Restriccion</strong>{{ encounter.spirometry_result.restriction_grade|default:"-" }}</div>
+            <div><strong>Broncodilatador</strong>{% if encounter.spirometry_result.bronchodilator_positive %}Positivo{% else %}No{% endif %}</div>
+            <div style="grid-column:1/-1;"><strong>Comentario</strong>{{ encounter.spirometry_result.physician_comment|default:"-" }}</div>
+        </div>
+    </article>
+</section>
+
+<section class="card" style="margin-top:20px;">
+    <h2 class="section-title">Archivos</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Tipo</th>
+                <th>Fecha</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for attachment in encounter.attachments.all %}
+                <tr>
+                    <td>{{ attachment.original_name }}</td>
+                    <td>{{ attachment.get_file_kind_display }}</td>
+                    <td>{{ attachment.created_at|date:"d/m/Y H:i" }}</td>
+                    <td><a href="{{ attachment.file.url }}">Descargar</a></td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="4">Todavia no hay archivos adjuntos.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<section class="card" style="margin-top:20px;">
+    <h2 class="section-title">Informes generados</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Tipo</th>
+                <th>Archivo</th>
+                <th>Generado por</th>
+                <th>Fecha</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for report in encounter.generated_reports.all %}
+                <tr>
+                    <td>{{ report.report_type }}</td>
+                    <td>
+                        {% if report.attachment %}
+                            <a href="{{ report.attachment.file.url }}">{{ report.attachment.original_name }}</a>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ report.generated_by|default:"-" }}</td>
+                    <td>{{ report.created_at|date:"d/m/Y H:i" }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="4">Todavia no se generaron informes.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<section class="card" style="margin-top:20px;">
+    <h2 class="section-title">Historial de eventos</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Evento</th>
+                <th>Detalle</th>
+                <th>Usuario</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for event in encounter.events.all %}
+                <tr>
+                    <td>{{ event.created_at|date:"d/m/Y H:i" }}</td>
+                    <td>{{ event.title }}</td>
+                    <td>{{ event.details|default:"-" }}</td>
+                    <td>{{ event.actor|default:"-" }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="4">Todavia no hay eventos registrados para esta atencion.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

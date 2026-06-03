@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Ingresar | Clinica Espiro{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <article class="card">
+        <p class="pill">MVP inicial</p>
+        <h1 class="hero-title">Agenda digital, pacientes y estudios en un solo lugar.</h1>
+        <p class="muted">
+            Esta primera base ya queda lista para crecer hacia la integracion con el motor real de informes de
+            <strong>E:\espiro</strong>.
+        </p>
+    </article>
+    <article class="card">
+        <h2 class="section-title">Ingresar</h2>
+        <form method="post">
+            {% csrf_token %}
+            <div class="field">
+                <label for="id_username">Usuario</label>
+                {{ form.username }}
+            </div>
+            <div class="field" style="margin-top:12px;">
+                <label for="id_password">Clave</label>
+                {{ form.password }}
+            </div>
+            <button class="button" type="submit" style="margin-top:16px;">Entrar</button>
+        </form>
+    </article>
+</section>
+{% endblock %}

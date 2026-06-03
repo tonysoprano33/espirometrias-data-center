@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}Historia clinica | Clinica Espiro{% endblock %}
+
+{% block content %}
+<style>
+    .patient-ops-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 18px;
+    }
+    .patient-ops-card {
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid rgba(23,49,63,.08);
+        background: rgba(255,255,255,.9);
+    }
+    .patient-ops-card strong {
+        display: block;
+        font-size: 1.8rem;
+        margin-top: 4px;
+    }
+    .timeline-list {
+        display: grid;
+        gap: 12px;
+    }
+    .timeline-item {
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid rgba(23,49,63,.08);
+        background: rgba(255,255,255,.84);
+    }
+    .timeline-item strong {
+        display: block;
+    }
+    .timeline-meta {
+        color: var(--muted);
+        font-size: .9rem;
+        margin-top: 4px;
+    }
+    @media (max-width: 960px) {
+        .patient-ops-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+    @media (max-width: 640px) {
+        .patient-ops-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+<section class="card history-card">
+    <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+        <div>
+            <p class="pill">Historia clinica permanente</p>
+            <h1 class="section-title">{{ patient.full_name }}</h1>
+            <p class="muted">Todo lo que se cargue con el mismo DNI o codigo de paciente queda unido aca.</p>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <a class="button alt" href="{% url 'clinic:patient_list' %}">Volver a pacientes</a>
+            <a class="button alt" href="{% url 'clinic:patient_edit' patient.pk %}">Editar paciente</a>
+            <a class="button danger" href="{% url 'clinic:patient_delete' patient.pk %}">Eliminar paciente</a>
+        </div>
+    </div>
+
+    <div class="detail-list" style="margin-top:14px;">
+        {% for label, value in profile_items %}
+            <div>
+                <strong>{{ label }}</strong>
+                {{ value }}
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="patient-ops-grid">
+        <div class="patient-ops-card">
+            <span class="muted">Documentos</span>
+            <strong>{{ operational_summary.total_documents }}</strong>
+        </div>
+        <div class="patient-ops-card">
+            <span class="muted">Informes generados</span>
+            <strong>{{ operational_summary.reports_generated }}</strong>
+        </div>
+        <div class="patient-ops-card">
+            <span class="muted">Atenciones pendientes</span>
+            <strong>{{ operational_summary.pending_encounters }}</strong>
+        </div>
+        <div class="patient-ops-card">
+            <span class="muted">Revisadas</span>
+            <strong>{{ operational_summary.reviewed_encounters }}</strong>
+        </div>
+    </div>
+</section>
+
+<section class="card" style="margin-top:18px;">
+    <div style="display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;">
+        <div>
+            <p class="pill">Analisis y pruebas previas</p>
+            <h2 class="section-title">Atenciones guardadas</h2>
+        </div>
+        <strong>{{ encounters|length }} registro(s)</strong>
+    </div>
+
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Hora</th>
+                    <th>Estudio</th>
+                    <th>Cobertura</th>
+                    <th>SO2 / FC reposo</th>
+                    <th>SO2 / FC post</th>
+                    <th>Resultado</th>
+                    <th>Asistencia</th>
+                    <th>Archivos</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for encounter in encounters %}
+                    <tr>
+                        <td>{{ encounter.encounter_date|date:"d/m/Y" }}</td>
+                        <td>{{ encounter.encounter_time|time:"H:i"|default:"-" }}</td>
+                        <td>{{ encounter.study_type }}</td>
+                        <td>{{ encounter.coverage_type }}</td>
+                        <td>
+                            {{ encounter.vital_signs.so2_rest|default:"-" }}
+                            /
+                            {{ encounter.vital_signs.fc_rest|default:"-" }}
+                        </td>
+                        <td>
+                            {{ encounter.vital_signs.so2_post|default:"-" }}
+                            /
+                            {{ encounter.vital_signs.fc_post|default:"-" }}
+                        </td>
+                        <td><strong>{{ encounter.result_label }}</strong></td>
+                        <td>{{ encounter.attendance_label }}</td>
+                        <td>
+                            <a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Revision</a> |
+                            <a href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a>
+                            {% if encounter.pdf_attachment %}
+                                | <a href="{{ encounter.pdf_attachment.file.url }}" target="_blank" rel="noopener">PDF</a>
+                            {% endif %}
+                            {% if encounter.complete_report_url %}
+                                | <a href="{{ encounter.complete_report_url }}" target="_blank" rel="noopener">Completo</a>
+                            {% elif encounter.latest_report_url %}
+                                | <a href="{{ encounter.latest_report_url }}" target="_blank" rel="noopener">Informe</a>
+                            {% endif %}
+                            {% if encounter.mutual_report_url %}
+                                | <a href="{{ encounter.mutual_report_url }}" target="_blank" rel="noopener">Mutual</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="9">Todavia no hay atenciones guardadas para este paciente.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="grid-2" style="margin-top:18px;">
+    <article class="card">
+        <p class="pill">Repositorio documental</p>
+        <h2 class="section-title" style="margin-top:10px;">Archivos del paciente</h2>
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Archivo</th>
+                        <th>Tipo</th>
+                        <th>Atencion</th>
+                        <th>Fecha</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for attachment in patient_documents %}
+                        <tr>
+                            <td><a href="{{ attachment.file.url }}" target="_blank" rel="noopener">{{ attachment.original_name }}</a></td>
+                            <td>{{ attachment.get_file_kind_display }}</td>
+                            <td>{{ attachment.encounter.encounter_date|date:"d/m/Y" }}</td>
+                            <td>{{ attachment.created_at|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="4">Todavia no hay documentos guardados para este paciente.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </article>
+
+    <article class="card">
+        <p class="pill">Trazabilidad</p>
+        <h2 class="section-title" style="margin-top:10px;">Ultimos eventos</h2>
+        <div class="timeline-list">
+            {% for event in patient_events %}
+                <div class="timeline-item">
+                    <strong>{{ event.title }}</strong>
+                    {% if event.details %}
+                        <div>{{ event.details }}</div>
+                    {% endif %}
+                    <div class="timeline-meta">
+                        {{ event.created_at|date:"d/m/Y H:i" }}
+                        {% if event.actor %} · {{ event.actor }}{% endif %}
+                        {% if event.encounter %} · {{ event.encounter.encounter_date|date:"d/m/Y" }}{% endif %}
+                    </div>
+                </div>
+            {% empty %}
+                <p class="muted">Todavia no hay eventos registrados para este paciente.</p>
+            {% endfor %}
+        </div>
+    </article>
+</section>
+{% endblock %}

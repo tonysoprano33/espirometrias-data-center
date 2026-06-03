@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Eliminar paciente | Clinica Espiro{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width:760px;">
+    <p class="pill">Confirmacion de borrado</p>
+    <h1 class="section-title">Eliminar paciente</h1>
+    <p class="muted">
+        Si confirmas este borrado, tambien se elimina toda la historia clinica asociada a este paciente, incluidas sus atenciones y archivos.
+    </p>
+
+    <div class="detail-list" style="margin:18px 0;">
+        <div>
+            <strong>Paciente</strong>
+            {{ patient.full_name }}
+        </div>
+        <div>
+            <strong>DNI</strong>
+            {{ patient.dni|default:"-" }}
+        </div>
+        <div>
+            <strong>Telefono</strong>
+            {{ patient.phone|default:"-" }}
+        </div>
+        <div>
+            <strong>Atenciones asociadas</strong>
+            {{ patient.encounter_count }}
+        </div>
+    </div>
+
+    <form method="post" style="display:flex;gap:12px;flex-wrap:wrap;">
+        {% csrf_token %}
+        <button class="button danger" type="submit">Si, eliminar paciente</button>
+        <a class="button alt" href="{% url 'clinic:patient_detail' patient.pk %}">Cancelar</a>
+    </form>
+</section>
+{% endblock %}

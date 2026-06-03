@@ -1,0 +1,6 @@
+django==6.0.5
+psycopg[binary]==3.3.4
+python-dotenv==1.2.2
+python-docx==1.2.0
+pypdfium2==5.8.0
+rapidocr_onnxruntime==1.2.3

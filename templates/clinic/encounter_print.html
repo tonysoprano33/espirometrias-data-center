@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Impresion {{ patient_name }}</title>
+    <style>
+        @page { size: A4; margin: 12mm; }
+        body {
+            margin: 0;
+            font-family: Georgia, "Times New Roman", serif;
+            color: #172b38;
+            background: #f5f1ea;
+        }
+        .toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            padding: 12px 18px;
+            background: rgba(245, 241, 234, .96);
+            border-bottom: 1px solid #d7cec2;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 16px;
+            border-radius: 999px;
+            border: none;
+            background: #0f5a5f;
+            color: #fff;
+            font: inherit;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .button.alt { background: #d67c32; }
+        .sheet {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 14px auto;
+            background: #fff;
+            box-shadow: 0 10px 30px rgba(0,0,0,.10);
+            padding: 14mm 14mm 16mm;
+            page-break-after: always;
+        }
+        .header-box {
+            border: 2px solid #4a90e2;
+            text-align: center;
+            padding: 10px 12px;
+        }
+        .header-box strong {
+            display: block;
+            font-size: 18px;
+            color: #243e60;
+        }
+        .header-box span {
+            display: block;
+            margin-top: 2px;
+            font-size: 13px;
+        }
+        .date {
+            text-align: right;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .line-item {
+            margin-top: 10px;
+            font-size: 16px;
+        }
+        .line-item strong {
+            color: #243e60;
+            text-decoration: underline;
+        }
+        h2 {
+            font-size: 20px;
+            margin: 18px 0 10px;
+            color: #243e60;
+            text-decoration: underline;
+        }
+        p {
+            font-size: 16px;
+            line-height: 1.38;
+            margin: 8px 0;
+        }
+        .emphasis {
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .walk-comments p {
+            margin: 5px 0 5px 18px;
+            font-size: 15px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #6b6b6b;
+            padding: 8px 6px;
+            text-align: center;
+            font-size: 14px;
+        }
+        th {
+            background: #eff6fb;
+        }
+        .signature {
+            margin-top: 28px;
+            text-align: center;
+            font-size: 12px;
+        }
+        .pdf-page {
+            margin-top: 10px;
+            text-align: center;
+        }
+        .pdf-page img {
+            width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+        }
+        .page-break-before {
+            page-break-before: always;
+        }
+        @media print {
+            body { background: #fff; }
+            .toolbar { display: none; }
+            .sheet {
+                margin: 0;
+                width: auto;
+                min-height: auto;
+                box-shadow: none;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button class="button" type="button" onclick="window.print()">Imprimir</button>
+        <a class="button alt" href="{% url 'clinic:dashboard' %}">Volver</a>
+        {% if pdf_attachment %}
+            <a class="button alt" href="{{ pdf_attachment.file.url }}" target="_blank" rel="noopener">Abrir PDF original</a>
+        {% endif %}
+    </div>
+
+    <section class="sheet">
+        <div class="header-box">
+            <strong>CENTRO RESPIRATORIO INTEGRAL</strong>
+            <span>MARCONI 147 - TEL: 02657-705270</span>
+            <span>VILLA MERCEDES (SAN LUIS)</span>
+        </div>
+
+        <div class="date">{{ print_date }}</div>
+
+        <div class="line-item"><strong>PACIENTE:</strong> {{ patient_name }}</div>
+        <div class="line-item"><strong>DNI:</strong> {{ dni }}</div>
+        <div class="line-item"><strong>DERIVA:</strong> {{ doctor_name }}</div>
+
+        <h2>Resultado Espirometria Computarizada</h2>
+        <p class="emphasis">{{ report_text }}</p>
+        {% if bronchodilator_positive %}
+            <p class="emphasis" style="color:#b54123;">Test de Broncodilatador: POSITIVO</p>
+        {% endif %}
+        <p class="emphasis">SO2: {{ so2 }}% &nbsp;&nbsp;&nbsp; FC: {{ fc }}</p>
+
+        {% if include_walk %}
+            <h2>Prueba de los 6 y 12 minutos</h2>
+            <p>Se realizo test de la marcha con monitoreo continuo; en reposo, durante la marcha (6 min.) y en la recuperacion (2 min.).</p>
+            <div class="walk-comments">
+                <p><strong>Distancia recorrida:</strong> {{ distance }} mts.</p>
+                <p><strong>Realizo correctamente la marcha:</strong> {% if completed %}Si{% else %}No{% endif %}</p>
+                <p><strong>Se detuvo durante la marcha:</strong> {% if stopped %}Si{% else %}No{% endif %}</p>
+                <p><strong>Presento sintomas al final de la marcha:</strong> {% if symptoms %}Si{% else %}No{% endif %}</p>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>MINUTOS</th>
+                        <th>SO2</th>
+                        <th>FC</th>
+                        <th>ESC. BORG</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in walk_rows %}
+                        <tr>
+                            <td>{{ row.minute }}</td>
+                            <td>{{ row.so2 }}</td>
+                            <td>{{ row.fc }}</td>
+                            <td>{{ row.borg }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <p class="emphasis">PRUEBA DE LOS 6 Y 12 MINUTOS: PRUEBA NORMAL</p>
+        {% endif %}
+
+        <div class="signature">
+            DR. PIGUILLEM GUSTAVO GABRIEL<br>
+            MAT. 2083<br>
+            ESP. EN VIAS RESPIRATORIAS
+        </div>
+    </section>
+
+    {% if include_mutual_packet %}
+        <section class="sheet page-break-before">
+            <div class="header-box">
+                <strong>CENTRO RESPIRATORIO INTEGRAL</strong>
+                <span>MARCONI 147 - TEL: 02657-705270</span>
+                <span>VILLA MERCEDES (SAN LUIS)</span>
+            </div>
+
+            <div class="date">{{ print_date }}</div>
+
+            <div class="line-item"><strong>PACIENTE:</strong> {{ patient_name }}</div>
+            <div class="line-item"><strong>DNI:</strong> {{ dni }}</div>
+            <div class="line-item"><strong>DERIVA:</strong> {{ doctor_name }}</div>
+
+            <h2>Prueba de los 6 y 12 minutos</h2>
+            <p>Se realizo test de la marcha con monitoreo continuo; en reposo, durante la marcha (6 min.) y en la recuperacion (2 min.). Los parametros registrados fueron: saturacion de O2, frecuencia de pulso, esfuerzo percibido por medio de escala de Borg y la distancia recorrida a la finalizacion.</p>
+            <div class="walk-comments">
+                <p><strong>Distancia recorrida:</strong> {{ distance }} mts.</p>
+                <p><strong>Realizo correctamente la marcha:</strong> {% if completed %}Si{% else %}No{% endif %}</p>
+                <p><strong>Se detuvo durante la marcha:</strong> {% if stopped %}Si{% else %}No{% endif %}</p>
+                <p><strong>Presento sintomas al final de la marcha:</strong> {% if symptoms %}Si{% else %}No{% endif %}</p>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>MINUTOS</th>
+                        <th>SO2</th>
+                        <th>FC</th>
+                        <th>ESC. BORG</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in walk_rows %}
+                        <tr>
+                            <td>{{ row.minute }}</td>
+                            <td>{{ row.so2 }}</td>
+                            <td>{{ row.fc }}</td>
+                            <td>{{ row.borg }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <p class="emphasis">SO2: {{ so2 }}% &nbsp;&nbsp;&nbsp; FC: {{ fc }}</p>
+            <p class="emphasis">PRUEBA DE LOS 6 Y 12 MINUTOS: PRUEBA NORMAL</p>
+
+            <h2>Resultado Espirometria Computarizada</h2>
+            <p class="emphasis">{{ report_text }}</p>
+
+            <h2>Capacidad Vital Lenta</h2>
+            <p class="emphasis">{{ mutual_cvl_result }}</p>
+
+            <div class="signature">
+                DR. PIGUILLEM GUSTAVO GABRIEL<br>
+                MAT. 2083<br>
+                ESP. EN VIAS RESPIRATORIAS
+            </div>
+        </section>
+    {% endif %}
+
+    {% for page in pdf_preview_pages %}
+        <section class="sheet page-break-before">
+            <h2 style="text-align:center; margin-top:0;">Resultado de espirometria adjunto</h2>
+            <div class="pdf-page">
+                <img src="{{ page.url }}" alt="Resultado pagina {{ page.index }}">
+            </div>
+        </section>
+    {% endfor %}
+
+    <script>
+        (function () {
+            function getQueryParam(name) {
+                var query = window.location.search || "";
+                var parts = query.replace(/^\?/, "").split("&");
+                var i;
+                for (i = 0; i < parts.length; i += 1) {
+                    var pair = parts[i].split("=");
+                    if (decodeURIComponent(pair[0] || "") === name) {
+                        return decodeURIComponent((pair[1] || "").replace(/\+/g, " "));
+                    }
+                }
+                return "";
+            }
+
+            if (getQueryParam("auto") === "1") {
+                window.setTimeout(function () { window.print(); }, 250);
+            }
+        })();
+    </script>
+</body>
+</html>
