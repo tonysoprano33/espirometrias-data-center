@@ -92,7 +92,7 @@ class SupabaseStorage(Storage):
             json_body={"expiresIn": self.signed_url_ttl},
         )
         payload = json.loads(body.decode("utf-8"))
-        return urljoin(f"{settings.SUPABASE_URL.rstrip('/')}/", payload["signedURL"].lstrip("/"))
+        return urljoin(f"{self._api_base().rstrip('/')}/", payload["signedURL"].lstrip("/"))
 
     def size(self, name):
         body, _ = self._request("GET", f"object/info/{self._object_path(name)}")
