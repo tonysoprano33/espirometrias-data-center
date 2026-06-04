@@ -769,7 +769,10 @@ def normalize_imported_name(raw_name: str) -> str:
     normalized = re.sub(r",\s*,+", ", ", normalized)
     normalized = collapse_spaces(normalized.replace(" ,", ","))
     normalized = normalized.strip(" ,")
-    return normalized.upper()
+    normalized_upper = normalized.upper()
+    if re.match(r"^O [A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ' ]+, [A-ZÁÉÍÓÚÜÑ' ]+$", normalized_upper):
+        normalized_upper = normalized_upper[2:].strip()
+    return normalized_upper
 
 
 def infer_coverage_type(raw_coverage: str) -> str:
