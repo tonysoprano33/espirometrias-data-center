@@ -1875,7 +1875,7 @@ def calendar_view(request):
     for encounter in calendar_encounters:
         day_bucket = encounters_by_date.setdefault(
             encounter.encounter_date,
-            {"encounters": [], "total": 0, "attended": 0, "no_show": 0},
+            {"encounters": [], "total": 0, "attended": 0, "no_show": 0, "mutual": 0},
         )
         day_bucket["encounters"].append(encounter)
         day_bucket["total"] += 1
