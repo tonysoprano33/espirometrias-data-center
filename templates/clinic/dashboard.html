@@ -164,8 +164,101 @@
         margin: 0;
         color: var(--muted);
     }
+    .encounter-summary-head,
+    .encounter-summary-cell {
+        display: none;
+    }
+    .encounter-summary-shell {
+        display: grid;
+        gap: 8px;
+    }
+    .encounter-summary-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+    }
+    .encounter-summary-name {
+        display: block;
+        font-size: 1rem;
+        font-weight: bold;
+        color: var(--ink);
+        line-height: 1.15;
+    }
+    .encounter-summary-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .encounter-summary-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(23,49,63,.08);
+        background: rgba(246,248,249,.92);
+        color: var(--ink);
+        font-size: .78rem;
+        line-height: 1.1;
+    }
+    .encounter-summary-pill.attended {
+        background: rgba(223,246,233,.95);
+        color: #126f44;
+        border-color: rgba(18,111,68,.18);
+    }
+    .encounter-summary-pill.no-show {
+        background: rgba(255,228,219,.95);
+        color: #9d3d22;
+        border-color: rgba(157,61,34,.18);
+    }
+    .encounter-summary-pill.result {
+        background: rgba(255,240,168,.82);
+        border-color: rgba(211,169,0,.28);
+    }
+    .encounter-summary-pill.status {
+        background: rgba(234,240,243,.95);
+    }
+    .encounter-summary-toggle {
+        border: 1px solid rgba(23,49,63,.12);
+        background: rgba(255,255,255,.94);
+        color: var(--brand);
+        border-radius: 999px;
+        padding: 6px 10px;
+        font: inherit;
+        font-size: .82rem;
+        font-weight: bold;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .encounter-summary-toggle:hover {
+        text-decoration: none;
+        background: rgba(230,245,244,.95);
+    }
+    .encounter-summary-toggle strong {
+        font-size: .9rem;
+    }
     .drapp-box textarea {
         min-height: 180px;
+    }
+    @media (max-width: 1600px) {
+        .responsive-table-wrap.notebook-stack .encounter-summary-cell {
+            display: block;
+            padding: 0 0 10px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid rgba(23,49,63,.08);
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed {
+            padding: 10px 12px;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed > td:not(.encounter-summary-cell) {
+            display: none !important;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed .encounter-summary-cell {
+            padding-bottom: 0;
+            margin-bottom: 0;
+            border-bottom: none;
+        }
     }
     @media (max-width: 1500px) {
         .agenda-entry-panel,
@@ -380,6 +473,7 @@
         <table class="table">
             <thead>
                 <tr>
+                    <th class="encounter-summary-head"></th>
                     <th class="col-time">Hora</th>
                     <th class="col-patient">Paciente</th>
                     <th>DNI</th>
@@ -401,7 +495,29 @@
                         data-encounter-id="{{ encounter.pk }}"
                         data-study-type="{{ encounter.study_type }}"
                         data-has-cycle-data="{% if encounter.has_cycle_data %}1{% else %}0{% endif %}"
+                        data-auto-collapse="{% if encounter.attended or encounter.no_show %}1{% else %}0{% endif %}"
                     >
+                        <td class="encounter-summary-cell" data-label="">
+                            <div class="encounter-summary-shell">
+                                <div class="encounter-summary-top">
+                                    <div>
+                                        <span class="encounter-summary-name" data-summary-patient>{{ encounter.patient.full_name }}</span>
+                                    </div>
+                                    <button type="button" class="encounter-summary-toggle" data-encounter-toggle aria-expanded="{% if encounter.attended or encounter.no_show %}false{% else %}true{% endif %}">
+                                        <strong data-toggle-icon>{% if encounter.attended or encounter.no_show %}▼{% else %}▲{% endif %}</strong>
+                                        <span data-toggle-label>{% if encounter.attended or encounter.no_show %}Abrir{% else %}Ocultar{% endif %}</span>
+                                    </button>
+                                </div>
+                                <div class="encounter-summary-meta">
+                                    <span class="encounter-summary-pill" data-summary-time>{{ encounter.encounter_time|time:"H:i"|default:"-" }}</span>
+                                    <span class="encounter-summary-pill" data-summary-study>{{ encounter.study_type }}</span>
+                                    <span class="encounter-summary-pill" data-summary-coverage>{{ encounter.coverage_type }}</span>
+                                    <span class="encounter-summary-pill result" data-summary-result>{% if encounter.result_code %}{{ encounter.result_code }}{% else %}Sin resultado{% endif %}</span>
+                                    <span class="encounter-summary-pill {% if encounter.attended %}attended{% elif encounter.no_show %}no-show{% endif %}" data-summary-attendance>{% if encounter.attended %}Atendido{% elif encounter.no_show %}No llego{% else %}Esperado{% endif %}</span>
+                                    <span class="encounter-summary-pill status" data-summary-status>{{ encounter.status }}</span>
+                                </div>
+                            </div>
+                        </td>
                         <td class="time-cell" data-label="Hora">
                             <form method="post" class="inline-cell-form" data-inline-ajax>
                                 {% csrf_token %}
@@ -598,7 +714,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="12">Todavia no hay pacientes cargados para hoy.</td>
+                        <td colspan="13">Todavia no hay pacientes cargados para hoy.</td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -1395,7 +1511,7 @@
             rows = tbody.querySelectorAll ? tbody.querySelectorAll("[data-encounter-row]") : [];
             if (rows.length > 0) return;
             emptyRow = document.createElement("tr");
-            emptyRow.innerHTML = '<td colspan="12">Todavia no hay pacientes cargados para hoy.</td>';
+            emptyRow.innerHTML = '<td colspan="13">Todavia no hay pacientes cargados para hoy.</td>';
             tbody.appendChild(emptyRow);
         }
 
@@ -1970,6 +2086,166 @@
 
         window.setInterval(pollRows, 12000);
         window.setTimeout(pollRows, 2000);
+    })();
+</script>
+<script>
+    (function () {
+        var storagePrefix = "espiro-agenda-collapse-";
+
+        function getSummaryStorageKey(row) {
+            return storagePrefix + String(row.getAttribute("data-encounter-id") || "");
+        }
+
+        function readStoredCollapse(row) {
+            try {
+                return window.localStorage.getItem(getSummaryStorageKey(row));
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function storeCollapse(row, collapsed) {
+            try {
+                window.localStorage.setItem(getSummaryStorageKey(row), collapsed ? "1" : "0");
+            } catch (error) {
+                return;
+            }
+        }
+
+        function getFieldForm(row, fieldName) {
+            return row && row.querySelector ? row.querySelector('input[name="field_name"][value="' + fieldName + '"]') : null;
+        }
+
+        function getFieldValue(row, fieldName) {
+            var hidden = getFieldForm(row, fieldName);
+            var form = hidden ? hidden.form : null;
+            var field = form && form.querySelector ? form.querySelector('input[name="value"], select[name="value"], textarea[name="value"]') : null;
+            if (!field) return "";
+            if (field.tagName === "SELECT") {
+                return field.options && field.selectedIndex >= 0 ? field.options[field.selectedIndex].text : "";
+            }
+            return String(field.value || "").trim();
+        }
+
+        function getAttendanceLabel(row) {
+            var button = row && row.querySelector ? row.querySelector("[data-attendance-button]") : null;
+            return button ? String(button.textContent || "").trim() : "";
+        }
+
+        function getStatusLabel(row) {
+            var statusNode = row && row.querySelector ? row.querySelector("[data-status-label]") : null;
+            return statusNode ? String(statusNode.textContent || "").trim() : "";
+        }
+
+        function setSummaryText(row, selector, value) {
+            var node = row && row.querySelector ? row.querySelector(selector) : null;
+            if (node) {
+                node.textContent = value;
+            }
+        }
+
+        function refreshRowSummary(row) {
+            var attendanceNode;
+            var attendanceLabel;
+            if (!row) return;
+            setSummaryText(row, "[data-summary-patient]", getFieldValue(row, "patient_name") || "Paciente");
+            setSummaryText(row, "[data-summary-time]", getFieldValue(row, "encounter_time") || "-");
+            setSummaryText(row, "[data-summary-study]", getFieldValue(row, "study_type") || "-");
+            setSummaryText(row, "[data-summary-coverage]", getFieldValue(row, "coverage_type") || "-");
+            setSummaryText(row, "[data-summary-result]", getFieldValue(row, "respiratory_result") || "Sin resultado");
+
+            attendanceNode = row.querySelector ? row.querySelector("[data-summary-attendance]") : null;
+            attendanceLabel = getAttendanceLabel(row) || "Esperado";
+            if (attendanceNode) {
+                attendanceNode.textContent = attendanceLabel;
+                attendanceNode.classList.remove("attended", "no-show");
+                if (attendanceLabel === "Atendido") {
+                    attendanceNode.classList.add("attended");
+                } else if (attendanceLabel === "No llego") {
+                    attendanceNode.classList.add("no-show");
+                }
+            }
+            setSummaryText(row, "[data-summary-status]", getStatusLabel(row) || "Pendiente");
+        }
+
+        function updateToggleUi(row, collapsed) {
+            var button = row && row.querySelector ? row.querySelector("[data-encounter-toggle]") : null;
+            var icon = button && button.querySelector ? button.querySelector("[data-toggle-icon]") : null;
+            var label = button && button.querySelector ? button.querySelector("[data-toggle-label]") : null;
+            if (!button) return;
+            button.setAttribute("aria-expanded", collapsed ? "false" : "true");
+            if (icon) icon.textContent = collapsed ? "▼" : "▲";
+            if (label) label.textContent = collapsed ? "Abrir" : "Ocultar";
+        }
+
+        function setRowCollapsed(row, collapsed, shouldPersist) {
+            if (!row || !row.classList) return;
+            row.classList.toggle("is-collapsed", !!collapsed);
+            updateToggleUi(row, !!collapsed);
+            if (shouldPersist) {
+                row.setAttribute("data-manual-collapse", "1");
+                storeCollapse(row, !!collapsed);
+            }
+        }
+
+        function maybeAutoCollapse(row) {
+            var stored = readStoredCollapse(row);
+            var completed = row && row.querySelector && row.querySelector("[data-attendance-button].attended, [data-attendance-button].no-show");
+            if (stored !== null) {
+                setRowCollapsed(row, stored === "1", false);
+                return;
+            }
+            if (row && row.getAttribute("data-manual-collapse") === "1") {
+                return;
+            }
+            setRowCollapsed(row, !!completed || row.getAttribute("data-auto-collapse") === "1", false);
+        }
+
+        function installEncounterCollapse() {
+            var rows = document.querySelectorAll ? document.querySelectorAll("[data-encounter-row]") : [];
+            var i;
+            for (i = 0; i < rows.length; i += 1) {
+                (function (row) {
+                    var toggle = row.querySelector ? row.querySelector("[data-encounter-toggle]") : null;
+                    var observer;
+                    refreshRowSummary(row);
+                    maybeAutoCollapse(row);
+
+                    if (toggle) {
+                        toggle.addEventListener("click", function () {
+                            setRowCollapsed(row, !row.classList.contains("is-collapsed"), true);
+                        });
+                    }
+
+                    row.addEventListener("input", function () {
+                        refreshRowSummary(row);
+                    });
+                    row.addEventListener("change", function () {
+                        refreshRowSummary(row);
+                    });
+
+                    if (window.MutationObserver) {
+                        observer = new MutationObserver(function () {
+                            refreshRowSummary(row);
+                            maybeAutoCollapse(row);
+                        });
+                        observer.observe(row, {
+                            subtree: true,
+                            childList: true,
+                            characterData: true,
+                            attributes: true,
+                            attributeFilter: ["class"]
+                        });
+                    }
+                })(rows[i]);
+            }
+        }
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", installEncounterCollapse);
+        } else {
+            installEncounterCollapse();
+        }
     })();
 </script>
 {% endblock %}
