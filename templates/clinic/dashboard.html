@@ -246,48 +246,64 @@
             overflow-x: auto;
         }
         .responsive-table-wrap.notebook-stack .table {
-            display: table;
+            display: block;
             width: 100%;
-            min-width: 0;
-            table-layout: fixed;
+            min-width: 1080px;
+            table-layout: auto;
         }
         .responsive-table-wrap.notebook-stack thead {
-            display: table-header-group;
+            display: block;
         }
         .responsive-table-wrap.notebook-stack tbody {
-            display: table-row-group;
+            display: block;
+        }
+        .responsive-table-wrap.notebook-stack thead tr,
+        .responsive-table-wrap.notebook-stack [data-encounter-row] {
+            display: grid;
+            grid-template-columns: 28px 62px minmax(240px, 2.1fr) 72px 84px 80px 82px 58px 58px 64px 74px 70px 80px;
+            align-items: center;
+            column-gap: 0;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed {
+            grid-template-columns: 28px 62px minmax(270px, 2.2fr) 72px 86px 82px minmax(86px, .7fr) 58px 58px 64px 74px 70px;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row] {
-            display: table-row;
             box-shadow: none;
+            min-height: 48px;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row] > td,
         .responsive-table-wrap.notebook-stack thead th {
-            display: table-cell;
-            padding: 5px 5px;
-            vertical-align: middle;
+            display: flex;
+            align-items: center;
+            padding: 4px 4px;
             min-width: 0;
+            min-height: 0;
+            overflow: hidden;
         }
         .responsive-table-wrap.notebook-stack thead th {
-            font-size: .72rem;
+            justify-content: center;
+            font-size: .58rem;
             line-height: 1.05;
-            letter-spacing: .02em;
+            letter-spacing: .015em;
+            text-align: center;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row] > td::before {
             display: none !important;
             content: none !important;
         }
         .responsive-table-wrap.notebook-stack .encounter-summary-cell {
-            display: table-cell;
-            width: 38px;
-            padding: 6px 4px;
+            display: flex;
+            width: auto;
+            padding: 4px 3px;
             margin: 0;
             border: none;
             background: rgba(248,252,253,.88);
         }
         .responsive-table-wrap.notebook-stack .encounter-summary-head {
-            display: table-cell;
-            width: 38px;
+            display: flex;
+            width: auto;
         }
         .responsive-table-wrap.notebook-stack .encounter-summary-shell {
             display: flex;
@@ -300,108 +316,159 @@
             display: none;
         }
         .responsive-table-wrap.notebook-stack .encounter-summary-toggle {
-            min-width: 28px;
-            padding: 3px 6px;
-        }
-        .responsive-table-wrap.notebook-stack .col-time,
-        .responsive-table-wrap.notebook-stack .time-cell {
-            width: 78px;
-        }
-        .responsive-table-wrap.notebook-stack .col-patient,
-        .responsive-table-wrap.notebook-stack .patient-cell {
-            width: 255px;
-        }
-        .responsive-table-wrap.notebook-stack .study-cell {
-            width: 108px;
-        }
-        .responsive-table-wrap.notebook-stack td[data-label="Cobertura"] {
-            width: 116px;
-        }
-        .responsive-table-wrap.notebook-stack td[data-label="Dr. deriva"] {
-            width: 138px;
+            min-width: 24px;
+            width: 24px;
+            height: 24px;
+            padding: 2px;
+            font-size: .7rem;
         }
         .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"],
         .responsive-table-wrap.notebook-stack .vitals-cell {
-            width: 116px;
+            justify-content: center;
+            gap: 3px;
+        }
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"]::before,
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"]::before {
+            display: inline-flex !important;
+            content: "R" !important;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 18px;
+            border-radius: 999px;
+            background: rgba(6,111,134,.10);
+            color: #075f73;
+            font-size: .58rem;
+            font-weight: 800;
+            flex: 0 0 14px;
+        }
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"]::before {
+            content: "P" !important;
         }
         .responsive-table-wrap.notebook-stack .result-cell {
-            width: 112px;
+            justify-content: center;
         }
         .responsive-table-wrap.notebook-stack .attendance-cell {
-            width: 96px;
+            justify-content: center;
         }
         .responsive-table-wrap.notebook-stack .status-cell {
-            width: 88px;
+            justify-content: center;
         }
         .responsive-table-wrap.notebook-stack .td-actions {
-            width: 128px;
+            align-self: stretch;
+            align-items: center;
+            justify-content: center;
         }
         .responsive-table-wrap.notebook-stack .cell-input,
         .responsive-table-wrap.notebook-stack .inline-input,
         .responsive-table-wrap.notebook-stack .result-input {
-            padding: 4px 6px;
-            font-size: .78rem;
+            padding: 3px 5px;
+            font-size: .7rem;
+            min-height: 26px;
         }
         .responsive-table-wrap.notebook-stack .cell-time {
             width: 100%;
-            font-size: .78rem;
+            font-size: .72rem;
+            padding-left: 4px;
+            padding-right: 4px;
         }
         .responsive-table-wrap.notebook-stack .cell-name,
         .responsive-table-wrap.notebook-stack .cell-select {
             min-width: 0;
             width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .responsive-table-wrap.notebook-stack .patient-cell .cell-input {
-            font-size: .74rem;
+            font-size: .72rem;
             padding-left: 5px;
             padding-right: 5px;
+            white-space: nowrap;
         }
         .responsive-table-wrap.notebook-stack .result-input {
-            font-size: .72rem;
+            width: 54px !important;
+            min-width: 54px !important;
+            max-width: 54px;
+            font-size: .6rem;
             letter-spacing: 0;
-            padding-left: 4px;
-            padding-right: 4px;
+            padding-left: 3px;
+            padding-right: 3px;
+            text-align: center;
         }
         .responsive-table-wrap.notebook-stack .cell-small {
-            width: 48px;
-            max-width: 48px;
-            font-size: .76rem;
+            width: 36px;
+            max-width: 36px;
+            min-width: 0;
+            font-size: .66rem;
+            padding-left: 3px;
+            padding-right: 3px;
         }
         .responsive-table-wrap.notebook-stack .inline-pair {
-            gap: 3px;
+            gap: 2px;
             flex-wrap: nowrap;
+        }
+        .responsive-table-wrap.notebook-stack .inline-pair span {
+            font-size: .66rem;
         }
         .responsive-table-wrap.notebook-stack .button.small,
         .responsive-table-wrap.notebook-stack .attendance-button {
-            padding: 5px 6px;
-            font-size: .74rem;
+            padding: 4px 5px;
+            font-size: .66rem;
+            line-height: 1.05;
         }
         .responsive-table-wrap.notebook-stack .status-badge {
-            padding: 4px 6px;
-            font-size: .72rem;
+            max-width: 66px;
+            padding: 4px 5px;
+            font-size: .66rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .responsive-table-wrap.notebook-stack .td-actions > div {
-            display: grid;
-            gap: 3px !important;
+            display: flex !important;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: center;
+            gap: 2px !important;
             min-width: 0 !important;
+            width: 100%;
         }
         .responsive-table-wrap.notebook-stack .td-actions a,
         .responsive-table-wrap.notebook-stack .td-actions .muted,
         .responsive-table-wrap.notebook-stack .td-actions .link-button {
-            font-size: .68rem;
-            line-height: 1.15;
+            font-size: .58rem;
+            line-height: 1.05;
+        }
+        .responsive-table-wrap.notebook-stack .td-actions .button.small {
+            width: 100%;
+            max-width: 68px;
+            align-self: center;
+        }
+        .responsive-table-wrap.notebook-stack .agenda-row-links {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1px 3px;
+        }
+        .responsive-table-wrap.notebook-stack [data-report-help] {
+            display: none !important;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed > td {
-            display: table-cell !important;
+            display: flex !important;
         }
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed [data-report-form],
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed .agenda-row-links,
         .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed [data-report-links],
         .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed [data-report-help] {
+            display: none !important;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed .td-actions {
             display: none !important;
         }
     }
     @media (max-width: 1250px) {
         .responsive-table-wrap.notebook-stack .table {
-            min-width: 1320px;
+            min-width: 1080px;
         }
     }
     @media (max-width: 1500px) {
@@ -825,7 +892,7 @@
                                         {% if encounter.has_generated_reports %}Regenerar informe{% else %}Generar informe{% endif %}
                                     </button>
                                 </form>
-                                <div>
+                                <div class="agenda-row-links">
                                     <a href="{% url 'clinic:encounter_edit' encounter.pk %}">Editar</a> |
                                     <a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Revision</a> |
                                     <a href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a> |
