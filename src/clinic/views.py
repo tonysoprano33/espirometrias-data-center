@@ -2566,7 +2566,65 @@ def doctor_review_list(request):
         .prefetch_related("attachments")
         .order_by("-encounter_date", "-created_at")
     )
-    return render(request, "clinic/doctor_review_list.html", {"encounters": encounters})
+    review_cards = []
+    counters = {"pending": 0, "missing_pdf": 0, "done": 0}
+    done_statuses = {
+        EncounterStatus.REVISADA,
+        EncounterStatus.INFORME_GENERADO,
+        EncounterStatus.ENTREGADA,
+    }
+    for encounter in encounters:
+        pdf_attachment = get_latest_result_attachment(encounter)
+        result_code = get_result_code_from_encounter(encounter)
+        has_pdf = bool(pdf_attachment)
+        is_done = encounter.status in done_statuses and bool(result_code)
+        if not has_pdf:
+            review_state = "missing_pdf"
+            state_label = "Falta subir PDF"
+            state_help = "Recepcion todavia no cargo el resultado."
+            action_label = "Abrir ficha"
+            counters["missing_pdf"] += 1
+            priority = 2
+        elif is_done:
+            review_state = "done"
+            state_label = "Resultado listo"
+            state_help = f"Resultado cargado: {result_code}."
+            action_label = "Ver revision"
+            counters["done"] += 1
+            priority = 3
+        else:
+            review_state = "pending"
+            state_label = "Pendiente de resultado"
+            state_help = "El PDF esta cargado. Falta que el medico lo revise."
+            action_label = "Abrir resultado del paciente"
+            counters["pending"] += 1
+            priority = 1
+        review_cards.append(
+            {
+                "encounter": encounter,
+                "pdf_attachment": pdf_attachment,
+                "result_code": result_code,
+                "review_state": review_state,
+                "state_label": state_label,
+                "state_help": state_help,
+                "action_label": action_label,
+                "priority": priority,
+            }
+        )
+
+    review_cards.sort(
+        key=lambda card: (
+            card["priority"],
+            card["encounter"].encounter_date,
+            card["encounter"].encounter_time or datetime.min.time(),
+            card["encounter"].patient.full_name,
+        )
+    )
+    return render(
+        request,
+        "clinic/doctor_review_list.html",
+        {"review_cards": review_cards, "review_counters": counters},
+    )
 
 
 @login_required

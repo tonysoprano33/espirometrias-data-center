@@ -3,46 +3,326 @@
 {% block title %}Revision medica | Clinica Espiro{% endblock %}
 
 {% block content %}
-<section class="card">
-    <p class="pill">Para el doctor</p>
-    <h1 class="section-title">Revision medica de PDFs</h1>
-    <p class="muted" style="margin-top:0;">Abrir facil, ver el PDF grande y marcar el resultado abajo.</p>
+<style>
+    .doctor-board {
+        background:
+            radial-gradient(circle at top left, rgba(255, 214, 102, .32), transparent 34%),
+            linear-gradient(135deg, #f6fdff 0%, #fffaf0 100%);
+        border: 1px solid #b9dde7;
+        box-shadow: 0 18px 48px rgba(20, 83, 103, .14);
+    }
+    .doctor-hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 18px;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    .doctor-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 13px;
+        border-radius: 999px;
+        background: #d9fbff;
+        color: #075b6b;
+        font-weight: 900;
+        letter-spacing: .02em;
+        text-transform: uppercase;
+    }
+    .doctor-title {
+        margin: 12px 0 8px;
+        font-size: clamp(2rem, 3.4vw, 4.2rem);
+        line-height: .95;
+        color: #082f49;
+    }
+    .doctor-subtitle {
+        max-width: 900px;
+        margin: 0;
+        font-size: clamp(1.05rem, 1.6vw, 1.45rem);
+        color: #4c6474;
+        font-weight: 700;
+    }
+    .doctor-help-card {
+        max-width: 360px;
+        padding: 18px;
+        border-radius: 24px;
+        background: #072f49;
+        color: #fff;
+        box-shadow: 0 16px 34px rgba(7, 47, 73, .24);
+    }
+    .doctor-help-card strong {
+        display: block;
+        font-size: 1.25rem;
+        margin-bottom: 6px;
+    }
+    .doctor-help-card span {
+        color: #d8f7ff;
+        font-weight: 700;
+    }
+    .review-kpis {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+    .review-kpi {
+        padding: 16px;
+        border-radius: 20px;
+        border: 2px solid transparent;
+        background: #fff;
+    }
+    .review-kpi strong {
+        display: block;
+        font-size: 2.3rem;
+        line-height: 1;
+        color: #0f3344;
+    }
+    .review-kpi span {
+        display: block;
+        margin-top: 7px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .02em;
+    }
+    .review-kpi.pending { border-color: #f59e0b; background: #fff6dd; }
+    .review-kpi.missing { border-color: #ef4444; background: #fff1f1; }
+    .review-kpi.done { border-color: #22c55e; background: #effdf4; }
+    .review-list {
+        display: grid;
+        gap: 14px;
+    }
+    .review-card {
+        display: grid;
+        grid-template-columns: minmax(190px, 260px) minmax(0, 1fr) minmax(220px, 330px);
+        gap: 18px;
+        align-items: stretch;
+        padding: 16px;
+        border-radius: 26px;
+        border: 3px solid #d4e6ec;
+        background: rgba(255, 255, 255, .96);
+        box-shadow: 0 12px 28px rgba(15, 55, 70, .10);
+    }
+    .review-card.pending {
+        border-color: #f59e0b;
+        background: linear-gradient(90deg, #fff8df, #fff);
+    }
+    .review-card.missing_pdf {
+        border-color: #ef4444;
+        background: linear-gradient(90deg, #fff1f1, #fff);
+        opacity: .9;
+    }
+    .review-card.done {
+        border-color: #22c55e;
+        background: linear-gradient(90deg, #effdf4, #fff);
+    }
+    .review-date-box {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 8px;
+        padding: 16px;
+        border-radius: 22px;
+        background: #eaf6ff;
+        color: #0b3347;
+        font-weight: 900;
+    }
+    .review-date-box .date {
+        font-size: 1.35rem;
+    }
+    .review-date-box .time {
+        width: fit-content;
+        padding: 9px 13px;
+        border-radius: 999px;
+        background: #fff;
+        font-size: 1.45rem;
+        box-shadow: inset 0 0 0 1px #d5e6ef;
+    }
+    .patient-block {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 10px;
+    }
+    .patient-name {
+        margin: 0;
+        font-size: clamp(1.45rem, 2.1vw, 2.2rem);
+        line-height: 1.05;
+        color: #062a3a;
+    }
+    .patient-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .meta-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 11px;
+        border-radius: 999px;
+        background: #eef7fb;
+        color: #24485a;
+        font-weight: 900;
+    }
+    .state-pill {
+        display: inline-flex;
+        width: fit-content;
+        align-items: center;
+        padding: 10px 14px;
+        border-radius: 999px;
+        font-weight: 1000;
+        letter-spacing: .02em;
+        text-transform: uppercase;
+    }
+    .state-pill.pending { background: #f59e0b; color: #241700; }
+    .state-pill.missing_pdf { background: #ef4444; color: #fff; }
+    .state-pill.done { background: #22c55e; color: #052e16; }
+    .state-help {
+        margin: 0;
+        color: #546b78;
+        font-size: 1.02rem;
+        font-weight: 700;
+    }
+    .action-panel {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 10px;
+    }
+    .doctor-open-button {
+        display: block;
+        padding: 20px 18px;
+        border-radius: 20px;
+        background: linear-gradient(135deg, #f97316, #facc15);
+        color: #241700;
+        text-align: center;
+        text-decoration: none;
+        font-size: clamp(1.15rem, 1.5vw, 1.55rem);
+        font-weight: 1000;
+        text-transform: uppercase;
+        box-shadow: 0 14px 28px rgba(249, 115, 22, .24);
+        border: 3px solid rgba(120, 53, 15, .18);
+    }
+    .doctor-open-button:hover {
+        transform: translateY(-1px);
+        filter: saturate(1.05);
+    }
+    .secondary-link {
+        text-align: center;
+        font-weight: 900;
+    }
+    .empty-review-state {
+        padding: 34px;
+        border-radius: 24px;
+        background: #fff;
+        text-align: center;
+        color: #37586a;
+        font-size: 1.25rem;
+        font-weight: 900;
+    }
+    @media (max-width: 1200px) {
+        .doctor-hero,
+        .review-card {
+            grid-template-columns: 1fr;
+        }
+        .doctor-help-card {
+            max-width: none;
+        }
+        .review-date-box {
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .action-panel {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: center;
+        }
+    }
+    @media (max-width: 760px) {
+        .review-kpis,
+        .action-panel {
+            grid-template-columns: 1fr;
+        }
+        .review-card {
+            padding: 12px;
+            border-radius: 20px;
+        }
+        .doctor-open-button {
+            padding: 18px 12px;
+        }
+    }
+</style>
 
-    <div class="table-wrap responsive-table-wrap notebook-stack">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Fecha</th>
-                    <th>Paciente</th>
-                    <th>Estudio</th>
-                    <th>Estado</th>
-                    <th>PDF</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for encounter in encounters %}
-                    <tr>
-                        <td data-label="Fecha">{{ encounter.encounter_date|date:"d/m/Y" }}</td>
-                        <td data-label="Paciente">{{ encounter.patient.full_name }}</td>
-                        <td data-label="Estudio">{{ encounter.study_type }}</td>
-                        <td data-label="Estado">{{ encounter.status }}</td>
-                        <td data-label="PDF">
-                            {% if encounter.attachments.all %}
-                                Cargado
-                            {% else %}
-                                Pendiente
-                            {% endif %}
-                        </td>
-                        <td class="td-actions" data-label="Acciones"><a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Abrir revision</a></td>
-                    </tr>
-                {% empty %}
-                    <tr>
-                        <td colspan="6">Todavia no hay atenciones para revisar.</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<section class="card doctor-board">
+    <div class="doctor-hero">
+        <div>
+            <span class="doctor-eyebrow">Pantalla del medico</span>
+            <h1 class="doctor-title">Revision medica de resultados</h1>
+            <p class="doctor-subtitle">
+                Los pacientes pendientes aparecen primero. El boton grande abre el PDF/resultado para analizar y cargar el diagnostico.
+            </p>
+        </div>
+        <div class="doctor-help-card">
+            <strong>Que tiene que hacer el doctor</strong>
+            <span>1. Buscar paciente pendiente. 2. Tocar el boton grande. 3. Ver PDF y guardar resultado.</span>
+        </div>
+    </div>
+
+    <div class="review-kpis" aria-label="Resumen de revisiones">
+        <div class="review-kpi pending">
+            <strong>{{ review_counters.pending }}</strong>
+            <span>Pendientes con PDF</span>
+        </div>
+        <div class="review-kpi missing">
+            <strong>{{ review_counters.missing_pdf }}</strong>
+            <span>Falta PDF</span>
+        </div>
+        <div class="review-kpi done">
+            <strong>{{ review_counters.done }}</strong>
+            <span>Ya resueltos</span>
+        </div>
+    </div>
+
+    <div class="review-list">
+        {% for card in review_cards %}
+            <article class="review-card {{ card.review_state }}">
+                <div class="review-date-box">
+                    <span class="date">{{ card.encounter.encounter_date|date:"d/m/Y" }}</span>
+                    <span class="time">{% if card.encounter.encounter_time %}{{ card.encounter.encounter_time|time:"H:i" }}{% else %}Sin hora{% endif %}</span>
+                </div>
+
+                <div class="patient-block">
+                    <span class="state-pill {{ card.review_state }}">{{ card.state_label }}</span>
+                    <h2 class="patient-name">{{ card.encounter.patient.full_name }}</h2>
+                    <div class="patient-meta">
+                        <span class="meta-chip">{{ card.encounter.study_type }}</span>
+                        <span class="meta-chip">{{ card.encounter.coverage_type }}</span>
+                        <span class="meta-chip">PDF: {% if card.pdf_attachment %}cargado{% else %}pendiente{% endif %}</span>
+                        {% if card.result_code %}
+                            <span class="meta-chip">Resultado: {{ card.result_code }}</span>
+                        {% endif %}
+                    </div>
+                    <p class="state-help">{{ card.state_help }}</p>
+                </div>
+
+                <div class="action-panel">
+                    <a class="doctor-open-button" href="{% url 'clinic:doctor_review_detail' card.encounter.pk %}">
+                        {{ card.action_label }}
+                    </a>
+                    {% if card.pdf_attachment %}
+                        <a class="secondary-link" href="{{ card.pdf_attachment.file.url }}" target="_blank" rel="noopener">
+                            Abrir solo el PDF
+                        </a>
+                    {% endif %}
+                </div>
+            </article>
+        {% empty %}
+            <div class="empty-review-state">
+                Todavia no hay pacientes para revisar.
+            </div>
+        {% endfor %}
     </div>
 </section>
 {% endblock %}
