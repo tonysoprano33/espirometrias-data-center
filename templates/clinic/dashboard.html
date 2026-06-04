@@ -170,36 +170,36 @@
     }
     .encounter-summary-shell {
         display: grid;
-        gap: 8px;
+        gap: 6px;
     }
     .encounter-summary-top {
         display: flex;
-        align-items: flex-start;
+        align-items: center;
         justify-content: space-between;
-        gap: 12px;
+        gap: 8px;
     }
     .encounter-summary-name {
         display: block;
-        font-size: 1rem;
+        font-size: .94rem;
         font-weight: bold;
         color: var(--ink);
-        line-height: 1.15;
+        line-height: 1.1;
     }
     .encounter-summary-meta {
         display: flex;
         flex-wrap: wrap;
-        gap: 6px;
+        gap: 5px;
     }
     .encounter-summary-pill {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        padding: 4px 8px;
+        padding: 3px 7px;
         border-radius: 999px;
         border: 1px solid rgba(23,49,63,.08);
         background: rgba(246,248,249,.92);
         color: var(--ink);
-        font-size: .78rem;
+        font-size: .72rem;
         line-height: 1.1;
     }
     .encounter-summary-pill.attended {
@@ -224,9 +224,9 @@
         background: rgba(255,255,255,.94);
         color: var(--brand);
         border-radius: 999px;
-        padding: 6px 10px;
+        padding: 4px 8px;
         font: inherit;
-        font-size: .82rem;
+        font-size: .76rem;
         font-weight: bold;
         cursor: pointer;
         white-space: nowrap;
@@ -236,28 +236,83 @@
         background: rgba(230,245,244,.95);
     }
     .encounter-summary-toggle strong {
-        font-size: .9rem;
+        font-size: .82rem;
     }
     .drapp-box textarea {
         min-height: 180px;
     }
     @media (max-width: 1600px) {
+        .responsive-table-wrap.notebook-stack tbody {
+            gap: 8px;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row] {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px 10px;
+            padding: 10px 12px;
+            border-radius: 14px;
+            box-shadow: 0 6px 14px rgba(16,43,60,.05);
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row] > td {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 8px 10px;
+            border: 1px solid rgba(23,49,63,.08);
+            border-radius: 12px;
+            background: rgba(255,255,255,.96);
+            margin: 0;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row] > td::before {
+            margin-bottom: 1px;
+        }
         .responsive-table-wrap.notebook-stack .encounter-summary-cell {
             display: block;
-            padding: 0 0 10px;
-            margin-bottom: 8px;
-            border-bottom: 1px solid rgba(23,49,63,.08);
+            grid-column: 1 / -1;
+            padding: 0;
+            margin: 0;
+            border: none;
+            background: transparent;
         }
-        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed {
-            padding: 10px 12px;
+        .responsive-table-wrap.notebook-stack .time-cell,
+        .responsive-table-wrap.notebook-stack .patient-cell,
+        .responsive-table-wrap.notebook-stack .result-cell,
+        .responsive-table-wrap.notebook-stack .td-actions {
+            grid-column: 1 / -1;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed > td:not(.encounter-summary-cell) {
             display: none !important;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed .encounter-summary-cell {
-            padding-bottom: 0;
-            margin-bottom: 0;
-            border-bottom: none;
+            padding: 0;
+            margin: 0;
+        }
+        .responsive-table-wrap.notebook-stack .cell-input,
+        .responsive-table-wrap.notebook-stack .inline-input,
+        .responsive-table-wrap.notebook-stack .result-input {
+            padding: 6px 8px;
+            font-size: .92rem;
+        }
+        .responsive-table-wrap.notebook-stack .cell-small {
+            max-width: 72px;
+        }
+        .responsive-table-wrap.notebook-stack .td-actions > div {
+            gap: 6px !important;
+            min-width: 0 !important;
+        }
+        .responsive-table-wrap.notebook-stack .button.small,
+        .responsive-table-wrap.notebook-stack .attendance-button {
+            padding: 7px 10px;
+            font-size: .86rem;
+        }
+        .responsive-table-wrap.notebook-stack .status-badge {
+            padding: 5px 7px;
+            font-size: .82rem;
+        }
+    }
+    @media (max-width: 1250px) {
+        .responsive-table-wrap.notebook-stack [data-encounter-row] {
+            grid-template-columns: 1fr;
         }
     }
     @media (max-width: 1500px) {
@@ -729,7 +784,6 @@
         <option value="{{ value }}">{{ label }}</option>
     {% endfor %}
 </datalist>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
     (function () {
         const studySelect = document.getElementById("id_study_type");
@@ -981,6 +1035,12 @@
             }
         }
 
+        function syncEncounterRowUi(row) {
+            if (window.espiroAgendaCollapse && typeof window.espiroAgendaCollapse.syncRow === "function") {
+                window.espiroAgendaCollapse.syncRow(row);
+            }
+        }
+
         function applyInlineResponse(form, payload, options) {
             const config = options || {};
             const row = form.closest("tr");
@@ -1041,6 +1101,7 @@
                 row.dataset.hasCycleData = payload.has_cycle_data ? "1" : "0";
             }
             updateReportUI(row, payload);
+            syncEncounterRowUi(row);
         }
 
         async function submitInlineForm(form, options) {
@@ -1498,6 +1559,9 @@
             setDniValue(row, payload);
             updateAttendance(row, payload);
             updateReport(row, payload);
+            if (window.espiroAgendaCollapse && typeof window.espiroAgendaCollapse.syncRow === "function") {
+                window.espiroAgendaCollapse.syncRow(row);
+            }
 
             historyLink = row.querySelector ? row.querySelector("[data-history-link]") : null;
             if (historyLink && payload.patient_url) historyLink.setAttribute("href", payload.patient_url);
@@ -1952,8 +2016,9 @@
             var submitButton;
             var submittingAfterOcr = false;
             var running = false;
+            var tesseractLoaderPromise = null;
 
-            if (!actionInput || !fileInput || !rawTextInput || !ocrInput || !window.Tesseract) return;
+            if (!actionInput || !fileInput || !rawTextInput || !ocrInput) return;
             form = actionInput.form;
             submitButton = form && form.querySelector ? form.querySelector("button[type='submit']") : null;
             if (!form) return;
@@ -1964,6 +2029,32 @@
                     submitButton.disabled = !!active;
                     submitButton.innerHTML = active ? (label || "Leyendo captura...") : "Importar";
                 }
+            }
+
+            function ensureTesseract() {
+                if (window.Tesseract) {
+                    return Promise.resolve(window.Tesseract);
+                }
+                if (tesseractLoaderPromise) {
+                    return tesseractLoaderPromise;
+                }
+                tesseractLoaderPromise = new Promise(function (resolve, reject) {
+                    var script = document.createElement("script");
+                    script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+                    script.async = true;
+                    script.onload = function () {
+                        if (window.Tesseract) {
+                            resolve(window.Tesseract);
+                            return;
+                        }
+                        reject(new Error("No pude cargar el OCR del navegador."));
+                    };
+                    script.onerror = function () {
+                        reject(new Error("No pude cargar el OCR del navegador."));
+                    };
+                    document.head.appendChild(script);
+                });
+                return tesseractLoaderPromise;
             }
 
             function normalizeOcrText(value) {
@@ -2121,8 +2212,11 @@
                 }
                 ocrInput.value = "";
                 setBusy(true);
-                setDrappPasteStatus("Leyendo captura...");
-                prepareOcrSource(file).then(function (ocrSource) {
+                setDrappPasteStatus("Preparando OCR...");
+                ensureTesseract().then(function () {
+                    setDrappPasteStatus("Leyendo captura...");
+                    return prepareOcrSource(file);
+                }).then(function (ocrSource) {
                     return window.Tesseract.recognize(ocrSource, "spa+eng");
                 }).then(function (result) {
                     var payload = buildPayload(result);
@@ -2182,6 +2276,7 @@
         function pollRows() {
             var xhr;
             if (!window.XMLHttpRequest) return;
+            if (document.hidden) return;
             xhr = new XMLHttpRequest();
             xhr.open("GET", stateUrl + "?_=" + new Date().getTime(), true);
             xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
@@ -2218,13 +2313,17 @@
         installDrappPasteZone();
         installDrappBrowserOcr();
 
-        window.setInterval(pollRows, 12000);
-        window.setTimeout(pollRows, 2000);
+        window.setInterval(pollRows, 20000);
+        window.setTimeout(pollRows, 3000);
     })();
 </script>
 <script>
     (function () {
         var storagePrefix = "espiro-agenda-collapse-";
+
+        function isCompactAgendaMode() {
+            return !!(window.matchMedia && window.matchMedia("(max-width: 1600px)").matches);
+        }
 
         function getSummaryStorageKey(row) {
             return storagePrefix + String(row.getAttribute("data-encounter-id") || "");
@@ -2332,7 +2431,17 @@
             if (row && row.getAttribute("data-manual-collapse") === "1") {
                 return;
             }
+            if (isCompactAgendaMode()) {
+                setRowCollapsed(row, true, false);
+                return;
+            }
             setRowCollapsed(row, !!completed || row.getAttribute("data-auto-collapse") === "1", false);
+        }
+
+        function syncRow(row) {
+            if (!row) return;
+            refreshRowSummary(row);
+            maybeAutoCollapse(row);
         }
 
         function installEncounterCollapse() {
@@ -2341,9 +2450,7 @@
             for (i = 0; i < rows.length; i += 1) {
                 (function (row) {
                     var toggle = row.querySelector ? row.querySelector("[data-encounter-toggle]") : null;
-                    var observer;
-                    refreshRowSummary(row);
-                    maybeAutoCollapse(row);
+                    syncRow(row);
 
                     if (toggle) {
                         toggle.addEventListener("click", function () {
@@ -2357,23 +2464,14 @@
                     row.addEventListener("change", function () {
                         refreshRowSummary(row);
                     });
-
-                    if (window.MutationObserver) {
-                        observer = new MutationObserver(function () {
-                            refreshRowSummary(row);
-                            maybeAutoCollapse(row);
-                        });
-                        observer.observe(row, {
-                            subtree: true,
-                            childList: true,
-                            characterData: true,
-                            attributes: true,
-                            attributeFilter: ["class"]
-                        });
-                    }
                 })(rows[i]);
             }
         }
+
+        window.espiroAgendaCollapse = {
+            syncRow: syncRow,
+            syncAll: installEncounterCollapse
+        };
 
         if (document.readyState === "loading") {
             document.addEventListener("DOMContentLoaded", installEncounterCollapse);
