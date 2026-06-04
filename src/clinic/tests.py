@@ -7,6 +7,7 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from .models import CoverageType, Encounter, EncounterStatus, Patient, StudyType
+from .pdf_intake import build_spirometry_analysis, extract_spirometry_numbers_from_text
 from .views import (
     extract_drapp_rows_from_ocr_lines,
     extract_drapp_rows_from_text,
@@ -258,3 +259,33 @@ class DrappImportDeduplicationTests(TestCase):
         )
 
         self.assertEqual(unique, [first])
+
+
+class SpirometryPdfParsingTests(SimpleTestCase):
+    def test_uses_distinct_fev1_and_ratio_lines_for_mixed_pattern(self):
+        values = extract_spirometry_numbers_from_text(
+            "\n".join(
+                [
+                    "FVC 2.50 3.20 1.80 56",
+                    "FEV1 1.80 2.60 1.00 38",
+                    "FEV1/FVC 70 81 55",
+                ]
+            )
+        )
+        analysis = build_spirometry_analysis(values)
+
+        self.assertEqual(values["fev1_fvc"]["lln"], 70)
+        self.assertEqual(values["fev1_fvc"]["best"], 55)
+        self.assertEqual(analysis["code"], "RMSOS")
+
+    def test_does_not_call_normal_when_key_values_are_missing(self):
+        analysis = build_spirometry_analysis(
+            {
+                "fvc": {"lln": None, "predicted": None, "best": None, "percent": None},
+                "fev1": {"lln": None, "predicted": None, "best": None, "percent": None},
+                "fev1_fvc": {"lln": None, "predicted": None, "best": None, "percent": None},
+            }
+        )
+
+        self.assertEqual(analysis["code"], "")
+        self.assertIsNone(analysis["probability"])

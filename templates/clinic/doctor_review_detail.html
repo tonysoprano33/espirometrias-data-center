@@ -200,6 +200,14 @@
             return String(value || "").replace(/\s+/g, " ").trim();
         }
 
+        function normalizeMultilineText(value) {
+            return String(value || "")
+                .split(/\r?\n/)
+                .map(function (line) { return normalizeText(line); })
+                .filter(function (line) { return line; })
+                .join("\n");
+        }
+
         function groupPdfTextItems(items, pageNumber) {
             var grouped = [];
             for (var i = 0; i < items.length; i += 1) {
@@ -257,7 +265,7 @@
                 var pageLines = groupPdfTextItems(textContent.items || [], pageNumber);
                 lines = lines.concat(pageLines);
             }
-            var joinedText = normalizeText(lines.map(function (line) { return line.text; }).join("\n"));
+            var joinedText = normalizeMultilineText(lines.map(function (line) { return line.text; }).join("\n"));
             if (joinedText.length >= 40) {
                 return { source: "browser-pdf-text", text: joinedText, lines: lines };
             }
@@ -278,7 +286,7 @@
             }
             return {
                 source: "browser-pdf-ocr",
-                text: normalizeText(ocrLines.map(function (line) { return line.text; }).join("\n")),
+                text: normalizeMultilineText(ocrLines.map(function (line) { return line.text; }).join("\n")),
                 lines: ocrLines,
             };
         }
@@ -294,7 +302,7 @@
             }).filter(function (line) { return line.text; });
             return {
                 source: "browser-image-ocr",
-                text: normalizeText(lines.map(function (line) { return line.text; }).join("\n")),
+                text: normalizeMultilineText(lines.map(function (line) { return line.text; }).join("\n")),
                 lines: lines,
             };
         }

@@ -114,7 +114,12 @@ def extract_pdf_text_content(pdf_path: str) -> str:
             try:
                 text_page = page.get_textpage()
                 try:
-                    page_text = collapse_spaces(text_page.get_text_range())
+                    raw_page_text = str(text_page.get_text_range() or "")
+                    page_text = "\n".join(
+                        collapse_spaces(line)
+                        for line in raw_page_text.splitlines()
+                        if collapse_spaces(line)
+                    )
                 finally:
                     text_page.close()
             finally:
@@ -170,8 +175,11 @@ def extract_line_for_labels(raw_text: str, labels: list[str]) -> str:
     normalized_labels = [normalize_for_match(label) for label in labels]
     for line in split_text_lines(raw_text):
         normalized_line = normalize_for_match(line)
-        if any(label in normalized_line for label in normalized_labels):
-            return line
+        for label in normalized_labels:
+            if label == "FEV1" and normalized_line.startswith("FEV1FVC"):
+                continue
+            if normalized_line.startswith(label):
+                return line
     normalized_text = normalize_for_match(raw_text)
     if not normalized_text:
         return ""
@@ -218,6 +226,22 @@ def infer_measurement_values_from_numbers(numbers: list[float]) -> dict:
     return values
 
 
+def infer_ratio_values_from_numbers(numbers: list[float]) -> dict:
+    values = {"lln": None, "predicted": None, "best": None, "percent": None}
+    ratio_candidates = [number for number in numbers if 20 <= number <= 160]
+    if len(ratio_candidates) >= 1:
+        values["lln"] = ratio_candidates[0]
+    if len(ratio_candidates) >= 2:
+        values["predicted"] = ratio_candidates[1]
+    if len(ratio_candidates) >= 3:
+        values["best"] = ratio_candidates[2]
+    elif len(ratio_candidates) == 2:
+        values["best"] = ratio_candidates[1]
+    if len(ratio_candidates) >= 4:
+        values["percent"] = ratio_candidates[-1]
+    return values
+
+
 def extract_spirometry_numbers_from_text(raw_text: str) -> dict:
     fvc_line = extract_line_for_labels(raw_text, ["FVC"])
     ratio_line = extract_line_for_labels(raw_text, ["FEV1/FVC", "FEV1FVC"])
@@ -225,11 +249,7 @@ def extract_spirometry_numbers_from_text(raw_text: str) -> dict:
 
     fvc = infer_measurement_values_from_numbers(extract_numbers_from_line(fvc_line))
     fev1 = infer_measurement_values_from_numbers(extract_numbers_from_line(fev1_line))
-    ratio = infer_measurement_values_from_numbers(extract_numbers_from_line(ratio_line))
-
-    if ratio.get("best") is None and ratio.get("percent") is not None and ratio.get("predicted") is None:
-        ratio["best"] = ratio["percent"]
-        ratio["percent"] = None
+    ratio = infer_ratio_values_from_numbers(extract_numbers_from_line(ratio_line))
 
     return {
         "fvc": fvc,
@@ -435,6 +455,8 @@ def build_suggestion_probability(values: dict, code: str) -> int:
         score += 4
     if code == "N":
         score += 6
+        if ratio.get("lln") is None or fvc.get("lln") is None:
+            score = min(score, 72)
     return min(score, SUGGESTION_PROBABILITY_CAP)
 
 
@@ -449,6 +471,9 @@ def suggest_result_code_from_spirometry(values: dict):
     fvc_lln = fvc.get("lln")
     fvc_percent = fvc.get("percent")
     fev1_percent = fev1.get("percent")
+
+    if ratio_best is None and ratio_lln is None and fvc_best is None and fvc_percent is None:
+        return "", "No lei valores suficientes de FVC y FEV1/FVC para sugerir un resultado confiable.", 0
 
     has_obstruction = bool(ratio_best is not None and ratio_lln is not None and ratio_best < ratio_lln)
     has_restriction = False
@@ -478,6 +503,15 @@ def suggest_result_code_from_spirometry(values: dict):
 
 def build_spirometry_analysis(values: dict):
     code, reason, probability = suggest_result_code_from_spirometry(values)
+    if not code:
+        return {
+            "code": "",
+            "reason": reason,
+            "probability": None,
+            "probability_phrase": "",
+            "summary": reason,
+            "values": values,
+        }
     probability_phrase = f"{probability}% probable {code}"
     return {
         "code": code,

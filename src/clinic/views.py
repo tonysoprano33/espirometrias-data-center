@@ -523,6 +523,8 @@ def update_inline_field(encounter, field_name: str, raw_value: str, request_user
 
     if field_name == "patient_name":
         old_value = patient.full_name
+        if not raw_text:
+            return
         patient.full_name = raw_text.upper()
         patient.save(update_fields=["full_name", "updated_at"])
         if old_value != patient.full_name:
@@ -2674,11 +2676,13 @@ def doctor_review_detail(request, pk):
             preview_error = str(error)
         if pdf_attachment.file_kind == AttachmentKind.PDF_RESULTADO and not spirometry_suggestion:
             try:
-                spirometry_suggestion = build_spirometry_suggestion_from_pdf(
+                generated_suggestion = build_spirometry_suggestion_from_pdf(
                     pdf_attachment.file.path,
                     attachment_id=pdf_attachment.pk,
                 )
-                store_spirometry_analysis(encounter, {**spirometry_suggestion, "source": "server-pdf-text"})
+                if generated_suggestion.get("code"):
+                    spirometry_suggestion = generated_suggestion
+                    store_spirometry_analysis(encounter, {**spirometry_suggestion, "source": "server-pdf-text"})
             except Exception as error:
                 if not preview_error:
                     preview_error = str(error)

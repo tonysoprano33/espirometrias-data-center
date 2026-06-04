@@ -1884,7 +1884,9 @@
             var list = [];
             var i;
             for (i = 0; i < forms.length; i += 1) {
-                if (!hasAttr(forms[i], "data-attendance-form")) list.push(forms[i]);
+                if (!hasAttr(forms[i], "data-attendance-form") && forms[i].getAttribute("data-dirty") === "1") {
+                    list.push(forms[i]);
+                }
             }
             return list;
         }

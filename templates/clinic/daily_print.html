@@ -119,13 +119,12 @@
             font-size: 12px;
         }
         .pdf-page {
-            margin-top: 10px;
+            margin-top: 0;
             text-align: center;
         }
         .pdf-page img {
             width: 100%;
             height: auto;
-            border: 1px solid #ddd;
         }
         @media print {
             body { background: #fff; }
@@ -178,38 +177,6 @@
             {% endif %}
             <p class="emphasis">SO2: {{ packet.so2 }}% &nbsp;&nbsp;&nbsp; FC: {{ packet.fc }}</p>
 
-            {% if packet.include_walk %}
-                <h2>Prueba de los 6 y 12 minutos</h2>
-                <p>Se realizo test de la marcha con monitoreo continuo; en reposo, durante la marcha (6 min.) y en la recuperacion (2 min.).</p>
-                <div class="walk-comments">
-                    <p><strong>Distancia recorrida:</strong> {{ packet.distance }} mts.</p>
-                    <p><strong>Realizo correctamente la marcha:</strong> {% if packet.completed %}Si{% else %}No{% endif %}</p>
-                    <p><strong>Se detuvo durante la marcha:</strong> {% if packet.stopped %}Si{% else %}No{% endif %}</p>
-                    <p><strong>Presento sintomas al final de la marcha:</strong> {% if packet.symptoms %}Si{% else %}No{% endif %}</p>
-                </div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>MINUTOS</th>
-                            <th>SO2</th>
-                            <th>FC</th>
-                            <th>ESC. BORG</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in packet.walk_rows %}
-                            <tr>
-                                <td>{{ row.minute }}</td>
-                                <td>{{ row.so2 }}</td>
-                                <td>{{ row.fc }}</td>
-                                <td>{{ row.borg }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                <p class="emphasis">PRUEBA DE LOS 6 Y 12 MINUTOS: PRUEBA NORMAL</p>
-            {% endif %}
-
             <div class="signature">
                 DR. PIGUILLEM GUSTAVO GABRIEL<br>
                 MAT. 2083<br>
@@ -217,7 +184,7 @@
             </div>
         </section>
 
-        {% if packet.include_mutual_packet %}
+        {% if packet.include_walk %}
             <section class="sheet">
                 <div class="header-box">
                     <strong>CENTRO RESPIRATORIO INTEGRAL</strong>
@@ -231,7 +198,7 @@
                 <div class="line-item"><strong>DERIVA:</strong> {{ packet.doctor_name }}</div>
 
                 <h2>Prueba de los 6 y 12 minutos</h2>
-                <p>Se realizo test de la marcha con monitoreo continuo; en reposo, durante la marcha (6 min.) y en la recuperacion (2 min.). Los parametros registrados fueron: saturacion de O2, frecuencia de pulso, esfuerzo percibido por medio de escala de Borg y la distancia recorrida a la finalizacion.</p>
+                <p>Se realizo test de la marcha con monitoreo continuo; en reposo, durante la marcha (6 min.) y en la recuperacion (2 min.). Los parametros registrados fueron: Saturacion de O2, frecuencia de pulso, esfuerzo percibido por medio de escala de Borg y la distancia recorrida a la finalizacion.</p>
                 <div class="walk-comments">
                     <p><strong>Distancia recorrida:</strong> {{ packet.distance }} mts.</p>
                     <p><strong>Realizo correctamente la marcha:</strong> {% if packet.completed %}Si{% else %}No{% endif %}</p>
@@ -258,14 +225,7 @@
                         {% endfor %}
                     </tbody>
                 </table>
-                <p class="emphasis">SO2: {{ packet.so2 }}% &nbsp;&nbsp;&nbsp; FC: {{ packet.fc }}</p>
                 <p class="emphasis">PRUEBA DE LOS 6 Y 12 MINUTOS: PRUEBA NORMAL</p>
-
-                <h2>Resultado Espirometria Computarizada</h2>
-                <p class="emphasis">{{ packet.report_text }}</p>
-
-                <h2>Capacidad Vital Lenta</h2>
-                <p class="emphasis">{{ packet.mutual_cvl_result }}</p>
 
                 <div class="signature">
                     DR. PIGUILLEM GUSTAVO GABRIEL<br>
@@ -277,7 +237,6 @@
 
         {% for page in packet.pdf_preview_pages %}
             <section class="sheet">
-                <h2 style="text-align:center; margin-top:0;">Resultado de espirometria adjunto</h2>
                 <div class="pdf-page">
                     <img src="{{ page.url }}" alt="Resultado pagina {{ page.index }}">
                 </div>
