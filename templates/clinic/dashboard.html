@@ -238,6 +238,9 @@
     .encounter-summary-toggle strong {
         font-size: .82rem;
     }
+    .compact-label {
+        display: none;
+    }
     .drapp-box textarea {
         min-height: 180px;
     }
@@ -248,7 +251,7 @@
         .responsive-table-wrap.notebook-stack .table {
             display: block;
             width: 100%;
-            min-width: 1080px;
+            min-width: 980px;
             table-layout: auto;
         }
         .responsive-table-wrap.notebook-stack thead {
@@ -260,12 +263,12 @@
         .responsive-table-wrap.notebook-stack thead tr,
         .responsive-table-wrap.notebook-stack [data-encounter-row] {
             display: grid;
-            grid-template-columns: 28px 62px minmax(240px, 2.1fr) 72px 84px 80px 82px 58px 58px 64px 74px 70px 80px;
+            grid-template-columns: 28px 62px minmax(260px, 2.35fr) 72px 42px 42px 82px 58px 58px 64px 74px 70px 80px;
             align-items: center;
             column-gap: 0;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed {
-            grid-template-columns: 28px 62px minmax(270px, 2.2fr) 72px 86px 82px minmax(86px, .7fr) 58px 58px 64px 74px 70px;
+            grid-template-columns: 28px 62px minmax(292px, 2.55fr) 72px 42px 42px minmax(86px, .8fr) 58px 58px 64px 74px 70px;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row] {
             box-shadow: none;
@@ -288,6 +291,12 @@
             text-align: center;
             overflow-wrap: anywhere;
             word-break: break-word;
+        }
+        .responsive-table-wrap.notebook-stack .wide-label {
+            display: none;
+        }
+        .responsive-table-wrap.notebook-stack .compact-label {
+            display: inline;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row] > td::before {
             display: none !important;
@@ -379,6 +388,15 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+        .responsive-table-wrap.notebook-stack .study-cell .cell-select,
+        .responsive-table-wrap.notebook-stack td[data-label="Cobertura"] .cell-select {
+            padding-left: 2px;
+            padding-right: 2px;
+            text-align: center;
+            text-align-last: center;
+            font-size: .74rem;
+            font-weight: 800;
+        }
         .responsive-table-wrap.notebook-stack .patient-cell .cell-input {
             font-size: .72rem;
             padding-left: 5px;
@@ -468,7 +486,7 @@
     }
     @media (max-width: 1250px) {
         .responsive-table-wrap.notebook-stack .table {
-            min-width: 1080px;
+            min-width: 980px;
         }
     }
     @media (max-width: 1500px) {
@@ -688,8 +706,8 @@
                     <th class="col-time">Hora</th>
                     <th class="col-patient">Paciente</th>
                     <th>DNI</th>
-                    <th>Estudio</th>
-                    <th>Cobertura</th>
+                    <th><span class="wide-label">Estudio</span><span class="compact-label">Estd.</span></th>
+                    <th><span class="wide-label">Cobertura</span><span class="compact-label">Cob.</span></th>
                     <th>Dr. deriva</th>
                     <th class="col-vitals">SO2 / FC reposo</th>
                     <th class="col-vitals">SO2 / FC post</th>
@@ -948,6 +966,49 @@
             .sort((a, b) => Number(a.dataset.nav) - Number(b.dataset.nav));
         const activeRequests = new Map();
         const autosaveTimers = new Map();
+        const notebookQuery = window.matchMedia ? window.matchMedia("(max-width: 1600px)") : null;
+        const compactOptionLabels = {
+            study_type: {
+                Ciclometria: "C",
+                Espirometria: "E",
+            },
+            coverage_type: {
+                Particular: "P",
+                Mutual: "M",
+            },
+        };
+
+        function optionFieldName(select) {
+            const form = select ? select.closest("form") : null;
+            const fieldInput = form ? form.querySelector('input[name="field_name"]') : null;
+            return fieldInput ? fieldInput.value : "";
+        }
+
+        function syncCompactSelectLabels() {
+            const compact = !notebookQuery || notebookQuery.matches;
+            document.querySelectorAll(".notebook-stack .study-select, .notebook-stack .coverage-select").forEach((select) => {
+                const fieldName = optionFieldName(select);
+                const labels = compactOptionLabels[fieldName] || {};
+                Array.from(select.options).forEach((option) => {
+                    if (!option.dataset.fullLabel) {
+                        option.dataset.fullLabel = option.textContent;
+                    }
+                    option.textContent = compact ? (labels[option.value] || option.dataset.fullLabel) : option.dataset.fullLabel;
+                });
+                select.title = select.selectedOptions && select.selectedOptions[0]
+                    ? select.selectedOptions[0].dataset.fullLabel || select.selectedOptions[0].textContent
+                    : "";
+            });
+        }
+
+        syncCompactSelectLabels();
+        if (notebookQuery) {
+            if (typeof notebookQuery.addEventListener === "function") {
+                notebookQuery.addEventListener("change", syncCompactSelectLabels);
+            } else if (typeof notebookQuery.addListener === "function") {
+                notebookQuery.addListener(syncCompactSelectLabels);
+            }
+        }
 
         function toggleStudyFields() {
             const isCyclometry = studySelect && studySelect.value === "Ciclometria";
