@@ -264,9 +264,14 @@
         .responsive-table-wrap.notebook-stack [data-encounter-row] > td,
         .responsive-table-wrap.notebook-stack thead th {
             display: table-cell;
-            padding: 6px 6px;
+            padding: 5px 5px;
             vertical-align: middle;
             min-width: 0;
+        }
+        .responsive-table-wrap.notebook-stack thead th {
+            font-size: .72rem;
+            line-height: 1.05;
+            letter-spacing: .02em;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row] > td::before {
             display: none !important;
@@ -304,74 +309,87 @@
         }
         .responsive-table-wrap.notebook-stack .col-patient,
         .responsive-table-wrap.notebook-stack .patient-cell {
-            width: 170px;
+            width: 255px;
         }
         .responsive-table-wrap.notebook-stack .study-cell {
-            width: 118px;
+            width: 108px;
         }
         .responsive-table-wrap.notebook-stack td[data-label="Cobertura"] {
-            width: 132px;
+            width: 116px;
         }
         .responsive-table-wrap.notebook-stack td[data-label="Dr. deriva"] {
-            width: 170px;
+            width: 138px;
         }
         .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"],
         .responsive-table-wrap.notebook-stack .vitals-cell {
-            width: 126px;
+            width: 116px;
         }
         .responsive-table-wrap.notebook-stack .result-cell {
-            width: 165px;
+            width: 112px;
         }
         .responsive-table-wrap.notebook-stack .attendance-cell {
-            width: 110px;
+            width: 96px;
         }
         .responsive-table-wrap.notebook-stack .status-cell {
-            width: 100px;
+            width: 88px;
         }
         .responsive-table-wrap.notebook-stack .td-actions {
-            width: 190px;
+            width: 128px;
         }
         .responsive-table-wrap.notebook-stack .cell-input,
         .responsive-table-wrap.notebook-stack .inline-input,
         .responsive-table-wrap.notebook-stack .result-input {
-            padding: 5px 7px;
-            font-size: .85rem;
+            padding: 4px 6px;
+            font-size: .78rem;
         }
         .responsive-table-wrap.notebook-stack .cell-time {
             width: 100%;
+            font-size: .78rem;
         }
         .responsive-table-wrap.notebook-stack .cell-name,
         .responsive-table-wrap.notebook-stack .cell-select {
             min-width: 0;
             width: 100%;
         }
+        .responsive-table-wrap.notebook-stack .patient-cell .cell-input {
+            font-size: .74rem;
+            padding-left: 5px;
+            padding-right: 5px;
+        }
+        .responsive-table-wrap.notebook-stack .result-input {
+            font-size: .72rem;
+            letter-spacing: 0;
+            padding-left: 4px;
+            padding-right: 4px;
+        }
         .responsive-table-wrap.notebook-stack .cell-small {
-            width: 56px;
-            max-width: 56px;
+            width: 48px;
+            max-width: 48px;
+            font-size: .76rem;
         }
         .responsive-table-wrap.notebook-stack .inline-pair {
-            gap: 4px;
+            gap: 3px;
             flex-wrap: nowrap;
         }
         .responsive-table-wrap.notebook-stack .button.small,
         .responsive-table-wrap.notebook-stack .attendance-button {
-            padding: 6px 8px;
-            font-size: .82rem;
+            padding: 5px 6px;
+            font-size: .74rem;
         }
         .responsive-table-wrap.notebook-stack .status-badge {
-            padding: 5px 7px;
-            font-size: .8rem;
+            padding: 4px 6px;
+            font-size: .72rem;
         }
         .responsive-table-wrap.notebook-stack .td-actions > div {
             display: grid;
-            gap: 4px !important;
+            gap: 3px !important;
             min-width: 0 !important;
         }
         .responsive-table-wrap.notebook-stack .td-actions a,
         .responsive-table-wrap.notebook-stack .td-actions .muted,
         .responsive-table-wrap.notebook-stack .td-actions .link-button {
-            font-size: .76rem;
-            line-height: 1.25;
+            font-size: .68rem;
+            line-height: 1.15;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed > td {
             display: table-cell !important;
