@@ -1044,6 +1044,7 @@ def import_drapp_rows(rows, request_user):
     created = 0
     skipped = 0
     default_physician = get_default_physician()
+    seen_keys = set()
 
     for row in rows:
         patient_name = normalize_imported_name(row.get("patient_name", ""))
@@ -1063,6 +1064,7 @@ def import_drapp_rows(rows, request_user):
             skipped += 1
             continue
 
+        study_type = infer_study_type(row.get("practice_raw", ""))
         parsed_dni = normalize_document_number(row.get("dni", ""))
         patient = Patient.objects.filter(dni=parsed_dni).first() if parsed_dni else None
         if patient is None:
@@ -1086,11 +1088,28 @@ def import_drapp_rows(rows, request_user):
                 updated_fields.append("updated_at")
                 patient.save(update_fields=updated_fields)
 
-        duplicate = Encounter.objects.filter(
-            patient__full_name=patient_name,
+        identity_key = parsed_dni or normalize_for_match(getattr(patient, "full_name", "") or patient_name)
+        duplicate_key = (
+            encounter_date.isoformat(),
+            when.time().isoformat(),
+            study_type,
+            identity_key,
+        )
+        if duplicate_key in seen_keys:
+            skipped += 1
+            continue
+        seen_keys.add(duplicate_key)
+
+        duplicate_queryset = Encounter.objects.filter(
             encounter_date=encounter_date,
             encounter_time=when.time(),
-        ).exists()
+            study_type=study_type,
+        )
+        if parsed_dni:
+            duplicate_queryset = duplicate_queryset.filter(patient__dni=parsed_dni)
+        else:
+            duplicate_queryset = duplicate_queryset.filter(patient=patient)
+        duplicate = duplicate_queryset.exists()
         if duplicate:
             skipped += 1
             continue
@@ -1099,7 +1118,7 @@ def import_drapp_rows(rows, request_user):
             patient=patient,
             encounter_date=encounter_date,
             encounter_time=when.time(),
-            study_type=infer_study_type(row.get("practice_raw", "")),
+            study_type=study_type,
             status=EncounterStatus.PENDIENTE,
             coverage_type=infer_coverage_type(row.get("coverage_raw", "")),
             referring_physician=default_physician,
