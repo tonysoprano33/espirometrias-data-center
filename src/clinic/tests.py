@@ -6,7 +6,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
-from .views import extract_drapp_rows_from_ocr_lines
+from .views import extract_drapp_rows_from_ocr_lines, extract_drapp_rows_from_text
 
 
 class DrappImportParsingTests(SimpleTestCase):
@@ -83,6 +83,25 @@ class DrappImportParsingTests(SimpleTestCase):
         self.assertEqual(rows[3]["dni"], "3697049")
         self.assertEqual(rows[4]["dni"], "10705164")
         self.assertEqual(rows[0]["agenda_date"], date(2026, 6, 5))
+
+    def test_ocr_like_raw_text_falls_back_to_capture_parser(self):
+        rows = extract_drapp_rows_from_text(
+            "\n".join(
+                [
+                    "Viernes 5 - junio 2026",
+                    "@ 09:20 hace 2 dias +542657555332 Avila3/915, Maria Del Carmen 16.133.118 Particular",
+                    "@ 09:40 hace 15 horas +542658 40 7539 PERALTA, MARCELA 22.822.428 Particular",
+                    "\u246010:00 Fredes, Josefa PAMI 6/535 Cicloespirometria",
+                    "Reservado hace 6 dias +542657610914 5.182.672",
+                    "\u2460 11:00 hace 3 dias Bigner, Maria Estela +5426575809643.697.049 DOSEP",
+                    "\u246011:15 hace 1 dia +542657 65 4467 PAREDES, CARLOS FENIX 10.705.164 Particular",
+                ]
+            )
+        )
+
+        self.assertEqual(len(rows), 5)
+        self.assertEqual(rows[2]["patient_name"], "FREDES, JOSEFA")
+        self.assertEqual(rows[3]["dni"], "3697049")
 
 
 class DrappImportViewTests(TestCase):

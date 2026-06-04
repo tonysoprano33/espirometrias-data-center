@@ -991,7 +991,14 @@ def extract_drapp_rows_from_text(raw_text: str):
                 "agenda_date": agenda_date,
             }
         )
-    return rows
+    if rows:
+        return rows
+
+    ocr_like_lines = [
+        {"text": line, "y": index * 30, "norm": normalize_for_match(line), "items": []}
+        for index, line in enumerate(lines)
+    ]
+    return extract_drapp_rows_from_ocr_lines(ocr_like_lines)
 
 
 def build_ocr_lines_from_image(image_path: str):
