@@ -8,39 +8,41 @@
     <h1 class="section-title">Revision medica de PDFs</h1>
     <p class="muted" style="margin-top:0;">Abrir facil, ver el PDF grande y marcar el resultado abajo.</p>
 
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Fecha</th>
-                <th>Paciente</th>
-                <th>Estudio</th>
-                <th>Estado</th>
-                <th>PDF</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for encounter in encounters %}
+    <div class="table-wrap responsive-table-wrap notebook-stack">
+        <table class="table">
+            <thead>
                 <tr>
-                    <td>{{ encounter.encounter_date|date:"d/m/Y" }}</td>
-                    <td>{{ encounter.patient.full_name }}</td>
-                    <td>{{ encounter.study_type }}</td>
-                    <td>{{ encounter.status }}</td>
-                    <td>
-                        {% if encounter.attachments.all %}
-                            Cargado
-                        {% else %}
-                            Pendiente
-                        {% endif %}
-                    </td>
-                    <td><a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Abrir revision</a></td>
+                    <th>Fecha</th>
+                    <th>Paciente</th>
+                    <th>Estudio</th>
+                    <th>Estado</th>
+                    <th>PDF</th>
+                    <th></th>
                 </tr>
-            {% empty %}
-                <tr>
-                    <td colspan="6">Todavia no hay atenciones para revisar.</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                {% for encounter in encounters %}
+                    <tr>
+                        <td data-label="Fecha">{{ encounter.encounter_date|date:"d/m/Y" }}</td>
+                        <td data-label="Paciente">{{ encounter.patient.full_name }}</td>
+                        <td data-label="Estudio">{{ encounter.study_type }}</td>
+                        <td data-label="Estado">{{ encounter.status }}</td>
+                        <td data-label="PDF">
+                            {% if encounter.attachments.all %}
+                                Cargado
+                            {% else %}
+                                Pendiente
+                            {% endif %}
+                        </td>
+                        <td class="td-actions" data-label="Acciones"><a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Abrir revision</a></td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6">Todavia no hay atenciones para revisar.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </section>
 {% endblock %}

@@ -255,6 +255,9 @@
         .table-wrap .table {
             min-width: 1100px;
         }
+        .responsive-table-wrap.notebook-stack {
+            width: 100%;
+        }
         .inline-edit {
             min-width: 0;
         }
@@ -686,7 +689,146 @@
             background: #fffdf2;
             font-size: .9rem;
         }
-        @media (max-width: 1400px) {
+        @media (max-width: 1280px) {
+            .shell {
+                padding: 16px 18px 28px;
+            }
+            .topbar-inner {
+                padding: 12px 18px;
+                align-items: flex-start;
+                flex-direction: column;
+            }
+            .nav {
+                width: 100%;
+                gap: 8px;
+            }
+            .nav a,
+            .nav .button {
+                padding: 8px 11px;
+                font-size: .92rem;
+            }
+            .card {
+                padding: 16px;
+                border-radius: 18px;
+            }
+            .grid-2,
+            .panel-grid,
+            .agenda-entry-panel {
+                grid-template-columns: 1fr;
+            }
+            .form-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .detail-list {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .compact-form-grid {
+                grid-template-columns: repeat(3, minmax(110px, 1fr));
+            }
+            .measurement-grid {
+                grid-template-columns: 1fr;
+            }
+            .calendar-toolbar,
+            .agenda-head {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+            .review-panel {
+                position: static !important;
+                top: auto !important;
+            }
+            .table-wrap .table {
+                min-width: 900px;
+            }
+            .responsive-table-wrap.notebook-stack {
+                overflow: visible;
+            }
+            .responsive-table-wrap.notebook-stack .table,
+            .responsive-table-wrap.notebook-stack .stats-table,
+            .responsive-table-wrap.notebook-stack .calendar-table {
+                width: 100%;
+                min-width: 0;
+                border-collapse: separate;
+                border-spacing: 0;
+            }
+            .responsive-table-wrap.notebook-stack thead {
+                display: none;
+            }
+            .responsive-table-wrap.notebook-stack tbody {
+                display: grid;
+                gap: 12px;
+            }
+            .responsive-table-wrap.notebook-stack tbody tr {
+                display: block;
+                padding: 12px 14px;
+                border: 1px solid var(--line);
+                border-radius: 16px;
+                background: rgba(255,255,255,.96);
+                box-shadow: 0 10px 20px rgba(16,43,60,.06);
+            }
+            .responsive-table-wrap.notebook-stack tbody tr td {
+                display: grid;
+                grid-template-columns: minmax(108px, 132px) minmax(0, 1fr);
+                gap: 8px 12px;
+                align-items: start;
+                padding: 8px 0;
+                border: none;
+                min-width: 0;
+            }
+            .responsive-table-wrap.notebook-stack tbody tr td::before {
+                content: attr(data-label);
+                color: var(--muted);
+                font-size: .74rem;
+                font-weight: bold;
+                text-transform: uppercase;
+                letter-spacing: .05em;
+            }
+            .responsive-table-wrap.notebook-stack tbody tr td[data-label=""]::before {
+                display: none;
+            }
+            .responsive-table-wrap.notebook-stack tbody tr td > * {
+                min-width: 0;
+            }
+            .responsive-table-wrap.notebook-stack .inline-pair,
+            .responsive-table-wrap.notebook-stack .inline-form {
+                flex-wrap: wrap;
+            }
+            .responsive-table-wrap.notebook-stack .inline-save,
+            .responsive-table-wrap.notebook-stack .attendance-button,
+            .responsive-table-wrap.notebook-stack .button.small {
+                width: 100%;
+                text-align: center;
+            }
+            .responsive-table-wrap.notebook-stack .cell-input,
+            .responsive-table-wrap.notebook-stack .inline-input,
+            .responsive-table-wrap.notebook-stack .result-input {
+                width: 100%;
+                min-width: 0;
+            }
+            .responsive-table-wrap.notebook-stack .cell-time,
+            .responsive-table-wrap.notebook-stack .cell-name,
+            .responsive-table-wrap.notebook-stack .cell-select {
+                width: 100%;
+                min-width: 0;
+            }
+            .responsive-table-wrap.notebook-stack .cell-small {
+                width: 100%;
+                max-width: 88px;
+            }
+            .responsive-table-wrap.notebook-stack .status-badge,
+            .responsive-table-wrap.notebook-stack .calendar-reading,
+            .responsive-table-wrap.notebook-stack .calendar-result,
+            .responsive-table-wrap.notebook-stack .calendar-attendance {
+                white-space: normal;
+            }
+            .responsive-table-wrap.notebook-stack .td-actions {
+                grid-template-columns: 1fr;
+                padding-top: 12px;
+                border-top: 1px dashed rgba(23,49,63,.14);
+                margin-top: 4px;
+            }
+        }
+        @media (min-width: 1281px) and (max-width: 1400px) {
             .form-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
@@ -703,6 +845,10 @@
             .calendar-day {
                 min-height: 82px;
                 padding: 10px 8px;
+            }
+            .responsive-table-wrap.notebook-stack tbody tr td {
+                grid-template-columns: 1fr;
+                gap: 6px;
             }
         }
     </style>

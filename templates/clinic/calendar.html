@@ -324,6 +324,21 @@
         text-decoration: underline;
         font-weight: bold;
     }
+    @media (max-width: 1280px) {
+        .calendar-day {
+            min-height: 122px;
+            padding: 12px 10px 10px;
+        }
+        .calendar-hero .section-title {
+            font-size: 1.9rem;
+        }
+        .calendar-detail-head {
+            flex-direction: column;
+        }
+        .calendar-table {
+            min-width: 0;
+        }
+    }
     @media (max-width: 900px) {
         .calendar-day {
             min-height: 122px;
@@ -477,7 +492,7 @@
 
         <div>
             {% if selected_encounters %}
-                <div class="calendar-table-wrap">
+                <div class="calendar-table-wrap responsive-table-wrap notebook-stack">
                     <table class="calendar-table">
                         <thead>
                             <tr>
@@ -495,21 +510,21 @@
                         <tbody>
                             {% for encounter in selected_encounters %}
                                 <tr>
-                                    <td><strong>{{ encounter.encounter_time|time:"H:i"|default:"-" }}</strong></td>
-                                    <td class="calendar-patient">
+                                    <td data-label="Hora"><strong>{{ encounter.encounter_time|time:"H:i"|default:"-" }}</strong></td>
+                                    <td class="calendar-patient" data-label="Paciente">
                                         <strong>{{ encounter.patient.full_name }}</strong>
                                         {% if encounter.patient.dni %}
                                             <div class="calendar-dni">{{ encounter.patient.dni }}</div>
                                         {% endif %}
                                     </td>
-                                    <td>{{ encounter.study_type }}</td>
-                                    <td>{{ encounter.coverage_type }}</td>
-                                    <td>
+                                    <td data-label="Estudio">{{ encounter.study_type }}</td>
+                                    <td data-label="Cobertura">{{ encounter.coverage_type }}</td>
+                                    <td data-label="SO2 / FC reposo">
                                         <span class="calendar-reading">
                                             {{ encounter.vital_signs.so2_rest|default:"-" }} / {{ encounter.vital_signs.fc_rest|default:"-" }}
                                         </span>
                                     </td>
-                                    <td>
+                                    <td data-label="SO2 / FC post">
                                         {% if encounter.study_type == "Ciclometria" %}
                                             <span class="calendar-reading post">
                                                 {{ encounter.vital_signs.so2_post|default:"-" }} / {{ encounter.vital_signs.fc_post|default:"-" }}
@@ -518,13 +533,13 @@
                                             <span class="calendar-reading post">-</span>
                                         {% endif %}
                                     </td>
-                                    <td><span class="calendar-result">{{ encounter.result_label|default:"-" }}</span></td>
-                                    <td>
+                                    <td data-label="Resultado"><span class="calendar-result">{{ encounter.result_label|default:"-" }}</span></td>
+                                    <td data-label="Asistencia">
                                         <span class="calendar-attendance {% if encounter.no_show %}no-show{% elif encounter.attended %}attended{% else %}pending{% endif %}">
                                             {{ encounter.attendance_label }}
                                         </span>
                                     </td>
-                                    <td>
+                                    <td class="td-actions" data-label="Acciones">
                                         <form method="post" onsubmit="return confirm('¿Eliminar este paciente agendado?');">
                                             {% csrf_token %}
                                             <input type="hidden" name="action" value="delete_encounter">

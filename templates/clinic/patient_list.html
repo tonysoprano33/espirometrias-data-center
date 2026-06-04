@@ -3,6 +3,21 @@
 {% block title %}Pacientes | Clinica Espiro{% endblock %}
 
 {% block content %}
+<style>
+    .patient-filter-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    @media (max-width: 1280px) {
+        .patient-filter-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+    @media (max-width: 900px) {
+        .patient-filter-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
 <section class="card">
     <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-end;flex-wrap:wrap;">
         <div>
@@ -13,7 +28,7 @@
     </div>
 
     <form method="get" style="margin:16px 0 22px;">
-        <div class="form-grid" style="grid-template-columns:repeat(3, minmax(0, 1fr));">
+        <div class="form-grid patient-filter-grid">
             <div class="field">
                 <label for="q">Buscar por nombre o DNI</label>
                 <input type="text" id="q" name="q" value="{{ query }}">
@@ -60,39 +75,41 @@
         </div>
     </form>
 
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Paciente</th>
-                <th>DNI</th>
-                <th>Telefono</th>
-                <th>Codigo</th>
-                <th>Atenciones</th>
-                <th>Ultima atencion</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for patient in patients %}
+    <div class="table-wrap responsive-table-wrap notebook-stack">
+        <table class="table">
+            <thead>
                 <tr>
-                    <td><a href="{% url 'clinic:patient_detail' patient.pk %}"><strong>{{ patient.full_name }}</strong></a></td>
-                    <td>{{ patient.dni|default:"-" }}</td>
-                    <td>{{ patient.phone|default:"-" }}</td>
-                    <td>{{ patient.patient_code|default:"-" }}</td>
-                    <td>{{ patient.encounter_count }}</td>
-                    <td>{{ patient.last_encounter_date|date:"d/m/Y"|default:"-" }}</td>
-                    <td>
-                        <a href="{% url 'clinic:patient_detail' patient.pk %}">Abrir</a> |
-                        <a href="{% url 'clinic:patient_edit' patient.pk %}">Editar</a> |
-                        <a href="{% url 'clinic:patient_delete' patient.pk %}">Eliminar</a>
-                    </td>
+                    <th>Paciente</th>
+                    <th>DNI</th>
+                    <th>Telefono</th>
+                    <th>Codigo</th>
+                    <th>Atenciones</th>
+                    <th>Ultima atencion</th>
+                    <th>Acciones</th>
                 </tr>
-            {% empty %}
-                <tr>
-                    <td colspan="7">No hay pacientes cargados.</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                {% for patient in patients %}
+                    <tr>
+                        <td data-label="Paciente"><a href="{% url 'clinic:patient_detail' patient.pk %}"><strong>{{ patient.full_name }}</strong></a></td>
+                        <td data-label="DNI">{{ patient.dni|default:"-" }}</td>
+                        <td data-label="Telefono">{{ patient.phone|default:"-" }}</td>
+                        <td data-label="Codigo">{{ patient.patient_code|default:"-" }}</td>
+                        <td data-label="Atenciones">{{ patient.encounter_count }}</td>
+                        <td data-label="Ultima atencion">{{ patient.last_encounter_date|date:"d/m/Y"|default:"-" }}</td>
+                        <td class="td-actions" data-label="Acciones">
+                            <a href="{% url 'clinic:patient_detail' patient.pk %}">Abrir</a> |
+                            <a href="{% url 'clinic:patient_edit' patient.pk %}">Editar</a> |
+                            <a href="{% url 'clinic:patient_delete' patient.pk %}">Eliminar</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7">No hay pacientes cargados.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </section>
 {% endblock %}

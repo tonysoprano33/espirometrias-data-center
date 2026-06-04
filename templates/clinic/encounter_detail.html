@@ -72,91 +72,97 @@
 
 <section class="card" style="margin-top:20px;">
     <h2 class="section-title">Archivos</h2>
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Nombre</th>
-                <th>Tipo</th>
-                <th>Fecha</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for attachment in encounter.attachments.all %}
+    <div class="table-wrap responsive-table-wrap notebook-stack">
+        <table class="table">
+            <thead>
                 <tr>
-                    <td>{{ attachment.original_name }}</td>
-                    <td>{{ attachment.get_file_kind_display }}</td>
-                    <td>{{ attachment.created_at|date:"d/m/Y H:i" }}</td>
-                    <td><a href="{{ attachment.file.url }}">Descargar</a></td>
+                    <th>Nombre</th>
+                    <th>Tipo</th>
+                    <th>Fecha</th>
+                    <th></th>
                 </tr>
-            {% empty %}
-                <tr>
-                    <td colspan="4">Todavia no hay archivos adjuntos.</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                {% for attachment in encounter.attachments.all %}
+                    <tr>
+                        <td data-label="Nombre">{{ attachment.original_name }}</td>
+                        <td data-label="Tipo">{{ attachment.get_file_kind_display }}</td>
+                        <td data-label="Fecha">{{ attachment.created_at|date:"d/m/Y H:i" }}</td>
+                        <td class="td-actions" data-label="Acciones"><a href="{{ attachment.file.url }}">Descargar</a></td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="4">Todavia no hay archivos adjuntos.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </section>
 
 <section class="card" style="margin-top:20px;">
     <h2 class="section-title">Informes generados</h2>
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Tipo</th>
-                <th>Archivo</th>
-                <th>Generado por</th>
-                <th>Fecha</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for report in encounter.generated_reports.all %}
+    <div class="table-wrap responsive-table-wrap notebook-stack">
+        <table class="table">
+            <thead>
                 <tr>
-                    <td>{{ report.report_type }}</td>
-                    <td>
-                        {% if report.attachment %}
-                            <a href="{{ report.attachment.file.url }}">{{ report.attachment.original_name }}</a>
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                    <td>{{ report.generated_by|default:"-" }}</td>
-                    <td>{{ report.created_at|date:"d/m/Y H:i" }}</td>
+                    <th>Tipo</th>
+                    <th>Archivo</th>
+                    <th>Generado por</th>
+                    <th>Fecha</th>
                 </tr>
-            {% empty %}
-                <tr>
-                    <td colspan="4">Todavia no se generaron informes.</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                {% for report in encounter.generated_reports.all %}
+                    <tr>
+                        <td data-label="Tipo">{{ report.report_type }}</td>
+                        <td data-label="Archivo">
+                            {% if report.attachment %}
+                                <a href="{{ report.attachment.file.url }}">{{ report.attachment.original_name }}</a>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td data-label="Generado por">{{ report.generated_by|default:"-" }}</td>
+                        <td data-label="Fecha">{{ report.created_at|date:"d/m/Y H:i" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="4">Todavia no se generaron informes.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </section>
 
 <section class="card" style="margin-top:20px;">
     <h2 class="section-title">Historial de eventos</h2>
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Fecha</th>
-                <th>Evento</th>
-                <th>Detalle</th>
-                <th>Usuario</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for event in encounter.events.all %}
+    <div class="table-wrap responsive-table-wrap notebook-stack">
+        <table class="table">
+            <thead>
                 <tr>
-                    <td>{{ event.created_at|date:"d/m/Y H:i" }}</td>
-                    <td>{{ event.title }}</td>
-                    <td>{{ event.details|default:"-" }}</td>
-                    <td>{{ event.actor|default:"-" }}</td>
+                    <th>Fecha</th>
+                    <th>Evento</th>
+                    <th>Detalle</th>
+                    <th>Usuario</th>
                 </tr>
-            {% empty %}
-                <tr>
-                    <td colspan="4">Todavia no hay eventos registrados para esta atencion.</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                {% for event in encounter.events.all %}
+                    <tr>
+                        <td data-label="Fecha">{{ event.created_at|date:"d/m/Y H:i" }}</td>
+                        <td data-label="Evento">{{ event.title }}</td>
+                        <td data-label="Detalle">{{ event.details|default:"-" }}</td>
+                        <td data-label="Usuario">{{ event.actor|default:"-" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="4">Todavia no hay eventos registrados para esta atencion.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </section>
 {% endblock %}
