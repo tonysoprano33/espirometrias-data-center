@@ -689,53 +689,13 @@
             background: #fffdf2;
             font-size: .9rem;
         }
-        @media (max-width: 1280px) {
+        @media (max-width: 1600px) {
             .shell {
                 padding: 16px 18px 28px;
-            }
-            .topbar-inner {
-                padding: 12px 18px;
-                align-items: flex-start;
-                flex-direction: column;
-            }
-            .nav {
-                width: 100%;
-                gap: 8px;
-            }
-            .nav a,
-            .nav .button {
-                padding: 8px 11px;
-                font-size: .92rem;
             }
             .card {
                 padding: 16px;
                 border-radius: 18px;
-            }
-            .grid-2,
-            .panel-grid,
-            .agenda-entry-panel {
-                grid-template-columns: 1fr;
-            }
-            .form-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-            .detail-list {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-            .compact-form-grid {
-                grid-template-columns: repeat(3, minmax(110px, 1fr));
-            }
-            .measurement-grid {
-                grid-template-columns: 1fr;
-            }
-            .calendar-toolbar,
-            .agenda-head {
-                align-items: flex-start;
-                flex-direction: column;
-            }
-            .review-panel {
-                position: static !important;
-                top: auto !important;
             }
             .table-wrap .table {
                 min-width: 900px;
@@ -828,7 +788,52 @@
                 margin-top: 4px;
             }
         }
-        @media (min-width: 1281px) and (max-width: 1400px) {
+        @media (max-width: 1450px) {
+            .shell {
+                padding: 16px 18px 28px;
+            }
+            .topbar-inner {
+                padding: 12px 18px;
+                align-items: flex-start;
+                flex-direction: column;
+            }
+            .nav {
+                width: 100%;
+                gap: 8px;
+            }
+            .nav a,
+            .nav .button {
+                padding: 8px 11px;
+                font-size: .92rem;
+            }
+            .grid-2,
+            .panel-grid,
+            .agenda-entry-panel {
+                grid-template-columns: 1fr;
+            }
+            .form-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .detail-list {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .compact-form-grid {
+                grid-template-columns: repeat(3, minmax(110px, 1fr));
+            }
+            .measurement-grid {
+                grid-template-columns: 1fr;
+            }
+            .calendar-toolbar,
+            .agenda-head {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+            .review-panel {
+                position: static !important;
+                top: auto !important;
+            }
+        }
+        @media (min-width: 1451px) and (max-width: 1600px) {
             .form-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
