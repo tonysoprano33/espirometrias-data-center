@@ -6,17 +6,17 @@
 <style>
     .agenda-entry-panel {
         display: grid;
-        grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
-        gap: 18px;
+        grid-template-columns: minmax(0, 1.08fr) minmax(340px, .92fr);
+        gap: 14px;
         align-items: start;
-        margin-bottom: 18px;
+        margin-bottom: 14px;
     }
     .quick-add-box,
     .drapp-box {
         display: grid;
-        gap: 14px;
-        padding: 16px;
-        border-radius: 18px;
+        gap: 10px;
+        padding: 14px;
+        border-radius: 16px;
         border: 1px solid rgba(23,49,63,.08);
         background: rgba(255,255,255,.86);
     }
@@ -116,19 +116,19 @@
     .ops-strip {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 12px;
-        margin-bottom: 18px;
+        gap: 10px;
+        margin-bottom: 14px;
     }
     .ops-card {
-        padding: 14px 16px;
-        border-radius: 18px;
+        padding: 12px 14px;
+        border-radius: 16px;
         border: 1px solid rgba(23,49,63,.08);
         background: rgba(255,255,255,.9);
     }
     .ops-card strong {
         display: block;
-        font-size: 1.8rem;
-        margin-top: 6px;
+        font-size: 1.5rem;
+        margin-top: 4px;
     }
     .ops-card.pending { background: linear-gradient(180deg, rgba(255,247,235,.95), rgba(255,255,255,.98)); }
     .ops-card.report { background: linear-gradient(180deg, rgba(230,245,244,.95), rgba(255,255,255,.98)); }
@@ -136,14 +136,18 @@
     .ops-card.noshow { background: linear-gradient(180deg, rgba(245,241,255,.95), rgba(255,255,255,.98)); }
     .quick-core-grid {
         display: grid;
-        grid-template-columns: minmax(260px, 1.5fr) minmax(180px, .7fr) minmax(180px, .7fr) auto;
-        gap: 12px;
+        grid-template-columns: minmax(0, 1.45fr) minmax(160px, .72fr) minmax(160px, .72fr) minmax(126px, max-content);
+        gap: 10px;
         align-items: end;
     }
+    .quick-core-grid > .button {
+        width: 100%;
+        min-width: 0;
+    }
     .quick-secondary {
-        margin-top: 10px;
+        margin-top: 8px;
         border-top: 1px dashed rgba(23,49,63,.12);
-        padding-top: 12px;
+        padding-top: 10px;
     }
     .quick-secondary summary {
         cursor: pointer;
@@ -153,12 +157,15 @@
     .quick-secondary-grid {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 14px;
-        margin-top: 12px;
+        gap: 10px;
+        margin-top: 10px;
     }
     .quick-hint {
         margin: 0;
         color: var(--muted);
+    }
+    .drapp-box textarea {
+        min-height: 180px;
     }
     @media (max-width: 1500px) {
         .agenda-entry-panel,
@@ -182,6 +189,9 @@
         .quick-core-grid,
         .quick-secondary-grid {
             grid-template-columns: 1fr;
+        }
+        .drapp-box textarea {
+            min-height: 140px;
         }
     }
 </style>

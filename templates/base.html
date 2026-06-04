@@ -25,6 +25,8 @@
         body {
             margin: 0;
             font-family: Georgia, "Times New Roman", serif;
+            font-size: 15px;
+            line-height: 1.35;
             color: var(--ink);
             background: #eef6f8;
             background: linear-gradient(180deg, #eef6f8 0%, #f7fbfc 52%, #edf3f6 100%);
@@ -35,7 +37,7 @@
             width: 100%;
             max-width: none;
             margin: 0;
-            padding: 18px 28px 32px;
+            padding: 14px 22px 26px;
         }
         .topbar {
             background: #ffffff;
@@ -45,7 +47,7 @@
             width: 100%;
             max-width: none;
             margin: 0;
-            padding: 14px 28px;
+            padding: 10px 22px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -72,7 +74,7 @@
         }
         .nav a {
             display: inline-block;
-            padding: 9px 13px;
+            padding: 8px 11px;
             border: 1px solid #c8d8df;
             border-radius: 8px;
             background: #f7fbfc;
@@ -91,7 +93,7 @@
             border: 1px solid var(--line);
             border-radius: 8px;
             box-shadow: 0 8px 18px rgba(16,43,60,.10);
-            padding: 18px 20px;
+            padding: 14px 16px;
             min-width: 0;
         }
         .hero {
@@ -121,11 +123,11 @@
         .stats-strip {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 12px;
-            margin-bottom: 20px;
+            gap: 10px;
+            margin-bottom: 14px;
         }
         .stat {
-            padding: 10px 14px;
+            padding: 9px 12px;
             border-radius: 8px;
             background: #ffffff;
             border-left: 6px solid #0d6f8a;
@@ -135,8 +137,8 @@
         }
         .stat strong {
             display: block;
-            font-size: 1.65rem;
-            margin-top: 6px;
+            font-size: 1.45rem;
+            margin-top: 4px;
         }
         .table {
             width: 100%;
@@ -144,7 +146,7 @@
             table-layout: auto;
         }
         .table th, .table td {
-            padding: 10px 8px;
+            padding: 8px 7px;
             border-bottom: 1px solid var(--line);
             text-align: left;
             vertical-align: middle;
@@ -160,12 +162,12 @@
         .form-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 16px;
+            gap: 12px;
         }
         .field label {
             display: block;
-            font-size: .9rem;
-            margin-bottom: 6px;
+            font-size: .86rem;
+            margin-bottom: 5px;
             color: var(--muted);
         }
         .field input,
@@ -175,7 +177,7 @@
             border-radius: 12px;
             border: 1px solid var(--line);
             background: #fff;
-            padding: 12px 14px;
+            padding: 10px 12px;
             font: inherit;
             color: var(--ink);
         }
@@ -188,7 +190,7 @@
             display: inline-block;
             background: var(--brand);
             color: #fff;
-            padding: 10px 16px;
+            padding: 9px 14px;
             border: none;
             border-radius: 8px;
             font: inherit;
@@ -206,26 +208,26 @@
         .button.alt { background: var(--brand-2); }
         .button.danger { background: #b64731; }
         .messages {
-            margin-bottom: 18px;
+            margin-bottom: 14px;
         }
         .message {
-            padding: 12px 16px;
+            padding: 10px 14px;
             border-radius: 12px;
             background: rgba(31,122,76,.1);
             border: 1px solid rgba(31,122,76,.18);
             margin-bottom: 10px;
         }
         .section-title {
-            margin: 0 0 14px;
-            font-size: 1.3rem;
+            margin: 0 0 10px;
+            font-size: 1.18rem;
         }
         .pill {
             display: inline-block;
-            padding: 6px 10px;
+            padding: 5px 9px;
             border-radius: 8px;
             background: #d9f7f4;
             color: var(--brand);
-            font-size: .85rem;
+            font-size: .8rem;
             font-weight: bold;
         }
         .detail-list {
@@ -496,10 +498,10 @@
         .metric-row {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 12px;
+            gap: 10px;
         }
         .metric {
-            padding: 12px 14px;
+            padding: 10px 12px;
             border-radius: 14px;
             border: 1px solid rgba(15,90,95,.1);
             background: rgba(255,255,255,.72);
@@ -511,7 +513,7 @@
             margin-bottom: 4px;
         }
         .metric strong {
-            font-size: 1.45rem;
+            font-size: 1.28rem;
         }
         .period-card {
             display: grid;
@@ -521,18 +523,18 @@
             background: linear-gradient(135deg, rgba(15,90,95,.06), rgba(214,124,50,.08));
         }
         .agenda-card {
-            padding: 16px;
+            padding: 14px;
         }
         .agenda-head {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            gap: 14px;
-            margin-bottom: 14px;
+            gap: 12px;
+            margin-bottom: 12px;
         }
         .agenda-head .section-title {
-            font-size: 1.55rem;
-            margin-top: 8px;
+            font-size: 1.32rem;
+            margin-top: 6px;
         }
         .agenda-entry-panel {
             display: grid;
@@ -552,8 +554,8 @@
             padding: 12px;
         }
         .mini-title {
-            margin: 0 0 10px;
-            font-size: 1.05rem;
+            margin: 0 0 8px;
+            font-size: 1rem;
             color: #0d3f55;
         }
         .compact-form-grid {
