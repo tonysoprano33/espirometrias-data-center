@@ -806,6 +806,18 @@ DRAPP_ROW_SKIP_WORDS = {
 DRAPP_PRACTICE_HINTS = ("CICLO", "ESPIRO")
 DRAPP_WEEKDAY_NAMES = ("LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", "SABADO", "DOMINGO")
 DRAPP_MONTH_MAP = {normalize_for_match(month): index + 1 for index, month in enumerate(SPANISH_MONTHS)}
+DRAPP_COVERAGE_CANDIDATES = ["PARTICULAR", "PAMI", "DOSEP", "OSDE", "SWISS MEDICAL", "MEDIFE", "OSECAC", "IOSFA"]
+DRAPP_NAME_NOISE_PATTERNS = [
+    re.compile(r"\bHACE\s+\d+\s+(?:DIAS?|HORAS?|MINUTOS?)\b", re.IGNORECASE),
+    re.compile(r"\bRESERVAD[OA]S?\b", re.IGNORECASE),
+    re.compile(r"\bLINK\s+DE\s+PAGO\b", re.IGNORECASE),
+    re.compile(r"\bCENTRO\s+RESPIRATORIO\s+INTEGRAL\b", re.IGNORECASE),
+    re.compile(r"\bPIGUILLEM\s+GUSTAVO\b", re.IGNORECASE),
+    re.compile(r"\bESPIROMETRIA\b", re.IGNORECASE),
+    re.compile(r"\bCICLOESPIROMETRIA\b", re.IGNORECASE),
+    re.compile(r"\bCICLO\s*ESPIROMETRIA\b", re.IGNORECASE),
+    re.compile(r"\bCICLOMETRIA\b", re.IGNORECASE),
+]
 
 
 def normalize_document_number(raw_value: str) -> str:
@@ -822,6 +834,65 @@ def normalize_phone_number(raw_value: str) -> str:
     if len(digits) < 8:
         return ""
     return f"+{digits}" if has_plus else digits
+
+
+def clean_drapp_name_candidate(raw_value: str, coverage_raw: str = "", practice_raw: str = "") -> str:
+    text = collapse_spaces(raw_value or "")
+    if not text:
+        return ""
+
+    text = re.sub(r"\+?\d[\d ]{7,16}", " ", text)
+    text = re.sub(r"\b\d{1,3}(?:[.\s]\d{3}){1,3}\b|\b\d{7,8}\b", " ", text)
+
+    removable_chunks = [coverage_raw, practice_raw, "Link de Pago", "Centro Respiratorio Integral", "Piguillem Gustavo"]
+    removable_chunks.extend(DRAPP_COVERAGE_CANDIDATES)
+    for chunk in removable_chunks:
+        if not chunk:
+            continue
+        text = re.sub(re.escape(chunk), " ", text, flags=re.IGNORECASE)
+
+    for pattern in DRAPP_NAME_NOISE_PATTERNS:
+        text = pattern.sub(" ", text)
+
+    text = text.replace("|", " ")
+    return collapse_spaces(text)
+
+
+def extract_patient_name_from_drapp_row(raw_lines, coverage_raw: str = "", practice_raw: str = "") -> str:
+    best_name = ""
+    best_score = -1
+
+    for raw_line in raw_lines or []:
+        cleaned_line = clean_drapp_name_candidate(raw_line, coverage_raw=coverage_raw, practice_raw=practice_raw)
+        normalized_name = normalize_imported_name(cleaned_line)
+        if not normalized_name:
+            continue
+
+        normalized_compact = normalize_for_match(normalized_name)
+        if (
+            normalized_compact in DRAPP_ROW_SKIP_WORDS
+            or normalized_compact.startswith("HACE")
+            or normalized_compact.startswith("LINKDEPAGO")
+        ):
+            continue
+
+        word_count = len([token for token in re.split(r"[\s,]+", normalized_name) if token])
+        if word_count < 2:
+            continue
+
+        score = len(normalized_name)
+        if "," in normalized_name:
+            score += 20
+        if word_count >= 3:
+            score += 8
+        if raw_line == (raw_lines[0] if raw_lines else ""):
+            score += 2
+
+        if score > best_score:
+            best_score = score
+            best_name = normalized_name
+
+    return best_name
 
 
 def parse_drapp_agenda_date(raw_value: str):
@@ -942,8 +1013,6 @@ def extract_drapp_rows_from_ocr_lines(lines):
     for row in rows:
         combined_text = " | ".join(row["raw_lines"])
         upper_text = combined_text.upper()
-        if not any(hint in normalize_for_match(upper_text) for hint in DRAPP_PRACTICE_HINTS):
-            continue
 
         phone = ""
         phone_match_text = ""
@@ -963,8 +1032,7 @@ def extract_drapp_rows_from_ocr_lines(lines):
                 break
 
         coverage_raw = ""
-        coverage_candidates = ["PARTICULAR", "PAMI", "DOSEP", "OSDE", "SWISS MEDICAL", "MEDIFE", "OSECAC", "IOSFA"]
-        for candidate in coverage_candidates:
+        for candidate in DRAPP_COVERAGE_CANDIDATES:
             if candidate in upper_text:
                 coverage_raw = candidate.title() if candidate == "PARTICULAR" else candidate
                 break
@@ -977,21 +1045,11 @@ def extract_drapp_rows_from_ocr_lines(lines):
         elif "ESPIRO" in upper_text:
             practice_raw = "Espirometria"
 
-        patient_name = ""
-        first_line = row["raw_lines"][0] if row["raw_lines"] else ""
-        first_line = re.sub(r"\b\d{1,2}:\d{2}\b", "", first_line).strip(" -|")
-        if coverage_raw:
-            coverage_index = first_line.upper().find(coverage_raw.upper())
-            if coverage_index > 0:
-                patient_name = first_line[:coverage_index].strip(" -|,")
-        if not patient_name and practice_raw:
-            practice_index = normalize_for_match(first_line).find(normalize_for_match(practice_raw))
-            if practice_index > 0:
-                patient_name = first_line[:practice_index].strip(" -|,")
-        if not patient_name:
-            second_line = row["raw_lines"][1] if len(row["raw_lines"]) > 1 else ""
-            patient_name = first_line or second_line
-        patient_name = normalize_imported_name(patient_name)
+        patient_name = extract_patient_name_from_drapp_row(
+            row["raw_lines"],
+            coverage_raw=coverage_raw,
+            practice_raw=practice_raw,
+        )
         if not patient_name or normalize_for_match(patient_name) in DRAPP_ROW_SKIP_WORDS:
             continue
 
@@ -1677,6 +1735,21 @@ def dashboard(request):
                             status_cards=status_cards,
                             operation_alerts=operation_alerts,
                         )
+                if not imported_rows:
+                    messages.warning(
+                        request,
+                        "Pude leer la captura, pero no encontre filas validas para importar. Proba con una captura donde se vean la hora, el nombre y la cobertura del paciente.",
+                    )
+                    return render_dashboard_response(
+                        request,
+                        today=today,
+                        quick_form=quick_form,
+                        import_form=import_form,
+                        physician_form=physician_form,
+                        today_encounters=today_encounters,
+                        status_cards=status_cards,
+                        operation_alerts=operation_alerts,
+                    )
                 created, skipped = import_drapp_rows(imported_rows, request.user)
                 messages.success(
                     request,
