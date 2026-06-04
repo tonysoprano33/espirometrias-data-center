@@ -216,6 +216,7 @@
                 if (!text) {
                     continue;
                 }
+                var x = item.transform && item.transform.length > 4 ? item.transform[4] : 0;
                 var y = item.transform && item.transform.length > 5 ? item.transform[5] : 0;
                 var existing = null;
                 for (var j = 0; j < grouped.length; j += 1) {
@@ -228,14 +229,15 @@
                     existing = { page: pageNumber, y: y, textParts: [] };
                     grouped.push(existing);
                 }
-                existing.textParts.push(text);
+                existing.textParts.push({ x: x, text: text });
             }
             grouped.sort(function (a, b) { return a.y - b.y; });
             return grouped.map(function (line) {
+                line.textParts.sort(function (a, b) { return a.x - b.x; });
                 return {
                     page: line.page,
                     y: line.y,
-                    text: normalizeText(line.textParts.join(" ")),
+                    text: normalizeText(line.textParts.map(function (part) { return part.text; }).join(" ")),
                 };
             }).filter(function (line) { return line.text; });
         }

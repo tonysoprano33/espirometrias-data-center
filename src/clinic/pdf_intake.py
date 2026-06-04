@@ -171,23 +171,38 @@ def split_text_lines(raw_text: str) -> list[str]:
     return [collapse_spaces(line) for line in str(raw_text or "").splitlines() if collapse_spaces(line)]
 
 
+def line_matches_spirometry_label(line: str, label: str) -> bool:
+    text = str(line or "")
+    normalized = normalize_for_match(text)
+    if label == "FEV1/FVC":
+        return bool(re.search(r"\bFEV1\s*/?\s*FVC\b", text, flags=re.IGNORECASE)) or "FEV1FVC" in normalized
+    if label == "FEV1":
+        if re.search(r"\bFEV1\s*/?\s*FVC\b|\bFEV1\s*/?\s*VC\b|\bFEV1\s*%", text, flags=re.IGNORECASE):
+            return False
+        return bool(re.search(r"\bFEV1\b", text, flags=re.IGNORECASE)) or normalized.startswith("FEV1")
+    if label == "FVC":
+        return bool(re.search(r"\bFVC\b", text, flags=re.IGNORECASE)) or normalized.startswith("FVC")
+    return False
+
+
 def extract_line_for_labels(raw_text: str, labels: list[str]) -> str:
-    normalized_labels = [normalize_for_match(label) for label in labels]
+    canonical_labels = ["FEV1/FVC" if "FVC" in label and "FEV1" in label else normalize_for_match(label) for label in labels]
+    candidates = []
     for line in split_text_lines(raw_text):
-        normalized_line = normalize_for_match(line)
-        for label in normalized_labels:
-            if label == "FEV1" and normalized_line.startswith("FEV1FVC"):
-                continue
-            if normalized_line.startswith(label):
-                return line
-    normalized_text = normalize_for_match(raw_text)
-    if not normalized_text:
+        for label in canonical_labels:
+            if line_matches_spirometry_label(line, label):
+                numbers = extract_numbers_from_line(line)
+                if len(numbers) < 3:
+                    continue
+                normalized_line = normalize_for_match(line)
+                starts_with_label = normalized_line.startswith(normalize_for_match(label))
+                score = len(numbers) + (10 if starts_with_label else 0)
+                candidates.append((score, line))
+                break
+    if not candidates:
         return ""
-    for label in normalized_labels:
-        match = re.search(label + r"(.{0,180})", normalized_text)
-        if match:
-            return match.group(0)
-    return ""
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
 
 
 def extract_numbers_from_line(line: str) -> list[float]:
@@ -196,9 +211,17 @@ def extract_numbers_from_line(line: str) -> list[float]:
     sanitized_line = re.sub(r"(?i)\bFVC\b", " ", sanitized_line)
     return [
         value
-        for value in (parse_measurement_number(token) for token in re.findall(r"\d+(?:[.,]\d+)?", sanitized_line))
+        for value in (parse_measurement_number(token) for token in re.findall(r"[-+]?\d+(?:[.,]\d+)?", sanitized_line))
         if value is not None
     ]
+
+
+def is_plausible_volume(value) -> bool:
+    return value is not None and 0.2 <= float(value) <= 8.5
+
+
+def is_plausible_ratio(value) -> bool:
+    return value is not None and 20 <= float(value) <= 130
 
 
 def infer_measurement_values_from_numbers(numbers: list[float]) -> dict:
@@ -206,20 +229,18 @@ def infer_measurement_values_from_numbers(numbers: list[float]) -> dict:
         return {"lln": None, "predicted": None, "best": None, "percent": None}
 
     values = {"lln": None, "predicted": None, "best": None, "percent": None}
-    decimal_candidates = [number for number in numbers if number < 20]
-    percent_candidates = [number for number in numbers if 20 <= number <= 160]
-
-    if len(decimal_candidates) >= 1:
-        values["lln"] = decimal_candidates[0]
-    if len(decimal_candidates) >= 2:
-        values["predicted"] = decimal_candidates[1]
-    if len(decimal_candidates) >= 3:
-        values["best"] = decimal_candidates[2]
-    elif len(decimal_candidates) == 2:
-        values["best"] = decimal_candidates[1]
-
-    if percent_candidates:
-        values["percent"] = percent_candidates[-1]
+    if len(numbers) >= 3 and all(is_plausible_volume(number) for number in numbers[:3]):
+        values["lln"], values["predicted"], values["best"] = numbers[:3]
+        if len(numbers) >= 4 and 15 <= numbers[3] <= 180:
+            values["percent"] = numbers[3]
+    else:
+        decimal_candidates = [number for number in numbers if is_plausible_volume(number)]
+        if len(decimal_candidates) >= 1:
+            values["lln"] = decimal_candidates[0]
+        if len(decimal_candidates) >= 2:
+            values["predicted"] = decimal_candidates[1]
+        if len(decimal_candidates) >= 3:
+            values["best"] = decimal_candidates[2]
 
     if values["percent"] is None and values["predicted"] and values["best"]:
         values["percent"] = round((values["best"] / values["predicted"]) * 100, 1)
@@ -228,7 +249,7 @@ def infer_measurement_values_from_numbers(numbers: list[float]) -> dict:
 
 def infer_ratio_values_from_numbers(numbers: list[float]) -> dict:
     values = {"lln": None, "predicted": None, "best": None, "percent": None}
-    ratio_candidates = [number for number in numbers if 20 <= number <= 160]
+    ratio_candidates = [number for number in numbers if is_plausible_ratio(number)]
     if len(ratio_candidates) >= 1:
         values["lln"] = ratio_candidates[0]
     if len(ratio_candidates) >= 2:
@@ -237,9 +258,34 @@ def infer_ratio_values_from_numbers(numbers: list[float]) -> dict:
         values["best"] = ratio_candidates[2]
     elif len(ratio_candidates) == 2:
         values["best"] = ratio_candidates[1]
-    if len(ratio_candidates) >= 4:
-        values["percent"] = ratio_candidates[-1]
+    if len(numbers) >= 4 and 20 <= numbers[3] <= 180:
+        values["percent"] = numbers[3]
     return values
+
+
+def spirometry_values_are_plausible(values: dict) -> bool:
+    fvc = values.get("fvc", {})
+    fev1 = values.get("fev1", {})
+    ratio = values.get("fev1_fvc", {})
+    volume_rows = [fvc, fev1]
+    if not any(is_plausible_volume(row.get("best")) or is_plausible_volume(row.get("predicted")) for row in volume_rows):
+        return False
+    for row in volume_rows:
+        for key in ["lln", "predicted", "best"]:
+            value = row.get(key)
+            if value is not None and not is_plausible_volume(value):
+                return False
+    for key in ["lln", "predicted", "best"]:
+        value = ratio.get(key)
+        if value is not None and not is_plausible_ratio(value):
+            return False
+    signatures = [
+        tuple(values.get(key, {}).get(field) for field in ["lln", "predicted", "best", "percent"])
+        for key in ["fvc", "fev1", "fev1_fvc"]
+    ]
+    if signatures[0] == signatures[1] == signatures[2]:
+        return False
+    return True
 
 
 def extract_spirometry_numbers_from_text(raw_text: str) -> dict:
@@ -334,7 +380,7 @@ def parse_decimal(text: str):
 
 def parse_measurement_number(text: str):
     cleaned = str(text or "").strip().replace(",", ".")
-    match = re.search(r"\d+(?:\.\d+)?", cleaned)
+    match = re.search(r"[-+]?\d+(?:\.\d+)?", cleaned)
     if not match:
         return None
     try:
@@ -388,7 +434,7 @@ def spirometry_grade_from_percent(percent_value):
 
 def extract_spirometry_numbers_from_pdf(pdf_path: str, attachment_id: int | None = None):
     text_values = extract_spirometry_numbers_from_text(extract_pdf_text_content(pdf_path))
-    enough_text_data = any(
+    enough_text_data = spirometry_values_are_plausible(text_values) and any(
         text_values.get(key, {}).get("best") is not None or text_values.get(key, {}).get("percent") is not None
         for key in ["fvc", "fev1", "fev1_fvc"]
     )
@@ -472,10 +518,14 @@ def suggest_result_code_from_spirometry(values: dict):
     fvc_percent = fvc.get("percent")
     fev1_percent = fev1.get("percent")
 
-    if ratio_best is None and ratio_lln is None and fvc_best is None and fvc_percent is None:
-        return "", "No lei valores suficientes de FVC y FEV1/FVC para sugerir un resultado confiable.", 0
+    if not spirometry_values_are_plausible(values):
+        return "", "No lei filas validas de la tabla espirometrica para sugerir un resultado confiable.", 0
 
-    has_obstruction = bool(ratio_best is not None and ratio_lln is not None and ratio_best < ratio_lln)
+    has_obstruction = False
+    if ratio_best is not None and ratio_lln is not None:
+        has_obstruction = ratio_best < ratio_lln
+    elif ratio_best is not None:
+        has_obstruction = ratio_best < 70
     has_restriction = False
     if fvc_best is not None and fvc_lln is not None:
         has_restriction = fvc_best < fvc_lln
@@ -486,18 +536,18 @@ def suggest_result_code_from_spirometry(values: dict):
     restriction_grade = spirometry_grade_from_percent(fvc_percent)
     if has_obstruction and has_restriction:
         code = "R{}O{}".format(restriction_grade or "L", obstruction_grade or "L")
-        reason = "Relacion FEV1/FVC debajo del LLN y FVC reducida."
+        reason = "Relacion FEV1/FVC debajo del LIN/LLN y FVC reducida."
         return code, reason, build_suggestion_probability(values, code)
     if has_obstruction:
         code = "O{}".format(obstruction_grade or "L")
-        reason = "Relacion FEV1/FVC debajo del LLN."
+        reason = "Relacion FEV1/FVC debajo del LIN/LLN."
         return code, reason, build_suggestion_probability(values, code)
     if has_restriction:
         code = "R{}".format(restriction_grade or "L")
-        reason = "FVC debajo del LLN o menor al 80% del teorico."
+        reason = "FVC debajo del LIN/LLN; si no hay LIN, se usa menor al 80% del teorico como respaldo."
         return code, reason, build_suggestion_probability(values, code)
     code = "N"
-    reason = "FEV1/FVC y FVC no sugieren alteracion segun los valores leidos."
+    reason = "FEV1/FVC y FVC estan por encima del LIN/LLN segun los valores leidos."
     return code, reason, build_suggestion_probability(values, code)
 
 
@@ -538,6 +588,52 @@ def parse_date(text: str):
     return None
 
 
+def value_after_any_label(text_lines: list[str], labels: list[str]) -> str:
+    for line in text_lines:
+        normalized_line = normalize_for_match(line)
+        for label in labels:
+            normalized_label = normalize_for_match(label)
+            if not normalized_line.startswith(normalized_label):
+                continue
+            separator_match = re.split(r"[:\-]\s*", line, maxsplit=1)
+            if len(separator_match) == 2:
+                return collapse_spaces(separator_match[1])
+            label_words = len(re.findall(r"[A-Za-z0-9]+", label))
+            words = line.split()
+            if len(words) > label_words:
+                return collapse_spaces(" ".join(words[label_words:]))
+    return ""
+
+
+def fill_snapshot_from_labeled_lines(snapshot: dict, text_lines: list[str]) -> dict:
+    fallback_fields = {
+        "patient_code": (["codigo de paciente", "codigo paciente", "cod. paciente", "cod paciente"], str),
+        "dni": (["dni", "documento"], str),
+        "last_name": (["apellido"], str),
+        "first_name": (["nom.", "nom", "nombre"], str),
+        "birth_date": (["fecha de nacimien", "fecha de nacimiento", "fecha de nac"], parse_date),
+        "age_reported": (["edad"], parse_integer),
+        "gender": (["genero", "sexo"], str),
+        "height_cm": (["altura, cm", "altura cm", "altura"], parse_integer),
+        "weight_kg": (["peso, kg", "peso kg", "peso"], parse_decimal),
+        "bmi": (["bmi"], parse_decimal),
+        "ethnicity": (["grupo etnico"], str),
+        "smoking_status": (["fuma"], str),
+        "pack_years": (["paquete-ano", "paquete ano", "paquete-anio", "paquete anio"], parse_decimal),
+        "patient_group": (["grupo pacientes", "grupo paciente"], str),
+    }
+    for field_name, (labels, parser) in fallback_fields.items():
+        if snapshot.get(field_name) not in [None, ""]:
+            continue
+        raw_value = value_after_any_label(text_lines, labels)
+        if not raw_value:
+            continue
+        value = parser(raw_value) if parser is not str else raw_value
+        if value not in [None, ""]:
+            snapshot[field_name] = value
+    return snapshot
+
+
 def extract_patient_snapshot_from_text(raw_text: str):
     text_lines = split_text_lines(raw_text)
     compact_text = " ".join(text_lines)
@@ -546,14 +642,19 @@ def extract_patient_snapshot_from_text(raw_text: str):
 
     def find_value(patterns: list[str]):
         for line in text_lines:
-            normalized_line = line.casefold()
+            normalized_line = normalize_for_match(line)
             for pattern in patterns:
                 if pattern.startswith("line:"):
-                    label = pattern.split(":", 1)[1].casefold()
-                    if normalized_line.startswith(label):
+                    label = pattern.split(":", 1)[1]
+                    normalized_label = normalize_for_match(label)
+                    if normalized_line.startswith(normalized_label):
                         separator_match = re.split(r"[:\-]\s*", line, maxsplit=1)
                         if len(separator_match) == 2:
                             return collapse_spaces(separator_match[1])
+                        label_words = len(re.findall(r"[A-Za-z0-9ÃÃ‰ÃÃ“ÃšÃ‘Ã¡Ã©Ã­Ã³ÃºÃ±]+", label))
+                        words = line.split()
+                        if len(words) > label_words:
+                            return collapse_spaces(" ".join(words[label_words:]))
         for pattern in patterns:
             if pattern.startswith("line:"):
                 continue
@@ -566,8 +667,10 @@ def extract_patient_snapshot_from_text(raw_text: str):
         "patient_code": find_value(
             [
                 "line:codigo de paciente",
+                "line:codigo paciente",
                 "line:cod. paciente",
-                r"Cod(?:igo|\.)?\s+de?\s*Paciente[:\s]+([A-Z0-9.\-]{6,})",
+                "line:cod paciente",
+                r"C[oÃ³]d(?:igo|\.)?(?:\s+de)?\s*Paciente[:\s]+([A-Z0-9.\-]{6,})",
             ]
         ),
         "dni": find_value(["line:dni", "line:documento", r"\bDNI[:\s]+([0-9.\-]{6,})", r"\bDocumento[:\s]+([0-9.\-]{6,})"]),
@@ -584,6 +687,7 @@ def extract_patient_snapshot_from_text(raw_text: str):
         "pack_years": parse_decimal(find_value(["line:paquete año", "line:paquete anio", r"Paquete(?:\s*[- ]?\s*)?An(?:io|o)[:\s]+([0-9.,]{1,6})"])),
         "patient_group": find_value(["line:grupo paciente", r"Grupo\s+Paciente[s]?[:\s]+([A-ZÁÉÍÓÚÑ ]{3,})"]),
     }
+    snapshot = fill_snapshot_from_labeled_lines(snapshot, text_lines)
 
     if snapshot["last_name"] and snapshot["first_name"]:
         snapshot["full_name"] = f"{snapshot['last_name']}, {snapshot['first_name']}"
@@ -718,7 +822,9 @@ def build_analysis_from_text(raw_text: str, source: str = "text"):
     if not text:
         return {}
     values = extract_spirometry_numbers_from_text(text)
-    has_values = any(values.get(key, {}).get("best") is not None or values.get(key, {}).get("percent") is not None for key in values)
+    has_values = spirometry_values_are_plausible(values) and any(
+        values.get(key, {}).get("best") is not None or values.get(key, {}).get("percent") is not None for key in values
+    )
     snapshot = extract_patient_snapshot_from_text(text)
     analysis = {
         "source": source,

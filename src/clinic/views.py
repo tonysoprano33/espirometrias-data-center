@@ -2645,7 +2645,13 @@ def doctor_review_detail(request, pk):
                 elif file_kind == AttachmentKind.FOTO_RESULTADO:
                     extraction_message = " Foto cargada correctamente."
 
-            result_code = form.cleaned_data.get("respiratory_result") or analysis.get("code") or current_result or ""
+            result_code = form.cleaned_data.get("respiratory_result") or current_result or ""
+            if not result_code:
+                messages.success(
+                    request,
+                    "Archivo cargado y sugerencia preparada. Elegi el resultado medico o usa el boton sugerido y guarda la revision.",
+                )
+                return redirect("clinic:doctor_review_detail", pk=encounter.pk)
             apply_result_code_to_spirometry(encounter, result_code)
             encounter.status = EncounterStatus.REVISADA
             encounter.updated_by = request.user

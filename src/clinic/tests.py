@@ -7,7 +7,12 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from .models import CoverageType, Encounter, EncounterStatus, Patient, StudyType
-from .pdf_intake import build_spirometry_analysis, extract_spirometry_numbers_from_text
+from .pdf_intake import (
+    build_analysis_from_text,
+    build_spirometry_analysis,
+    extract_patient_snapshot_from_text,
+    extract_spirometry_numbers_from_text,
+)
 from .views import (
     extract_drapp_rows_from_ocr_lines,
     extract_drapp_rows_from_text,
@@ -152,6 +157,53 @@ class DrappImportViewTests(TestCase):
         self.assertEqual(import_mock.call_args[0][1], self.user)
 
 
+class DoctorReviewViewTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="review-test", password="secret123")
+        self.patient = Patient.objects.create(full_name="SIPOLLONI, FELISA", dni=None)
+        self.encounter = Encounter.objects.create(
+            patient=self.patient,
+            encounter_date=date(2026, 6, 4),
+            encounter_time=time(16, 35),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            status=EncounterStatus.PENDIENTE,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+
+    def test_upload_suggestion_does_not_become_medical_result(self):
+        self.client.force_login(self.user)
+        pdf_file = SimpleUploadedFile("felisa.pdf", b"%PDF-1.4 fake", content_type="application/pdf")
+        analysis = {
+            "source": "browser-pdf-text",
+            "code": "RM",
+            "probability": 99,
+            "summary": "99% probable RM. FVC debajo del LIN/LLN.",
+            "values": {
+                "fvc": {"lln": 1.75, "predicted": 2.69, "best": 1.65, "percent": 61},
+                "fev1": {"lln": 1.36, "predicted": 1.98, "best": 1.58, "percent": 80},
+                "fev1_fvc": {"lln": 65.5, "predicted": 77.1, "best": 95.8, "percent": 124},
+            },
+        }
+
+        with patch("clinic.views.build_analysis_for_uploaded_result", return_value=analysis):
+            response = self.client.post(
+                reverse("clinic:doctor_review_detail", args=[self.encounter.pk]),
+                {
+                    "pdf_file": pdf_file,
+                    "respiratory_result": "",
+                    "analysis_payload_json": "{}",
+                },
+            )
+
+        self.assertRedirects(response, reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+        self.encounter.refresh_from_db()
+        self.assertEqual(self.encounter.status, EncounterStatus.PENDIENTE)
+        self.assertEqual(self.encounter.spirometry_result.suggested_code, "RM")
+        self.assertEqual(self.encounter.spirometry_result.respiratory_pattern, "")
+
+
 class DrappImportDeduplicationTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="dedupe-test", password="secret123")
@@ -262,6 +314,34 @@ class DrappImportDeduplicationTests(TestCase):
 
 
 class SpirometryPdfParsingTests(SimpleTestCase):
+    def test_restrictive_pdf_table_is_not_called_normal(self):
+        analysis = build_analysis_from_text(
+            "\n".join(
+                [
+                    "FVC FEV1 FEV1%",
+                    "Fecha de visita 04/06/2026",
+                    "Cod. paciente 5999253",
+                    "Apellido SIPOLLONI",
+                    "Nom. FELISA",
+                    "Genero Femenino",
+                    "Altura, cm 164",
+                    "Peso, kg 88",
+                    "BMI 32,72",
+                    "Parametros LLN Teor. Best %Teor. Z-score PRE #1 PRE #2 PRE #3 POST %Teor. %Cam",
+                    "FVC L 1,75 2,69 1,65* 61 -1,82 1,65 1,54* 57 -7",
+                    "FEV1 L 1,36 1,98 1,58* 80 -1,07 1,58 1,49* 75 -6",
+                    "FEV1/FVC % 65,5 77,1 95,8* 124 2,66 95,8 96,8* 126 1",
+                ]
+            ),
+            source="browser-pdf-text",
+        )
+
+        self.assertEqual(analysis["values"]["fvc"]["lln"], 1.75)
+        self.assertEqual(analysis["values"]["fvc"]["best"], 1.65)
+        self.assertEqual(analysis["values"]["fvc"]["percent"], 61)
+        self.assertEqual(analysis["values"]["fev1_fvc"]["best"], 95.8)
+        self.assertEqual(analysis["code"], "RM")
+
     def test_uses_distinct_fev1_and_ratio_lines_for_mixed_pattern(self):
         values = extract_spirometry_numbers_from_text(
             "\n".join(
@@ -289,3 +369,37 @@ class SpirometryPdfParsingTests(SimpleTestCase):
 
         self.assertEqual(analysis["code"], "")
         self.assertIsNone(analysis["probability"])
+
+    def test_rejects_physically_impossible_repeated_rows(self):
+        analysis = build_spirometry_analysis(
+            {
+                "fvc": {"lln": 4.0, "predicted": None, "best": 16.0, "percent": 77.0},
+                "fev1": {"lln": 4.0, "predicted": None, "best": 16.0, "percent": 77.0},
+                "fev1_fvc": {"lln": 4.0, "predicted": None, "best": 16.0, "percent": 77.0},
+            }
+        )
+
+        self.assertEqual(analysis["code"], "")
+        self.assertIsNone(analysis["probability"])
+
+    def test_reads_patient_profile_without_colons(self):
+        snapshot = extract_patient_snapshot_from_text(
+            "\n".join(
+                [
+                    "Cod. paciente 5999253",
+                    "Apellido SIPOLLONI",
+                    "Nom. FELISA",
+                    "Fecha de nacimien 16/10/1949",
+                    "Edad 76",
+                    "Genero Femenino",
+                    "Altura, cm 164",
+                    "Peso, kg 88",
+                    "BMI 32,72",
+                ]
+            )
+        )
+
+        self.assertEqual(snapshot["patient_code"], "5999253")
+        self.assertEqual(snapshot["full_name"], "SIPOLLONI, FELISA")
+        self.assertEqual(snapshot["gender"], "Femenino")
+        self.assertEqual(snapshot["height_cm"], 164)
