@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, time
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -6,7 +6,13 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
-from .views import extract_drapp_rows_from_ocr_lines, extract_drapp_rows_from_text
+from .models import CoverageType, Encounter, EncounterStatus, Patient, StudyType
+from .views import (
+    extract_drapp_rows_from_ocr_lines,
+    extract_drapp_rows_from_text,
+    import_drapp_rows,
+    unique_encounters_by_patient_day,
+)
 
 
 class DrappImportParsingTests(SimpleTestCase):
@@ -143,3 +149,112 @@ class DrappImportViewTests(TestCase):
         screenshot_mock.assert_called_once()
         self.assertEqual(import_mock.call_args[0][0], screenshot_rows)
         self.assertEqual(import_mock.call_args[0][1], self.user)
+
+
+class DrappImportDeduplicationTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="dedupe-test", password="secret123")
+
+    def create_encounter(self, full_name="ORUETTA, RAMONA", dni="", encounter_date=date(2026, 6, 4)):
+        patient = Patient.objects.create(full_name=full_name, dni=dni or None)
+        return Encounter.objects.create(
+            patient=patient,
+            encounter_date=encounter_date,
+            encounter_time=time(15, 0),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            status=EncounterStatus.PENDIENTE,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+
+    def test_skips_same_name_on_same_day_even_if_time_changes(self):
+        self.create_encounter()
+
+        created, skipped = import_drapp_rows(
+            [
+                {
+                    "patient_name": "Oruetta, Ramona",
+                    "coverage_raw": "Particular",
+                    "practice_raw": "Espirometria",
+                    "datetime_raw": "16:30",
+                    "phone": "",
+                    "dni": "",
+                    "agenda_date": date(2026, 6, 4),
+                }
+            ],
+            self.user,
+        )
+
+        self.assertEqual(created, 0)
+        self.assertEqual(skipped, 1)
+        self.assertEqual(Encounter.objects.filter(encounter_date=date(2026, 6, 4)).count(), 1)
+
+    def test_skips_same_dni_on_same_day_even_if_name_has_ocr_prefix(self):
+        self.create_encounter(full_name="ORUETTA, RAMONA", dni="42999801")
+
+        created, skipped = import_drapp_rows(
+            [
+                {
+                    "patient_name": "O ORUETTA, RAMONA",
+                    "coverage_raw": "Particular",
+                    "practice_raw": "Cicloespirometria",
+                    "datetime_raw": "17:00",
+                    "phone": "",
+                    "dni": "42.999.801",
+                    "agenda_date": date(2026, 6, 4),
+                }
+            ],
+            self.user,
+        )
+
+        self.assertEqual(created, 0)
+        self.assertEqual(skipped, 1)
+        self.assertEqual(Encounter.objects.filter(patient__dni="42999801").count(), 1)
+
+    def test_allows_same_patient_on_another_day(self):
+        self.create_encounter(full_name="ORUETTA, RAMONA", dni="42999801")
+
+        created, skipped = import_drapp_rows(
+            [
+                {
+                    "patient_name": "ORUETTA, RAMONA",
+                    "coverage_raw": "Particular",
+                    "practice_raw": "Cicloespirometria",
+                    "datetime_raw": "15:00",
+                    "phone": "",
+                    "dni": "42999801",
+                    "agenda_date": date(2026, 6, 5),
+                }
+            ],
+            self.user,
+        )
+
+        self.assertEqual(created, 1)
+        self.assertEqual(skipped, 0)
+        self.assertEqual(Encounter.objects.filter(patient__dni="42999801").count(), 2)
+
+    def test_display_uniques_existing_duplicate_encounters(self):
+        patient = Patient.objects.create(full_name="O ORUETTA, RAMONA", dni="42999801")
+        first = Encounter.objects.create(
+            patient=patient,
+            encounter_date=date(2026, 6, 4),
+            encounter_time=time(15, 0),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            status=EncounterStatus.PENDIENTE,
+        )
+        Encounter.objects.create(
+            patient=patient,
+            encounter_date=date(2026, 6, 4),
+            encounter_time=time(16, 0),
+            study_type=StudyType.ESPIROMETRIA,
+            coverage_type=CoverageType.MUTUAL,
+            status=EncounterStatus.PENDIENTE,
+        )
+
+        unique = unique_encounters_by_patient_day(
+            Encounter.objects.select_related("patient").order_by("encounter_time")
+        )
+
+        self.assertEqual(unique, [first])

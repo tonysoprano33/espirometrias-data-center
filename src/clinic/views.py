@@ -1,5 +1,6 @@
 import calendar as month_calendar
 import base64
+from collections import Counter
 from datetime import date, datetime, timedelta
 import json
 import mimetypes
@@ -46,6 +47,7 @@ from .models import (
     ReferringPhysician,
     ReportType,
     SpirometryResult,
+    StudyType,
     VitalSigns,
     WalkTest,
 )
@@ -490,10 +492,17 @@ def get_row_state_payload(encounter):
 
 
 def get_operational_alerts(queryset):
-    pending_review = queryset.filter(status=EncounterStatus.PENDIENTE).count()
+    if hasattr(queryset, "select_related"):
+        encounters = unique_encounters_by_patient_day(
+            queryset.select_related("patient", "spirometry_result", "vital_signs", "walk_test")
+            .prefetch_related("attachments", "generated_reports")
+        )
+    else:
+        encounters = unique_encounters_by_patient_day(queryset)
+    pending_review = sum(1 for encounter in encounters if encounter.status == EncounterStatus.PENDIENTE)
     ready_for_report = 0
     missing_pdf = 0
-    for encounter in queryset.select_related("spirometry_result", "vital_signs", "walk_test").prefetch_related("attachments", "generated_reports"):
+    for encounter in encounters:
         can_generate, _ = get_report_readiness(encounter)
         if can_generate and not encounter.generated_reports.exists():
             ready_for_report += 1
@@ -503,7 +512,7 @@ def get_operational_alerts(queryset):
         "pending_review": pending_review,
         "ready_for_report": ready_for_report,
         "missing_pdf": missing_pdf,
-        "no_show": queryset.filter(no_show=True).count(),
+        "no_show": sum(1 for encounter in encounters if encounter.no_show),
     }
 
 
@@ -825,6 +834,81 @@ def normalize_document_number(raw_value: str) -> str:
     return digits
 
 
+def normalize_patient_identity_name(raw_name: str) -> str:
+    return normalize_for_match(normalize_imported_name(raw_name))
+
+
+def encounter_matches_import_identity(encounter, parsed_dni: str, patient_name_key: str) -> bool:
+    patient = getattr(encounter, "patient", None)
+    if not patient:
+        return False
+    existing_dni = normalize_document_number(getattr(patient, "dni", "") or "")
+    if parsed_dni and existing_dni and parsed_dni == existing_dni:
+        return True
+    existing_name_key = normalize_patient_identity_name(getattr(patient, "full_name", "") or "")
+    return bool(patient_name_key and existing_name_key and patient_name_key == existing_name_key)
+
+
+def import_identity_exists_for_date(encounter_date, parsed_dni: str, patient_name: str) -> bool:
+    patient_name_key = normalize_patient_identity_name(patient_name)
+    existing_encounters = (
+        Encounter.objects.select_related("patient")
+        .filter(encounter_date=encounter_date)
+        .only("patient__dni", "patient__full_name")
+    )
+    return any(
+        encounter_matches_import_identity(encounter, parsed_dni, patient_name_key)
+        for encounter in existing_encounters
+    )
+
+
+def unique_encounters_by_patient_day(encounters):
+    unique = []
+    seen_dni_keys = set()
+    seen_name_keys = set()
+    for encounter in encounters:
+        patient = getattr(encounter, "patient", None)
+        if not patient:
+            unique.append(encounter)
+            continue
+        day_key = encounter.encounter_date.isoformat() if encounter.encounter_date else ""
+        dni = normalize_document_number(getattr(patient, "dni", "") or "")
+        name_key = normalize_patient_identity_name(getattr(patient, "full_name", "") or "")
+        dni_key = (day_key, dni) if dni else None
+        name_identity_key = (day_key, name_key) if name_key else None
+        if (dni_key and dni_key in seen_dni_keys) or (
+            name_identity_key and name_identity_key in seen_name_keys
+        ):
+            continue
+        if dni_key:
+            seen_dni_keys.add(dni_key)
+        if name_identity_key:
+            seen_name_keys.add(name_identity_key)
+        unique.append(encounter)
+    return unique
+
+
+def summarize_encounter_list(encounters):
+    total = len(encounters)
+    mutual = sum(1 for encounter in encounters if encounter.coverage_type == CoverageType.MUTUAL)
+    attended = sum(1 for encounter in encounters if encounter.attended)
+    no_show = sum(1 for encounter in encounters if encounter.no_show)
+    cyclometry = sum(1 for encounter in encounters if encounter.study_type == StudyType.CICLOMETRIA)
+    spirometry = sum(1 for encounter in encounters if encounter.study_type == StudyType.ESPIROMETRIA)
+    return {
+        "total": total,
+        "mutual": mutual,
+        "particular": sum(1 for encounter in encounters if encounter.coverage_type == CoverageType.PARTICULAR),
+        "attended": attended,
+        "no_show": no_show,
+        "pending": max(total - attended - no_show, 0),
+        "cyclometry": cyclometry,
+        "spirometry": spirometry,
+        "mutual_percent": round((mutual / total) * 100) if total else 0,
+        "attendance_percent": round((attended / total) * 100) if total else 0,
+    }
+
+
 def normalize_phone_number(raw_value: str) -> str:
     raw_text = collapse_spaces(raw_value)
     if not raw_text:
@@ -1142,7 +1226,8 @@ def import_drapp_rows(rows, request_user):
     created = 0
     skipped = 0
     default_physician = get_default_physician()
-    seen_keys = set()
+    seen_dni_keys = set()
+    seen_name_keys = set()
 
     for row in rows:
         patient_name = normalize_imported_name(row.get("patient_name", ""))
@@ -1164,6 +1249,23 @@ def import_drapp_rows(rows, request_user):
 
         study_type = infer_study_type(row.get("practice_raw", ""))
         parsed_dni = normalize_document_number(row.get("dni", ""))
+        patient_name_key = normalize_patient_identity_name(patient_name)
+        day_key = encounter_date.isoformat()
+        dni_key = (day_key, parsed_dni) if parsed_dni else None
+        name_key = (day_key, patient_name_key) if patient_name_key else None
+
+        if (dni_key and dni_key in seen_dni_keys) or (name_key and name_key in seen_name_keys):
+            skipped += 1
+            continue
+
+        if import_identity_exists_for_date(encounter_date, parsed_dni, patient_name):
+            skipped += 1
+            if dni_key:
+                seen_dni_keys.add(dni_key)
+            if name_key:
+                seen_name_keys.add(name_key)
+            continue
+
         patient = Patient.objects.filter(dni=parsed_dni).first() if parsed_dni else None
         if patient is None:
             patient = Patient.objects.filter(full_name=patient_name).order_by("-updated_at").first()
@@ -1186,31 +1288,10 @@ def import_drapp_rows(rows, request_user):
                 updated_fields.append("updated_at")
                 patient.save(update_fields=updated_fields)
 
-        identity_key = parsed_dni or normalize_for_match(getattr(patient, "full_name", "") or patient_name)
-        duplicate_key = (
-            encounter_date.isoformat(),
-            when.time().isoformat(),
-            study_type,
-            identity_key,
-        )
-        if duplicate_key in seen_keys:
-            skipped += 1
-            continue
-        seen_keys.add(duplicate_key)
-
-        duplicate_queryset = Encounter.objects.filter(
-            encounter_date=encounter_date,
-            encounter_time=when.time(),
-            study_type=study_type,
-        )
-        if parsed_dni:
-            duplicate_queryset = duplicate_queryset.filter(patient__dni=parsed_dni)
-        else:
-            duplicate_queryset = duplicate_queryset.filter(patient=patient)
-        duplicate = duplicate_queryset.exists()
-        if duplicate:
-            skipped += 1
-            continue
+        if dni_key:
+            seen_dni_keys.add(dni_key)
+        if name_key:
+            seen_name_keys.add(name_key)
 
         created_encounter = Encounter.objects.create(
             patient=patient,
@@ -1256,24 +1337,11 @@ def format_day_label(value: date) -> str:
 
 
 def get_period_summary(queryset):
-    total = queryset.count()
-    mutual = queryset.filter(coverage_type=CoverageType.MUTUAL).count()
-    attended = queryset.filter(attended=True).count()
-    no_show = queryset.filter(no_show=True).count()
-    cyclometry = queryset.filter(study_type="Ciclometria").count()
-    spirometry = queryset.filter(study_type="Espirometria").count()
-    return {
-        "total": total,
-        "mutual": mutual,
-        "particular": queryset.filter(coverage_type=CoverageType.PARTICULAR).count(),
-        "attended": attended,
-        "no_show": no_show,
-        "pending": max(total - attended - no_show, 0),
-        "cyclometry": cyclometry,
-        "spirometry": spirometry,
-        "mutual_percent": round((mutual / total) * 100) if total else 0,
-        "attendance_percent": round((attended / total) * 100) if total else 0,
-    }
+    if hasattr(queryset, "select_related"):
+        encounters = queryset.select_related("patient")
+    else:
+        encounters = queryset
+    return summarize_encounter_list(unique_encounters_by_patient_day(encounters))
 
 
 def percent(part: int, total: int) -> int:
@@ -1716,6 +1784,7 @@ def dashboard(request):
         .filter(encounter_date=today)
         .order_by("created_at")
     )
+    today_encounters = unique_encounters_by_patient_day(today_encounters)
     for encounter in today_encounters:
         encounter.result_code = get_result_code_from_encounter(encounter)
         encounter.can_generate_report, encounter.report_block_reason = get_report_readiness(encounter)
@@ -1727,8 +1796,7 @@ def dashboard(request):
         encounter.complete_report_url = latest_report_info["complete_report_url"]
         encounter.mutual_report_url = latest_report_info["mutual_report_url"]
         encounter.detail_url = latest_report_info["detail_url"]
-    stats = Encounter.objects.filter(encounter_date=today).values("status").annotate(total=Count("id"))
-    stats_map = {item["status"]: item["total"] for item in stats}
+    stats_map = Counter(encounter.status for encounter in today_encounters)
     status_cards = [
         {"value": value, "label": label, "total": stats_map.get(value, 0)}
         for value, label in EncounterStatus.choices
@@ -1962,6 +2030,7 @@ def dashboard_rows_state(request):
         .filter(encounter_date=today)
         .order_by("created_at")
     )
+    encounters = unique_encounters_by_patient_day(encounters)
     rows = [get_row_state_payload(encounter) for encounter in encounters]
     return JsonResponse(
         {
@@ -2020,6 +2089,7 @@ def calendar_view(request):
         .filter(encounter_date__range=(range_start, range_end))
         .order_by("encounter_date", "encounter_time", "created_at")
     )
+    calendar_encounters = unique_encounters_by_patient_day(calendar_encounters)
 
     encounters_by_date = {}
     for encounter in calendar_encounters:
@@ -2070,6 +2140,7 @@ def calendar_view(request):
         .filter(encounter_date=selected_date)
         .order_by("encounter_time", "created_at")
     )
+    selected_encounters = unique_encounters_by_patient_day(selected_encounters)
     for encounter in selected_encounters:
         encounter.result_label = get_result_label_from_encounter(encounter)
         encounter.attendance_label = get_attendance_label(encounter)
