@@ -242,77 +242,148 @@
         min-height: 180px;
     }
     @media (max-width: 1600px) {
+        .responsive-table-wrap.notebook-stack {
+            overflow-x: auto;
+        }
+        .responsive-table-wrap.notebook-stack .table {
+            display: table;
+            width: 100%;
+            min-width: 0;
+            table-layout: fixed;
+        }
+        .responsive-table-wrap.notebook-stack thead {
+            display: table-header-group;
+        }
         .responsive-table-wrap.notebook-stack tbody {
-            gap: 8px;
+            display: table-row-group;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row] {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 8px 10px;
-            padding: 10px 12px;
-            border-radius: 14px;
-            box-shadow: 0 6px 14px rgba(16,43,60,.05);
+            display: table-row;
+            box-shadow: none;
         }
-        .responsive-table-wrap.notebook-stack [data-encounter-row] > td {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            padding: 8px 10px;
-            border: 1px solid rgba(23,49,63,.08);
-            border-radius: 12px;
-            background: rgba(255,255,255,.96);
-            margin: 0;
+        .responsive-table-wrap.notebook-stack [data-encounter-row] > td,
+        .responsive-table-wrap.notebook-stack thead th {
+            display: table-cell;
+            padding: 6px 6px;
+            vertical-align: middle;
+            min-width: 0;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row] > td::before {
-            margin-bottom: 1px;
+            display: none !important;
+            content: none !important;
         }
         .responsive-table-wrap.notebook-stack .encounter-summary-cell {
-            display: block;
-            grid-column: 1 / -1;
-            padding: 0;
+            display: table-cell;
+            width: 38px;
+            padding: 6px 4px;
             margin: 0;
             border: none;
-            background: transparent;
+            background: rgba(248,252,253,.88);
         }
-        .responsive-table-wrap.notebook-stack .time-cell,
-        .responsive-table-wrap.notebook-stack .patient-cell,
-        .responsive-table-wrap.notebook-stack .result-cell,
+        .responsive-table-wrap.notebook-stack .encounter-summary-head {
+            display: table-cell;
+            width: 38px;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-shell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-top > div,
+        .responsive-table-wrap.notebook-stack .encounter-summary-meta,
+        .responsive-table-wrap.notebook-stack [data-toggle-label] {
+            display: none;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-toggle {
+            min-width: 28px;
+            padding: 3px 6px;
+        }
+        .responsive-table-wrap.notebook-stack .col-time,
+        .responsive-table-wrap.notebook-stack .time-cell {
+            width: 78px;
+        }
+        .responsive-table-wrap.notebook-stack .col-patient,
+        .responsive-table-wrap.notebook-stack .patient-cell {
+            width: 170px;
+        }
+        .responsive-table-wrap.notebook-stack .study-cell {
+            width: 118px;
+        }
+        .responsive-table-wrap.notebook-stack td[data-label="Cobertura"] {
+            width: 132px;
+        }
+        .responsive-table-wrap.notebook-stack td[data-label="Dr. deriva"] {
+            width: 170px;
+        }
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"],
+        .responsive-table-wrap.notebook-stack .vitals-cell {
+            width: 126px;
+        }
+        .responsive-table-wrap.notebook-stack .result-cell {
+            width: 165px;
+        }
+        .responsive-table-wrap.notebook-stack .attendance-cell {
+            width: 110px;
+        }
+        .responsive-table-wrap.notebook-stack .status-cell {
+            width: 100px;
+        }
         .responsive-table-wrap.notebook-stack .td-actions {
-            grid-column: 1 / -1;
-        }
-        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed > td:not(.encounter-summary-cell) {
-            display: none !important;
-        }
-        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed .encounter-summary-cell {
-            padding: 0;
-            margin: 0;
+            width: 190px;
         }
         .responsive-table-wrap.notebook-stack .cell-input,
         .responsive-table-wrap.notebook-stack .inline-input,
         .responsive-table-wrap.notebook-stack .result-input {
-            padding: 6px 8px;
-            font-size: .92rem;
+            padding: 5px 7px;
+            font-size: .85rem;
+        }
+        .responsive-table-wrap.notebook-stack .cell-time {
+            width: 100%;
+        }
+        .responsive-table-wrap.notebook-stack .cell-name,
+        .responsive-table-wrap.notebook-stack .cell-select {
+            min-width: 0;
+            width: 100%;
         }
         .responsive-table-wrap.notebook-stack .cell-small {
-            max-width: 72px;
+            width: 56px;
+            max-width: 56px;
         }
-        .responsive-table-wrap.notebook-stack .td-actions > div {
-            gap: 6px !important;
-            min-width: 0 !important;
+        .responsive-table-wrap.notebook-stack .inline-pair {
+            gap: 4px;
+            flex-wrap: nowrap;
         }
         .responsive-table-wrap.notebook-stack .button.small,
         .responsive-table-wrap.notebook-stack .attendance-button {
-            padding: 7px 10px;
-            font-size: .86rem;
+            padding: 6px 8px;
+            font-size: .82rem;
         }
         .responsive-table-wrap.notebook-stack .status-badge {
             padding: 5px 7px;
-            font-size: .82rem;
+            font-size: .8rem;
+        }
+        .responsive-table-wrap.notebook-stack .td-actions > div {
+            display: grid;
+            gap: 4px !important;
+            min-width: 0 !important;
+        }
+        .responsive-table-wrap.notebook-stack .td-actions a,
+        .responsive-table-wrap.notebook-stack .td-actions .muted,
+        .responsive-table-wrap.notebook-stack .td-actions .link-button {
+            font-size: .76rem;
+            line-height: 1.25;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed > td {
+            display: table-cell !important;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed [data-report-links],
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed [data-report-help] {
+            display: none !important;
         }
     }
     @media (max-width: 1250px) {
-        .responsive-table-wrap.notebook-stack [data-encounter-row] {
-            grid-template-columns: 1fr;
+        .responsive-table-wrap.notebook-stack .table {
+            min-width: 1320px;
         }
     }
     @media (max-width: 1500px) {
