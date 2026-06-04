@@ -1966,7 +1966,80 @@
                 }
             }
 
-            function buildPayload(result) {
+            function normalizeOcrText(value) {
+                return String(value || "").replace(/\s+/g, " ").trim();
+            }
+
+            function buildPayloadFromWords(result) {
+                var words = (((result || {}).data || {}).words || []);
+                var items = [];
+                var heights = [];
+                var payload = [];
+                var lines = [];
+                var tolerance = 16;
+                var i;
+                var word;
+                var text;
+                var bbox;
+                var item;
+                var line;
+                var entry;
+
+                for (i = 0; i < words.length; i += 1) {
+                    word = words[i];
+                    text = normalizeOcrText(word && word.text);
+                    bbox = word && word.bbox ? word.bbox : null;
+                    if (!text || !bbox) continue;
+                    item = {
+                        text: text,
+                        x: typeof bbox.x0 !== "undefined" ? Number(bbox.x0) : 0,
+                        y: typeof bbox.y0 !== "undefined" ? Number(bbox.y0) : i * 18,
+                        height: typeof bbox.y1 !== "undefined" && typeof bbox.y0 !== "undefined"
+                            ? Math.max(1, Number(bbox.y1) - Number(bbox.y0))
+                            : 16
+                    };
+                    heights.push(item.height);
+                    items.push(item);
+                }
+
+                if (!items.length) return payload;
+
+                heights.sort(function (a, b) { return a - b; });
+                tolerance = heights[Math.floor(heights.length / 2)] || tolerance;
+                tolerance = Math.max(12, Math.min(28, tolerance * 0.85));
+                items.sort(function (a, b) {
+                    if (Math.abs(a.y - b.y) <= tolerance / 3) {
+                        return a.x - b.x;
+                    }
+                    return a.y - b.y;
+                });
+
+                for (i = 0; i < items.length; i += 1) {
+                    item = items[i];
+                    line = lines.length ? lines[lines.length - 1] : null;
+                    if (!line || Math.abs(line.y - item.y) > tolerance) {
+                        lines.push({ y: item.y, items: [item] });
+                        continue;
+                    }
+                    line.items.push(item);
+                    line.y = ((line.y * (line.items.length - 1)) + item.y) / line.items.length;
+                }
+
+                for (i = 0; i < lines.length; i += 1) {
+                    entry = lines[i];
+                    entry.items.sort(function (a, b) { return a.x - b.x; });
+                    text = normalizeOcrText(entry.items.map(function (part) { return part.text; }).join(" "));
+                    if (!text) continue;
+                    payload.push({
+                        text: text,
+                        y: entry.y
+                    });
+                }
+
+                return payload;
+            }
+
+            function buildPayloadFromLines(result) {
                 var lines = (((result || {}).data || {}).lines || []);
                 var payload = [];
                 var i;
@@ -1975,11 +2048,70 @@
                     line = lines[i];
                     if (!line || !line.text) continue;
                     payload.push({
-                        text: String(line.text || "").trim(),
+                        text: normalizeOcrText(line.text),
                         y: line.bbox && typeof line.bbox.y0 !== "undefined" ? line.bbox.y0 : i * 30
                     });
                 }
                 return payload;
+            }
+
+            function buildPayload(result) {
+                var payload = buildPayloadFromWords(result);
+                if (payload.length) {
+                    return payload;
+                }
+                return buildPayloadFromLines(result);
+            }
+
+            function prepareOcrSource(file) {
+                return new Promise(function (resolve, reject) {
+                    var fileType = String(file && file.type || "").toLowerCase();
+                    var reader;
+                    var image;
+                    var canvas;
+                    var context;
+                    var scale;
+                    var targetWidth;
+                    var targetHeight;
+
+                    if (!file || fileType.indexOf("image/") !== 0 || !window.FileReader || !window.Image) {
+                        resolve(file);
+                        return;
+                    }
+
+                    reader = new FileReader();
+                    reader.onerror = function () { reject(new Error("No pude abrir la captura.")); };
+                    reader.onload = function (event) {
+                        image = new window.Image();
+                        image.onload = function () {
+                            scale = image.width < 1100 ? 2.4 : (image.width < 1500 ? 1.65 : 1);
+                            targetWidth = Math.max(image.width, Math.round(image.width * scale));
+                            targetHeight = Math.max(image.height, Math.round(image.height * scale));
+                            canvas = document.createElement("canvas");
+                            canvas.width = targetWidth;
+                            canvas.height = targetHeight;
+                            context = canvas.getContext("2d");
+                            if (!context) {
+                                resolve(file);
+                                return;
+                            }
+                            context.fillStyle = "#ffffff";
+                            context.fillRect(0, 0, targetWidth, targetHeight);
+                            context.imageSmoothingEnabled = true;
+                            if (typeof context.filter !== "undefined") {
+                                context.filter = "grayscale(1) contrast(1.3) brightness(1.05)";
+                            }
+                            context.drawImage(image, 0, 0, targetWidth, targetHeight);
+                            if (typeof context.filter !== "undefined") {
+                                context.filter = "none";
+                            }
+                            resolve(canvas);
+                        };
+                        image.onerror = function () { reject(new Error("No pude procesar la captura.")); };
+                        image.src = event && event.target ? event.target.result : "";
+                    };
+                    reader.readAsDataURL(file);
+                });
             }
 
             function runOcr(file, onDone) {
@@ -1990,7 +2122,9 @@
                 ocrInput.value = "";
                 setBusy(true);
                 setDrappPasteStatus("Leyendo captura...");
-                window.Tesseract.recognize(file, "spa+eng").then(function (result) {
+                prepareOcrSource(file).then(function (ocrSource) {
+                    return window.Tesseract.recognize(ocrSource, "spa+eng");
+                }).then(function (result) {
                     var payload = buildPayload(result);
                     if (!payload.length) {
                         setBusy(false);

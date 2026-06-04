@@ -836,6 +836,52 @@ def normalize_phone_number(raw_value: str) -> str:
     return f"+{digits}" if has_plus else digits
 
 
+def extract_phone_and_dni_from_drapp_text(raw_text: str):
+    combined_text = str(raw_text or "")
+    normalized_phone = ""
+    phone_match_text = ""
+    attached_dni_candidates = []
+    attached_dni_prefix = ""
+
+    for raw_phone in re.findall(r"\+?\d[\d ]{7,16}", combined_text):
+        candidate_phone = normalize_phone_number(raw_phone)
+        digits_only = candidate_phone.replace("+", "")
+        if candidate_phone.startswith("+54") and len(digits_only) > 12:
+            attached_dni_prefix = digits_only[12:]
+            if attached_dni_prefix:
+                attached_dni_candidates.append(attached_dni_prefix)
+            candidate_phone = f"+{digits_only[:12]}"
+            digits_only = candidate_phone.replace("+", "")
+        if 10 <= len(digits_only) <= 12:
+            normalized_phone = candidate_phone
+            phone_match_text = raw_phone
+            break
+
+    text_without_phone = combined_text.replace(phone_match_text, " ", 1) if phone_match_text else combined_text
+
+    dni = ""
+    dni_pattern = re.compile(r"\b\d{1,3}(?:[.\s]\d{3}){1,3}\b|\b\d{7,8}\b")
+    extra_suffix = ""
+    if phone_match_text:
+        suffix_index = combined_text.find(phone_match_text)
+        if suffix_index >= 0:
+            extra_suffix = combined_text[suffix_index + len(phone_match_text): suffix_index + len(phone_match_text) + 24]
+    dotted_suffix_match = re.match(r"\s*[.\s]*(\d{1,3}(?:[.\s]\d{3}){1,2})", extra_suffix)
+    if dotted_suffix_match:
+        dotted_candidate = dotted_suffix_match.group(1)
+        if attached_dni_prefix:
+            attached_dni_candidates.insert(0, f"{attached_dni_prefix}{dotted_candidate}")
+        attached_dni_candidates.append(dotted_candidate)
+
+    for candidate in attached_dni_candidates + dni_pattern.findall(text_without_phone):
+        normalized_dni = normalize_document_number(candidate)
+        if 7 <= len(normalized_dni) <= 8:
+            dni = normalized_dni
+            break
+
+    return normalized_phone, dni
+
+
 def clean_drapp_name_candidate(raw_value: str, coverage_raw: str = "", practice_raw: str = "") -> str:
     text = collapse_spaces(raw_value or "")
     if not text:
@@ -985,8 +1031,7 @@ def extract_drapp_rows_from_ocr_lines(lines):
     rows = []
     agenda_date = parse_drapp_agenda_date(" ".join(line.get("text", "") for line in lines[:8]))
     current = None
-    time_pattern = re.compile(r"\b(\d{1,2}:\d{2})\b")
-    dni_pattern = re.compile(r"\b\d{1,3}(?:[.\s]\d{3}){1,3}\b|\b\d{7,8}\b")
+    time_pattern = re.compile(r"(?<!\d)(\d{1,2}:\d{2})(?!\d)")
 
     for line in lines:
         match = time_pattern.search(line["text"])
@@ -1014,22 +1059,7 @@ def extract_drapp_rows_from_ocr_lines(lines):
         combined_text = " | ".join(row["raw_lines"])
         upper_text = combined_text.upper()
 
-        phone = ""
-        phone_match_text = ""
-        for raw_phone in re.findall(r"\+?\d[\d ]{7,16}", combined_text):
-            normalized_phone = normalize_phone_number(raw_phone)
-            if 10 <= len(normalized_phone.replace("+", "")) <= 13:
-                phone = normalized_phone
-                phone_match_text = raw_phone
-                break
-
-        text_without_phone = combined_text.replace(phone_match_text, " ") if phone_match_text else combined_text
-        dni = ""
-        for candidate in dni_pattern.findall(text_without_phone):
-            normalized_dni = normalize_document_number(candidate)
-            if 7 <= len(normalized_dni) <= 8:
-                dni = normalized_dni
-                break
+        phone, dni = extract_phone_and_dni_from_drapp_text(combined_text)
 
         coverage_raw = ""
         for candidate in DRAPP_COVERAGE_CANDIDATES:
@@ -1709,36 +1739,54 @@ def dashboard(request):
                 raw_text = import_form.cleaned_data.get("raw_text", "")
                 ocr_lines_json = import_form.cleaned_data.get("ocr_lines_json", "")
                 screenshot = import_form.cleaned_data.get("screenshot")
+                browser_ocr_error = None
+                screenshot_error = None
                 if raw_text:
                     imported_rows.extend(extract_drapp_rows_from_text(raw_text))
                 if ocr_lines_json:
-                    imported_rows.extend(extract_drapp_rows_from_browser_ocr(ocr_lines_json))
-                elif screenshot:
                     try:
+                        imported_rows.extend(extract_drapp_rows_from_browser_ocr(ocr_lines_json))
+                    except ValueError as error:
+                        browser_ocr_error = error
+                if screenshot and not imported_rows:
+                    try:
+                        if hasattr(screenshot, "seek"):
+                            screenshot.seek(0)
                         imported_rows.extend(extract_drapp_rows_from_screenshot(screenshot))
                     except Exception as error:
+                        screenshot_error = error
+                if not imported_rows:
+                    if screenshot_error:
                         import_form.add_error(
                             "screenshot",
-                            f"No se pudo leer la captura automaticamente: {error}",
+                            f"No se pudo leer la captura automaticamente: {screenshot_error}",
                         )
+                        if browser_ocr_error:
+                            import_form.add_error(
+                                "ocr_lines_json",
+                                f"El OCR del navegador tampoco se pudo interpretar: {browser_ocr_error}",
+                            )
                         messages.warning(
                             request,
                             "La captura no se pudo leer automaticamente. Pega el texto de Drapp y volve a importar.",
                         )
-                        return render_dashboard_response(
-                            request,
-                            today=today,
-                            quick_form=quick_form,
-                            import_form=import_form,
-                            physician_form=physician_form,
-                            today_encounters=today_encounters,
-                            status_cards=status_cards,
-                            operation_alerts=operation_alerts,
+                    elif browser_ocr_error:
+                        import_form.add_error(
+                            "ocr_lines_json",
+                            f"El OCR del navegador devolvio un formato invalido: {browser_ocr_error}",
                         )
-                if not imported_rows:
+                        messages.warning(
+                            request,
+                            "El OCR del navegador no se pudo interpretar. Proba de nuevo con la captura o subi el archivo manualmente.",
+                        )
+                    else:
+                        messages.warning(
+                            request,
+                            "Pude leer la captura, pero no encontre filas validas para importar. Proba con una captura donde se vean la hora, el nombre y la cobertura del paciente.",
+                        )
                     messages.warning(
                         request,
-                        "Pude leer la captura, pero no encontre filas validas para importar. Proba con una captura donde se vean la hora, el nombre y la cobertura del paciente.",
+                        "Si usaste captura desde notebook, ahora la app intenta el archivo original como respaldo cuando el OCR web no arma filas utiles.",
                     )
                     return render_dashboard_response(
                         request,
