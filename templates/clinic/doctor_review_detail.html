@@ -3,14 +3,172 @@
 {% block title %}Revision del resultado | Clinica Espiro{% endblock %}
 
 {% block content %}
-<section class="card" style="margin-bottom:20px;">
-    <p class="pill">Revision facil</p>
-    <h1 class="section-title">{{ encounter.patient.full_name }}</h1>
-    <p class="muted" style="margin-top:0;">
-        {{ encounter.encounter_date|date:"d/m/Y" }} | {{ encounter.study_type }} | {{ encounter.coverage_type }}
-    </p>
+<style>
+    .doctor-review-page {
+        display: grid;
+        gap: 10px;
+    }
+    .doctor-review-header {
+        display: grid;
+        grid-template-columns: minmax(260px, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 0;
+        padding: 10px 14px;
+    }
+    .doctor-review-header .section-title {
+        margin: 2px 0 0;
+        font-size: clamp(1.15rem, 1.6vw, 1.55rem);
+    }
+    .doctor-review-header .pill {
+        margin: 0;
+    }
+    .doctor-review-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    .doctor-review-actions .button {
+        padding: 9px 12px;
+        min-height: 0;
+    }
+    .doctor-profile-strip {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(96px, 1fr));
+        gap: 6px;
+        margin-top: 8px;
+    }
+    .doctor-profile-strip .metric {
+        padding: 7px 9px;
+        border-radius: 10px;
+    }
+    .doctor-profile-strip .metric span {
+        margin-bottom: 1px;
+        font-size: .72rem;
+    }
+    .doctor-profile-strip .metric strong {
+        font-size: 1rem;
+        line-height: 1.1;
+    }
+    .review-workspace {
+        grid-template-columns: minmax(620px, 1.55fr) minmax(360px, .85fr);
+        gap: 14px;
+        align-items: start;
+    }
+    .pdf-review-card {
+        padding: 8px;
+        min-width: 0;
+    }
+    .pdf-page-stack {
+        display: grid;
+        gap: 10px;
+    }
+    .pdf-page-frame {
+        margin: 0;
+    }
+    .pdf-page-label {
+        margin: 0 0 4px;
+        font-size: .82rem;
+    }
+    .pdf-page-viewport {
+        height: calc(100vh - 158px);
+        min-height: 620px;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #fff;
+    }
+    .pdf-page-image {
+        width: auto;
+        max-width: 100%;
+        height: 100%;
+        object-fit: contain;
+        object-position: top center;
+        display: block;
+        background: #fff;
+    }
+    .review-panel-compact {
+        position: sticky;
+        top: 10px;
+        padding: 12px;
+        max-height: calc(100vh - 24px);
+        overflow: auto;
+    }
+    .review-panel-compact .suggestion-box {
+        margin: 8px 0 10px;
+        padding: 10px;
+    }
+    .review-panel-compact .measurement-grid {
+        grid-template-columns: 1fr;
+        gap: 5px;
+        margin-top: 8px;
+    }
+    .review-panel-compact .measurement-grid div {
+        padding: 6px 8px;
+        font-size: .82rem;
+    }
+    .review-panel-compact .field label {
+        margin-bottom: 4px;
+    }
+    .review-panel-compact input,
+    .review-panel-compact select,
+    .review-panel-compact textarea {
+        padding: 8px 10px;
+        border-radius: 10px;
+    }
+    .review-panel-compact .button[type="submit"] {
+        margin-top: 12px !important;
+    }
+    @media (max-width: 1500px) {
+        .review-workspace {
+            grid-template-columns: minmax(560px, 1.7fr) minmax(320px, .7fr);
+            gap: 10px;
+        }
+        .pdf-page-viewport {
+            height: calc(100vh - 136px);
+            min-height: 560px;
+        }
+        .review-panel-compact {
+            font-size: .9rem;
+        }
+    }
+    @media (max-width: 1100px) {
+        .doctor-review-header,
+        .review-workspace {
+            grid-template-columns: 1fr;
+        }
+        .doctor-review-actions {
+            justify-content: flex-start;
+        }
+        .doctor-profile-strip {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .pdf-page-viewport {
+            height: 72vh;
+            min-height: 480px;
+        }
+        .review-panel-compact {
+            position: static;
+            max-height: none;
+        }
+    }
+</style>
 
-    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;">
+<div class="doctor-review-page">
+<section class="card doctor-review-header">
+    <div>
+        <p class="pill">Revision facil</p>
+        <h1 class="section-title">{{ encounter.patient.full_name }}</h1>
+        <p class="muted" style="margin:0;">
+            {{ encounter.encounter_date|date:"d/m/Y" }} | {{ encounter.study_type }} | {{ encounter.coverage_type }}
+        </p>
+    </div>
+
+    <div class="doctor-review-actions">
         {% if pdf_attachment %}
             <a class="button" href="{{ pdf_attachment.file.url }}" target="_blank" rel="noopener">Abrir archivo grande</a>
             <a class="button alt" href="{{ pdf_attachment.file.url }}" download>Descargar archivo</a>
@@ -18,7 +176,7 @@
     </div>
 
     {% if patient_profile_available %}
-        <div class="metric-row" style="margin-top:18px;">
+        <div class="doctor-profile-strip" style="grid-column:1/-1;">
             <div class="metric">
                 <span>Doc / cod</span>
                 <strong>{{ encounter.patient.dni|default:encounter.patient.patient_code|default:"-" }}</strong>
@@ -59,20 +217,22 @@
     {% endif %}
 </section>
 
-<section class="panel-grid">
-    <article class="card" style="padding:12px;">
+<section class="panel-grid review-workspace">
+    <article class="card pdf-review-card">
         {% if pdf_attachment %}
             {% if pdf_preview_pages %}
-                <div style="display:grid; gap:18px;">
+                <div class="pdf-page-stack">
                     {% for page in pdf_preview_pages %}
-                        <figure style="margin:0;">
-                            <div class="muted" style="margin:0 0 8px;">
+                        <figure class="pdf-page-frame">
+                            <div class="muted pdf-page-label">
                                 {% if result_attachment_is_image %}Foto del resultado{% else %}Pagina {{ page.index }}{% endif %}
                             </div>
-                            <img
-                                src="{{ page.url }}"
-                                alt="{% if result_attachment_is_image %}Foto del resultado{% else %}Vista previa pagina {{ page.index }}{% endif %}"
-                                style="width:100%;height:auto;border:1px solid var(--line);border-radius:12px;background:#fff;display:block;">
+                            <div class="pdf-page-viewport">
+                                <img
+                                    class="pdf-page-image"
+                                    src="{{ page.url }}"
+                                    alt="{% if result_attachment_is_image %}Foto del resultado{% else %}Vista previa pagina {{ page.index }}{% endif %}">
+                            </div>
                         </figure>
                     {% endfor %}
                 </div>
@@ -93,7 +253,7 @@
         {% endif %}
     </article>
 
-    <aside class="card review-panel" style="position:sticky; top:18px;">
+    <aside class="card review-panel review-panel-compact">
         <p class="pill">Resultado medico</p>
         {% if spirometry_suggestion %}
             <div class="suggestion-box">
@@ -163,6 +323,7 @@
         </form>
     </aside>
 </section>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
