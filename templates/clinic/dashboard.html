@@ -250,6 +250,25 @@
     .compact-label {
         display: none;
     }
+    .physician-search-wrap {
+        display: grid;
+        gap: 4px;
+        width: 100%;
+        min-width: 0;
+    }
+    .physician-search-input {
+        width: 100%;
+        min-width: 0;
+    }
+    .physician-search-hint {
+        color: var(--muted);
+        font-size: .72rem;
+        line-height: 1.1;
+    }
+    .physician-search-input.is-unmatched {
+        border-color: #e38b22;
+        background: #fff7d6;
+    }
     .drapp-box textarea {
         min-height: 180px;
     }
@@ -555,14 +574,19 @@
         }
         .responsive-table-wrap.notebook-stack .study-cell .cell-select,
         .responsive-table-wrap.notebook-stack td[data-label="Cobertura"] .cell-select,
-        .responsive-table-wrap.notebook-stack td[data-label="Dr. deriva"] .cell-select {
+        .responsive-table-wrap.notebook-stack td[data-label="Dr. deriva"] .cell-select,
+        .responsive-table-wrap.notebook-stack .physician-search-input {
             min-height: 22px;
             font-size: .62rem;
             line-height: 1;
         }
-        .responsive-table-wrap.notebook-stack td[data-label="Dr. deriva"] .cell-select {
+        .responsive-table-wrap.notebook-stack td[data-label="Dr. deriva"] .cell-select,
+        .responsive-table-wrap.notebook-stack .physician-search-input {
             padding-left: 3px;
             padding-right: 14px;
+        }
+        .responsive-table-wrap.notebook-stack .physician-search-hint {
+            display: none;
         }
         .responsive-table-wrap.notebook-stack .cell-small {
             width: 29px;
@@ -720,7 +744,19 @@
                         </div>
                         <div class="field">
                             <label for="{{ quick_form.referring_physician.id_for_label }}">{{ quick_form.referring_physician.label }}</label>
-                            {{ quick_form.referring_physician }}
+                            <input type="hidden" name="{{ quick_form.referring_physician.html_name }}" value="{{ quick_form.referring_physician.value|default:'' }}" data-quick-physician-id>
+                            <div class="physician-search-wrap">
+                                <input
+                                    id="{{ quick_form.referring_physician.id_for_label }}"
+                                    type="text"
+                                    class="physician-search-input"
+                                    list="physician-options"
+                                    autocomplete="off"
+                                    placeholder="Buscar doctor..."
+                                    data-quick-physician-search
+                                >
+                                <span class="physician-search-hint" data-physician-hint>Escribi y elegi un doctor.</span>
+                            </div>
                         </div>
                         <div class="field">
                             <label for="{{ quick_form.so2_rest.id_for_label }}">{{ quick_form.so2_rest.label }}</label>
@@ -939,11 +975,19 @@
                                 <input type="hidden" name="action" value="inline_update">
                                 <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
                                 <input type="hidden" name="field_name" value="referring_physician">
-                                <select name="value" class="cell-input cell-select" data-inline-submit>
-                                    {% for physician in physician_choices %}
-                                        <option value="{{ physician.pk }}"{% if encounter.referring_physician_id == physician.pk %} selected{% endif %}>{{ physician.full_name }}</option>
-                                    {% endfor %}
-                                </select>
+                                <input type="hidden" name="value" value="{{ encounter.referring_physician_id|default:'' }}" data-physician-id>
+                                <div class="physician-search-wrap">
+                                    <input
+                                        type="text"
+                                        class="cell-input cell-select physician-search-input"
+                                        value="{{ encounter.referring_physician.full_name|default:'' }}"
+                                        list="physician-options"
+                                        autocomplete="off"
+                                        placeholder="Buscar doctor..."
+                                        data-physician-search
+                                    >
+                                    <span class="physician-search-hint" data-physician-hint>Escribi y elegi un doctor.</span>
+                                </div>
                             </form>
                         </td>
                         <td data-label="SO2 / FC reposo">
@@ -1086,6 +1130,11 @@
         <option value="{{ value }}">{{ label }}</option>
     {% endfor %}
 </datalist>
+<datalist id="physician-options">
+    {% for physician in physician_choices %}
+        <option value="{{ physician.full_name }}" data-id="{{ physician.pk }}"></option>
+    {% endfor %}
+</datalist>
 <script>
     (function () {
         const studySelect = document.getElementById("id_study_type");
@@ -1207,9 +1256,63 @@
             }
         }
 
+        function normalizeDoctorSearch(value) {
+            return String(value || "")
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/\s+/g, " ")
+                .trim()
+                .toUpperCase();
+        }
+
+        function findPhysicianOptionByName(value) {
+            const normalizedValue = normalizeDoctorSearch(value);
+            if (!normalizedValue) return null;
+            const options = document.querySelectorAll("#physician-options option");
+            for (let i = 0; i < options.length; i += 1) {
+                if (normalizeDoctorSearch(options[i].value) === normalizedValue) {
+                    return options[i];
+                }
+            }
+            return null;
+        }
+
+        function getPhysicianSearchInput(form) {
+            return form ? form.querySelector("[data-physician-search]") : null;
+        }
+
+        function getPhysicianHiddenInput(form) {
+            return form ? form.querySelector("[data-physician-id]") : null;
+        }
+
+        function setPhysicianSearchState(input, matched) {
+            const hint = input && input.closest(".physician-search-wrap")
+                ? input.closest(".physician-search-wrap").querySelector("[data-physician-hint]")
+                : null;
+            if (!input) return;
+            input.classList.toggle("is-unmatched", !matched && !!input.value.trim());
+            if (hint) {
+                hint.textContent = matched || !input.value.trim()
+                    ? "Escribi y elegi un doctor."
+                    : "Elegilo de la lista para guardar.";
+            }
+        }
+
+        function setPhysicianInputFromId(input, hidden) {
+            if (!input || !hidden || !hidden.value) return;
+            const options = document.querySelectorAll("#physician-options option");
+            for (let i = 0; i < options.length; i += 1) {
+                if (String(options[i].dataset.id || "") === String(hidden.value || "")) {
+                    input.value = options[i].value;
+                    setPhysicianSearchState(input, true);
+                    return;
+                }
+            }
+        }
+
         function getPrimaryField(form) {
             if (!form) return null;
-            return form.querySelector('input[name="value"], select[name="value"], textarea[name="value"], input[name="patient_dni"]');
+            return getPhysicianSearchInput(form) || form.querySelector('input[name="value"], select[name="value"], textarea[name="value"], input[name="patient_dni"]');
         }
 
         function isDniForm(form) {
@@ -1217,6 +1320,8 @@
         }
 
         function getCurrentFieldValue(form) {
+            const physicianHidden = getPhysicianHiddenInput(form);
+            if (physicianHidden) return String(physicianHidden.value || "");
             const field = getPrimaryField(form);
             if (!field) return "";
             if (field.type === "checkbox") {
@@ -1293,6 +1398,74 @@
                 element.addEventListener("change", () => submitInlineForm(element.form));
                 element.addEventListener("blur", () => submitInlineForm(element.form));
             }
+        });
+
+        document.querySelectorAll("[data-physician-search]").forEach((input) => {
+            const form = input.form;
+            const hidden = getPhysicianHiddenInput(form);
+            if (!form || !hidden) return;
+
+            input.addEventListener("input", () => {
+                const option = findPhysicianOptionByName(input.value);
+                if (option) {
+                    hidden.value = option.dataset.id || "";
+                    setPhysicianSearchState(input, true);
+                    markFormDirty(form);
+                    scheduleInlineSubmit(form, 150);
+                } else {
+                    setPhysicianSearchState(input, false);
+                }
+            });
+            input.addEventListener("change", () => {
+                const option = findPhysicianOptionByName(input.value);
+                if (!option) {
+                    setPhysicianSearchState(input, false);
+                    return;
+                }
+                hidden.value = option.dataset.id || "";
+                setPhysicianSearchState(input, true);
+                markFormDirty(form);
+                submitInlineForm(form);
+            });
+            input.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter") return;
+                const option = findPhysicianOptionByName(input.value);
+                event.preventDefault();
+                if (!option) {
+                    setPhysicianSearchState(input, false);
+                    return;
+                }
+                hidden.value = option.dataset.id || "";
+                setPhysicianSearchState(input, true);
+                markFormDirty(form);
+                submitInlineForm(form);
+            });
+        });
+
+        document.querySelectorAll("[data-quick-physician-search]").forEach((input) => {
+            const form = input.form;
+            const hidden = form ? form.querySelector("[data-quick-physician-id]") : null;
+            if (!form || !hidden) return;
+            setPhysicianInputFromId(input, hidden);
+
+            input.addEventListener("input", () => {
+                const option = findPhysicianOptionByName(input.value);
+                if (!option) {
+                    setPhysicianSearchState(input, false);
+                    return;
+                }
+                hidden.value = option.dataset.id || "";
+                setPhysicianSearchState(input, true);
+            });
+            input.addEventListener("change", () => {
+                const option = findPhysicianOptionByName(input.value);
+                if (!option) {
+                    setPhysicianSearchState(input, false);
+                    return;
+                }
+                hidden.value = option.dataset.id || "";
+                setPhysicianSearchState(input, true);
+            });
         });
 
         document.querySelectorAll("[data-result-code]").forEach((element) => {
@@ -1423,8 +1596,13 @@
                 if (select && payload.value) select.value = payload.value;
             }
             if (payload.field_name === "referring_physician") {
-                const select = form.querySelector('select[name="value"]');
-                if (select && typeof payload.value !== "undefined") select.value = payload.value;
+                const hidden = getPhysicianHiddenInput(form);
+                const input = getPhysicianSearchInput(form);
+                if (hidden && typeof payload.value !== "undefined") hidden.value = payload.value;
+                if (input && payload.referring_physician_display) {
+                    input.value = payload.referring_physician_display;
+                    setPhysicianSearchState(input, true);
+                }
             }
             if (payload.field_name === "study_type") {
                 const select = form.querySelector('select[name="value"]');
@@ -1803,6 +1981,14 @@
             if (form && form.getAttribute("data-dirty") === "1") return;
             if (form && form.getAttribute("data-vital-saving") === "1") return;
             if (editedAt && new Date().getTime() - Number(editedAt) < 6000) return;
+            if (fieldName === "referring_physician") {
+                var hidden = form && form.querySelector ? form.querySelector("[data-physician-id]") : null;
+                if (hidden) hidden.value = value || "";
+                if (field && row && row._lastPayload && row._lastPayload.referring_physician_display) {
+                    field.value = row._lastPayload.referring_physician_display;
+                }
+                return;
+            }
             field.value = value || "";
         }
 
@@ -1892,6 +2078,7 @@
             }
 
             setInlineValue(row, "patient_name", payload.patient_name);
+            row._lastPayload = payload;
             setInlineValue(row, "encounter_time", payload.encounter_time);
             setInlineValue(row, "study_type", payload.study_type);
             setInlineValue(row, "coverage_type", payload.coverage_type);
