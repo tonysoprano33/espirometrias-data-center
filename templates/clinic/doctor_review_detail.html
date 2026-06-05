@@ -528,7 +528,7 @@
                         setStatus("No se pudo analizar el archivo automaticamente: " + error.message);
                     });
                 } else {
-                    setStatus("Si el PDF trae texto, lo leo solo. Si es una imagen, lo analizo en tu navegador antes de guardarlo.");
+                    setStatus("");
                 }
             });
             form.addEventListener("submit", function (event) {
