@@ -1726,6 +1726,7 @@ def build_print_context_for_encounter(encounter):
         "so2": so2,
         "fc": fc,
         "report_text": informe,
+        "is_normal": patron == "Normal",
         "bronchodilator_positive": broncodilatador_positivo,
         "pattern": patron,
         "include_walk": include_walk,

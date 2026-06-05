@@ -97,48 +97,46 @@ def crear_encabezado(doc: Document):
     header_box = doc.add_paragraph()
     header_box.alignment = WD_ALIGN_PARAGRAPH.CENTER
     agregar_borde_parrafo(header_box)
-    header_box.paragraph_format.space_before = Pt(2)
-    header_box.paragraph_format.space_after = Pt(4)
+    header_box.paragraph_format.space_before = Pt(6)
+    header_box.paragraph_format.space_after = Pt(6)
     run1 = header_box.add_run("CENTRO RESPIRATORIO INTEGRAL\n")
     run1.bold = True
     run1.font.name = "Times New Roman"
-    run1.font.size = Pt(10)
+    run1.font.size = Pt(14)
     run1.font.color.rgb = RGBColor(40, 60, 90)
     run2 = header_box.add_run("MARCONI 147 - TEL: 02657-705270\n")
     run2.font.name = "Times New Roman"
-    run2.font.size = Pt(7)
+    run2.font.size = Pt(11)
     run2.font.color.rgb = RGBColor(30, 30, 30)
     run3 = header_box.add_run("VILLA MERCEDES (SAN LUIS)")
     run3.font.name = "Times New Roman"
-    run3.font.size = Pt(7)
+    run3.font.size = Pt(11)
     run3.font.color.rgb = RGBColor(30, 30, 30)
 
 
 def agregar_fecha(doc: Document, fecha_texto: str):
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    p.paragraph_format.space_before = Pt(2)
-    p.paragraph_format.space_after = Pt(4)
     run = p.add_run(fecha_texto)
     run.bold = True
     run.font.name = "Times New Roman"
-    run.font.size = Pt(10)
+    run.font.size = Pt(12)
 
 
 def agregar_datos_paciente(doc: Document, nombre: str, dni: str, deriva: str):
     for label_text, value in [("PACIENTE: ", nombre), ("DNI: ", dni), ("DERIVA: ", deriva)]:
         p = doc.add_paragraph()
-        p.paragraph_format.space_before = Pt(1)
-        p.paragraph_format.space_after = Pt(2)
         label = p.add_run(label_text)
         label.bold = True
         label.underline = True
         label.font.name = "Times New Roman"
-        label.font.size = Pt(9)
+        label.font.size = Pt(13 if label_text == "DNI: " else 12)
         label.font.color.rgb = RGBColor(40, 60, 90)
         value_run = p.add_run(value)
         value_run.font.name = "Times New Roman"
-        value_run.font.size = Pt(9)
+        value_run.font.size = Pt(18 if label_text == "DNI: " else 12)
+        if label_text == "DNI: ":
+            value_run.bold = True
 
 
 def agregar_firma(doc: Document, as_footer: bool = False):
@@ -153,7 +151,7 @@ def agregar_firma(doc: Document, as_footer: bool = False):
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r = p.add_run(signature_text)
     r.font.name = "Times New Roman"
-    r.font.size = Pt(6.5)
+    r.font.size = Pt(9)
 
 
 def agregar_salto_pagina(doc: Document):
@@ -162,52 +160,54 @@ def agregar_salto_pagina(doc: Document):
 
 def agregar_seccion_espirometria(doc: Document, so2: str, fc: str, informe: str, es_normal: bool, broncodilatador_positivo: bool = False):
     t = doc.add_paragraph()
-    t.paragraph_format.space_before = Pt(6)
-    t.paragraph_format.space_after = Pt(4)
+    t.paragraph_format.space_before = Pt(12)
+    t.paragraph_format.space_after = Pt(12)
     run = t.add_run("Resultado Espirometría Computarizada:")
     run.bold = True
     run.underline = True
     run.font.name = "Times New Roman"
-    run.font.size = Pt(10)
+    run.font.size = Pt(14)
     run.font.color.rgb = RGBColor(40, 60, 90)
 
     p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(4)
-    p.paragraph_format.space_after = Pt(4)
+    p.paragraph_format.space_before = Pt(10)
+    p.paragraph_format.space_after = Pt(10)
     r = p.add_run(informe)
     r.font.name = "Times New Roman"
-    r.font.size = Pt(10)
+    r.font.size = Pt(14)
     r.bold = True
     p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    p.paragraph_format.line_spacing = 1.15
+    p.paragraph_format.line_spacing = 1.3
 
     if broncodilatador_positivo:
         doc.add_paragraph()
         bronco_p = doc.add_paragraph()
         bronco_p.paragraph_format.space_before = Pt(8)
-        bronco_p.paragraph_format.space_after = Pt(4)
+        bronco_p.paragraph_format.space_after = Pt(8)
         bronco_run = bronco_p.add_run("Test de Broncodilatador: POSITIVO")
         bronco_run.font.name = "Times New Roman"
-        bronco_run.font.size = Pt(10)
+        bronco_run.font.size = Pt(14)
         bronco_run.bold = True
         bronco_run.font.color.rgb = RGBColor(200, 50, 50)
 
+    doc.add_paragraph()
     val = doc.add_paragraph()
-    val.paragraph_format.space_before = Pt(8)
-    val.paragraph_format.space_after = Pt(4)
-    val_run = val.add_run(f"SO2: {so2}%    FC: {fc}")
+    val.paragraph_format.space_before = Pt(10)
+    val.paragraph_format.space_after = Pt(10)
+    val_run = val.add_run(f"SO2: {so2}%    FC: {fc}%")
     val_run.bold = True
     val_run.font.name = "Times New Roman"
-    val_run.font.size = Pt(10)
+    val_run.font.size = Pt(14)
 
     if not es_normal:
+        doc.add_paragraph()
         rec = doc.add_paragraph()
-        rec.paragraph_format.space_before = Pt(10)
-        rec.paragraph_format.space_after = Pt(4)
+        rec.paragraph_format.space_before = Pt(8)
+        rec.paragraph_format.space_after = Pt(8)
         rec_run = rec.add_run("Por antecedentes clínicos del paciente, sugiero control.")
         rec_run.italic = True
         rec_run.font.name = "Times New Roman"
-        rec_run.font.size = Pt(9)
+        rec_run.font.size = Pt(13)
         rec_run.bold = True
 
 
@@ -217,7 +217,7 @@ def agregar_seccion_caminata(doc: Document, so2_vals: list[int], fc_vals: list[i
     run.bold = True
     run.underline = True
     run.font.name = "Times New Roman"
-    run.font.size = Pt(9)
+    run.font.size = Pt(12)
 
     desc = doc.add_paragraph()
     desc_run = desc.add_run(
@@ -226,8 +226,8 @@ def agregar_seccion_caminata(doc: Document, so2_vals: list[int], fc_vals: list[i
         "esfuerzo percibido por medio de escala de Borg y la distancia recorrida a la finalización."
     )
     desc_run.font.name = "Times New Roman"
-    desc_run.font.size = Pt(7.8)
-    desc.paragraph_format.space_after = Pt(4)
+    desc_run.font.size = Pt(10)
+    desc.paragraph_format.space_after = Pt(6)
     desc.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
     com = doc.add_paragraph("COMENTARIOS:")
@@ -235,7 +235,7 @@ def agregar_seccion_caminata(doc: Document, so2_vals: list[int], fc_vals: list[i
         com.runs[0].bold = True
         com.runs[0].underline = True
         com.runs[0].font.name = "Times New Roman"
-        com.runs[0].font.size = Pt(7.8)
+        com.runs[0].font.size = Pt(10)
 
     preguntas = [
         f"Distancia recorrida: {distancia} mts.",
@@ -248,7 +248,7 @@ def agregar_seccion_caminata(doc: Document, so2_vals: list[int], fc_vals: list[i
         p.paragraph_format.left_indent = Inches(0.3)
         if p.runs:
             p.runs[0].font.name = "Times New Roman"
-            p.runs[0].font.size = Pt(7.8)
+            p.runs[0].font.size = Pt(10)
 
     tabla = doc.add_table(rows=8, cols=4)
     tabla.style = "Table Grid"
@@ -260,7 +260,7 @@ def agregar_seccion_caminata(doc: Document, so2_vals: list[int], fc_vals: list[i
             for run in para.runs:
                 run.bold = True
                 run.font.name = "Times New Roman"
-                run.font.size = Pt(7.5)
+                run.font.size = Pt(10)
             para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     for i in range(7):
@@ -272,7 +272,7 @@ def agregar_seccion_caminata(doc: Document, so2_vals: list[int], fc_vals: list[i
             for para in tabla.rows[i + 1].cells[j].paragraphs:
                 for run in para.runs:
                     run.font.name = "Times New Roman"
-                    run.font.size = Pt(7.5)
+                    run.font.size = Pt(10)
                 para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     res = doc.add_paragraph()
@@ -280,10 +280,11 @@ def agregar_seccion_caminata(doc: Document, so2_vals: list[int], fc_vals: list[i
     run.bold = True
     run.underline = True
     run.font.name = "Times New Roman"
-    run.font.size = Pt(8.5)
+    doc.add_paragraph()
+    run.font.size = Pt(11)
     normal_run = res.add_run("PRUEBA NORMAL")
     normal_run.font.name = "Times New Roman"
-    normal_run.font.size = Pt(8.5)
+    normal_run.font.size = Pt(11)
 
 
 def crear_informe_mutual(nombre: str, dni: str, fecha: str, deriva: str, so2: str, fc: str, so2_vals: list[int], fc_vals: list[int], borg_vals: list[int], distancia: str, concluida: bool, detuvo: bool, sintomas: bool, informe_espiro: str, patron: str, grado_obst: str, grado_rest: str) -> Document:
