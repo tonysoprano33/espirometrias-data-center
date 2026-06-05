@@ -14,6 +14,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
+from django.core.paginator import Paginator
 from django.db.models import Count, Max
 from django.db.models import Q
 from django.http import JsonResponse
@@ -328,12 +329,14 @@ def record_encounter_event(encounter, event_type: str, title: str, actor=None, d
 
 
 def build_mutual_cvl_result(pattern: str, obstruction_grade: str, restriction_grade: str) -> str:
+    obstruction_grade = (obstruction_grade or "").strip().lower()
+    restriction_grade = (restriction_grade or "").strip().lower()
     if pattern == "Normal":
         return "Normal"
     if pattern == "Obstructivo":
         if obstruction_grade == "leve":
             return "Levemente disminuida"
-        if obstruction_grade == "moderado":
+        if obstruction_grade in {"moderado", "moderada"}:
             return "Moderadamente disminuida"
         if obstruction_grade == "moderadamente severa":
             return "Moderadamente a severamente disminuida"
@@ -341,7 +344,7 @@ def build_mutual_cvl_result(pattern: str, obstruction_grade: str, restriction_gr
     if pattern == "Restrictivo":
         if restriction_grade == "leve":
             return "Levemente reducida"
-        if restriction_grade == "moderado":
+        if restriction_grade in {"moderado", "moderada"}:
             return "Moderadamente reducida"
         if restriction_grade == "moderadamente severa":
             return "Moderadamente a severamente reducida"
@@ -749,8 +752,8 @@ def save_quick_encounter(form: QuickEncounterForm, request_user, encounter=None)
         defaults={
             "distance_meters": int(form.cleaned_data.get("distance_meters") or 200),
             "completed": bool(form.cleaned_data.get("completed")),
-            "stopped": False,
-            "symptoms": False,
+            "stopped": bool(form.cleaned_data.get("stopped")),
+            "symptoms": bool(form.cleaned_data.get("symptoms")),
             "borg_final": int(form.cleaned_data.get("borg_final") or 0),
         },
     )
@@ -2502,6 +2505,8 @@ def encounter_create(request):
                 "coverage_type": "Particular",
                 "distance_meters": 200,
                 "completed": True,
+                "stopped": False,
+                "symptoms": False,
                 "borg_final": 0,
             }
         )
@@ -2546,6 +2551,8 @@ def encounter_edit(request, pk):
                 "fc_post": getattr(vital, "fc_post", None),
                 "distance_meters": getattr(walk, "distance_meters", 200),
                 "completed": getattr(walk, "completed", True),
+                "stopped": getattr(walk, "stopped", False),
+                "symptoms": getattr(walk, "symptoms", False),
                 "borg_final": getattr(walk, "borg_final", 0),
                 "respiratory_result": current_result,
                 "attended": encounter.attended,
@@ -2562,11 +2569,31 @@ def encounter_edit(request, pk):
 
 @login_required
 def doctor_review_list(request):
-    encounters = (
+    search_query = request.GET.get("q", "").strip()
+    date_str = request.GET.get("date", "").strip()
+    today = timezone.now().date()
+
+    selected_date = today
+    if date_str:
+        try:
+            selected_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            selected_date = today
+
+    encounters_qs = (
         Encounter.objects.select_related("patient", "spirometry_result")
         .prefetch_related("attachments")
-        .order_by("-encounter_date", "-created_at")
     )
+
+    if search_query:
+        # If searching, we search across all dates to find the patient
+        encounters_qs = encounters_qs.filter(
+            Q(patient__full_name__icontains=search_query) | Q(patient__dni__icontains=search_query)
+        )
+    else:
+        # Default view: only selected date
+        encounters_qs = encounters_qs.filter(encounter_date=selected_date)
+
     review_cards = []
     counters = {"pending": 0, "missing_pdf": 0, "done": 0}
     done_statuses = {
@@ -2574,32 +2601,47 @@ def doctor_review_list(request):
         EncounterStatus.INFORME_GENERADO,
         EncounterStatus.ENTREGADA,
     }
-    for encounter in encounters:
+
+    # System-wide counters for the selected date (or all if searching)
+    counter_qs = Encounter.objects.prefetch_related("attachments")
+    if not search_query:
+        counter_qs = counter_qs.filter(encounter_date=selected_date)
+
+    for enc in counter_qs:
+        has_pdf = enc.attachments.filter(file_kind=AttachmentKind.PDF_RESULTADO).exists()
+        is_done = enc.status in done_statuses
+        if not has_pdf:
+            counters["missing_pdf"] += 1
+        elif is_done:
+            counters["done"] += 1
+        else:
+            counters["pending"] += 1
+
+    for encounter in encounters_qs.order_by("-encounter_date", "-created_at"):
         pdf_attachment = get_latest_result_attachment(encounter)
         result_code = get_result_code_from_encounter(encounter)
         has_pdf = bool(pdf_attachment)
-        is_done = encounter.status in done_statuses and bool(result_code)
+        is_done = encounter.status in done_statuses
+
         if not has_pdf:
             review_state = "missing_pdf"
             state_label = "Falta subir PDF"
             state_help = "Recepcion todavia no cargo el resultado."
             action_label = "Abrir ficha"
-            counters["missing_pdf"] += 1
             priority = 2
         elif is_done:
             review_state = "done"
             state_label = "Resultado listo"
-            state_help = f"Resultado cargado: {result_code}."
+            state_help = f"Resultado cargado: {result_code or 'N/A'}."
             action_label = "Ver revision"
-            counters["done"] += 1
             priority = 3
         else:
             review_state = "pending"
-            state_label = "Pendiente de resultado"
-            state_help = "El PDF esta cargado. Falta que el medico lo revise."
-            action_label = "Abrir resultado del paciente"
-            counters["pending"] += 1
+            state_label = "Pendiente"
+            state_help = "PDF cargado. Falta revision."
+            action_label = "Abrir resultado"
             priority = 1
+
         review_cards.append(
             {
                 "encounter": encounter,
@@ -2613,18 +2655,30 @@ def doctor_review_list(request):
             }
         )
 
+    # Sort: pending with PDF first, then missing PDF, then done.
     review_cards.sort(
         key=lambda card: (
             card["priority"],
-            card["encounter"].encounter_date,
-            card["encounter"].encounter_time or datetime.min.time(),
-            card["encounter"].patient.full_name,
+            -card["encounter"].encounter_date.toordinal(),
+            -(card["encounter"].encounter_time.hour * 60 + card["encounter"].encounter_time.minute) if card["encounter"].encounter_time else 0,
         )
     )
+
+    paginator = Paginator(review_cards, 20) # More per page if filtered
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
     return render(
         request,
         "clinic/doctor_review_list.html",
-        {"review_cards": review_cards, "review_counters": counters},
+        {
+            "page_obj": page_obj,
+            "review_counters": counters,
+            "search_query": search_query,
+            "selected_date": selected_date.strftime("%Y-%m-%d"),
+            "display_date": selected_date,
+            "today": today,
+        },
     )
 
 

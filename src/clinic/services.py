@@ -117,26 +117,34 @@ def crear_encabezado(doc: Document):
 def agregar_fecha(doc: Document, fecha_texto: str):
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    p.paragraph_format.space_before = Pt(12)
+    p.paragraph_format.space_after = Pt(18)
     run = p.add_run(fecha_texto)
     run.bold = True
     run.font.name = "Times New Roman"
-    run.font.size = Pt(12)
+    run.font.size = Pt(14)
 
 
 def agregar_datos_paciente(doc: Document, nombre: str, dni: str, deriva: str):
     for label_text, value in [("PACIENTE: ", nombre), ("DNI: ", dni), ("DERIVA: ", deriva)]:
         p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(10)
         label = p.add_run(label_text)
         label.bold = True
         label.underline = True
         label.font.name = "Times New Roman"
-        label.font.size = Pt(13 if label_text == "DNI: " else 12)
+        label.font.size = Pt(14)
         label.font.color.rgb = RGBColor(40, 60, 90)
         value_run = p.add_run(value)
         value_run.font.name = "Times New Roman"
-        value_run.font.size = Pt(18 if label_text == "DNI: " else 12)
         if label_text == "DNI: ":
+            value_run.font.size = Pt(14)
             value_run.bold = True
+        elif label_text == "PACIENTE: ":
+            value_run.font.size = Pt(16)
+            value_run.bold = True
+        else:
+            value_run.font.size = Pt(14)
 
 
 def agregar_firma(doc: Document, as_footer: bool = False):
@@ -160,54 +168,52 @@ def agregar_salto_pagina(doc: Document):
 
 def agregar_seccion_espirometria(doc: Document, so2: str, fc: str, informe: str, es_normal: bool, broncodilatador_positivo: bool = False):
     t = doc.add_paragraph()
-    t.paragraph_format.space_before = Pt(12)
+    t.paragraph_format.space_before = Pt(18)
     t.paragraph_format.space_after = Pt(12)
     run = t.add_run("Resultado Espirometría Computarizada:")
     run.bold = True
     run.underline = True
     run.font.name = "Times New Roman"
-    run.font.size = Pt(14)
+    run.font.size = Pt(15)
     run.font.color.rgb = RGBColor(40, 60, 90)
 
     p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(10)
-    p.paragraph_format.space_after = Pt(10)
+    p.paragraph_format.space_before = Pt(12)
+    p.paragraph_format.space_after = Pt(12)
     r = p.add_run(informe)
     r.font.name = "Times New Roman"
-    r.font.size = Pt(14)
+    r.font.size = Pt(16)
     r.bold = True
     p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    p.paragraph_format.line_spacing = 1.3
+    p.paragraph_format.line_spacing = 1.5
 
     if broncodilatador_positivo:
         doc.add_paragraph()
         bronco_p = doc.add_paragraph()
-        bronco_p.paragraph_format.space_before = Pt(8)
-        bronco_p.paragraph_format.space_after = Pt(8)
+        bronco_p.paragraph_format.space_before = Pt(12)
+        bronco_p.paragraph_format.space_after = Pt(12)
         bronco_run = bronco_p.add_run("Test de Broncodilatador: POSITIVO")
         bronco_run.font.name = "Times New Roman"
-        bronco_run.font.size = Pt(14)
+        bronco_run.font.size = Pt(15)
         bronco_run.bold = True
         bronco_run.font.color.rgb = RGBColor(200, 50, 50)
 
-    doc.add_paragraph()
     val = doc.add_paragraph()
-    val.paragraph_format.space_before = Pt(10)
-    val.paragraph_format.space_after = Pt(10)
-    val_run = val.add_run(f"SO2: {so2}%    FC: {fc}%")
+    val.paragraph_format.space_before = Pt(24)
+    val.paragraph_format.space_after = Pt(12)
+    val_run = val.add_run(f"SO2: {so2}%          FC: {fc}%")
     val_run.bold = True
     val_run.font.name = "Times New Roman"
-    val_run.font.size = Pt(14)
+    val_run.font.size = Pt(15)
 
     if not es_normal:
-        doc.add_paragraph()
         rec = doc.add_paragraph()
-        rec.paragraph_format.space_before = Pt(8)
-        rec.paragraph_format.space_after = Pt(8)
+        rec.paragraph_format.space_before = Pt(20)
+        rec.paragraph_format.space_after = Pt(10)
         rec_run = rec.add_run("Por antecedentes clínicos del paciente, sugiero control.")
         rec_run.italic = True
         rec_run.font.name = "Times New Roman"
-        rec_run.font.size = Pt(13)
+        rec_run.font.size = Pt(14)
         rec_run.bold = True
 
 
@@ -435,12 +441,14 @@ def crear_informe_mutual(nombre: str, dni: str, fecha: str, deriva: str, so2: st
     run_cvl.font.size = Pt(11)
     run_cvl.font.color.rgb = RGBColor(40, 60, 90)
 
+    grado_obst = (grado_obst or "").strip().lower()
+    grado_rest = (grado_rest or "").strip().lower()
     if patron == "Normal":
         resultado_cvl = "Normal"
     elif patron == "Obstructivo":
         if grado_obst == "leve":
             resultado_cvl = "Levemente disminuida"
-        elif grado_obst == "moderado":
+        elif grado_obst in {"moderado", "moderada"}:
             resultado_cvl = "Moderadamente disminuida"
         elif grado_obst == "moderadamente severa":
             resultado_cvl = "Moderadamente a severamente disminuida"
@@ -449,7 +457,7 @@ def crear_informe_mutual(nombre: str, dni: str, fecha: str, deriva: str, so2: st
     elif patron == "Restrictivo":
         if grado_rest == "leve":
             resultado_cvl = "Levemente reducida"
-        elif grado_rest == "moderado":
+        elif grado_rest in {"moderado", "moderada"}:
             resultado_cvl = "Moderadamente reducida"
         elif grado_rest == "moderadamente severa":
             resultado_cvl = "Moderadamente a severamente reducida"

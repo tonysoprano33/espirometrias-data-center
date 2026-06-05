@@ -605,6 +605,71 @@ def value_after_any_label(text_lines: list[str], labels: list[str]) -> str:
     return ""
 
 
+PROFILE_LABEL_PATTERNS = [
+    ("patient_code", r"(?:C[oó]d\.?|Codigo|C[oó]digo)\s*(?:de\s*)?paciente"),
+    ("dni", r"\b(?:DNI|Documento)\b"),
+    ("last_name", r"\bApellido\b"),
+    ("first_name", r"\b(?:Nom\.?|Nombre)\b"),
+    ("birth_date", r"Fecha\s+de\s+nac(?:imien|imiento)?"),
+    ("age_reported", r"\bEdad\b"),
+    ("gender", r"\b(?:G[eé]nero|Genero|Sexo)\b"),
+    ("height_cm", r"\bAltura\s*,?\s*cm\b|\bAltura\b"),
+    ("weight_kg", r"\bPeso\s*,?\s*kg\b|\bPeso\b"),
+    ("bmi", r"\bBMI\b"),
+    ("ethnicity", r"Grupo\s+(?:[eé]tnico|etnico)"),
+    ("smoking_status", r"\bFuma\b"),
+    ("pack_years", r"Paquete\s*[- ]?\s*a(?:ñ|n)o|Paquete\s*[- ]?\s*anio"),
+    ("patient_group", r"Grupo\s+pacientes?"),
+]
+
+
+def clean_profile_value(raw_value: str) -> str:
+    return collapse_spaces(raw_value).strip(" :-;,.")
+
+
+def parse_profile_field(field_name: str, raw_value: str):
+    value = clean_profile_value(raw_value)
+    if not value:
+        return None
+    if field_name in {"patient_code", "dni"}:
+        match = re.search(r"[0-9][0-9.\-]{3,}", value)
+        return match.group(0) if match else value
+    if field_name == "birth_date":
+        return parse_date(value)
+    if field_name in {"age_reported", "height_cm"}:
+        return parse_integer(value)
+    if field_name in {"weight_kg", "bmi", "pack_years"}:
+        return parse_decimal(value)
+    return value
+
+
+def extract_profile_values_from_line(line: str) -> dict:
+    matches = []
+    for field_name, pattern in PROFILE_LABEL_PATTERNS:
+        for match in re.finditer(pattern, line, flags=re.IGNORECASE):
+            matches.append((match.start(), match.end(), field_name))
+    if not matches:
+        return {}
+
+    matches.sort(key=lambda item: item[0])
+    found = {}
+    for index, (_, label_end, field_name) in enumerate(matches):
+        next_start = matches[index + 1][0] if index + 1 < len(matches) else len(line)
+        value = parse_profile_field(field_name, line[label_end:next_start])
+        if value not in [None, ""] and field_name not in found:
+            found[field_name] = value
+    return found
+
+
+def extract_profile_values_from_labeled_text(text_lines: list[str]) -> dict:
+    values = {}
+    for line in text_lines:
+        for field_name, value in extract_profile_values_from_line(line).items():
+            if value not in [None, ""]:
+                values[field_name] = value
+    return values
+
+
 def fill_snapshot_from_labeled_lines(snapshot: dict, text_lines: list[str]) -> dict:
     fallback_fields = {
         "patient_code": (["codigo de paciente", "codigo paciente", "cod. paciente", "cod paciente"], str),
@@ -687,7 +752,12 @@ def extract_patient_snapshot_from_text(raw_text: str):
         "pack_years": parse_decimal(find_value(["line:paquete año", "line:paquete anio", r"Paquete(?:\s*[- ]?\s*)?An(?:io|o)[:\s]+([0-9.,]{1,6})"])),
         "patient_group": find_value(["line:grupo paciente", r"Grupo\s+Paciente[s]?[:\s]+([A-ZÁÉÍÓÚÑ ]{3,})"]),
     }
+    for field_name, value in extract_profile_values_from_labeled_text(text_lines).items():
+        if value not in [None, ""]:
+            snapshot[field_name] = value
     snapshot = fill_snapshot_from_labeled_lines(snapshot, text_lines)
+    if not snapshot.get("dni") and snapshot.get("patient_code"):
+        snapshot["dni"] = snapshot["patient_code"]
 
     if snapshot["last_name"] and snapshot["first_name"]:
         snapshot["full_name"] = f"{snapshot['last_name']}, {snapshot['first_name']}"

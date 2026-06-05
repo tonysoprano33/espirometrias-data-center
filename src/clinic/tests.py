@@ -6,7 +6,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
-from .models import CoverageType, Encounter, EncounterStatus, Patient, StudyType
+from .models import CoverageType, Encounter, EncounterStatus, Patient, SpirometryResult, StudyType, VitalSigns, WalkTest
 from .pdf_intake import (
     build_analysis_from_text,
     build_spirometry_analysis,
@@ -403,3 +403,88 @@ class SpirometryPdfParsingTests(SimpleTestCase):
         self.assertEqual(snapshot["full_name"], "SIPOLLONI, FELISA")
         self.assertEqual(snapshot["gender"], "Femenino")
         self.assertEqual(snapshot["height_cm"], 164)
+
+    def test_reads_patient_profile_when_pdf_joins_left_and_right_columns(self):
+        snapshot = extract_patient_snapshot_from_text(
+            "\n".join(
+                [
+                    "Fecha de visita 04/06/2026",
+                    "Cod. paciente 5999253 Edad 76",
+                    "Apellido SIPOLLONI Genero Femenino",
+                    "Nom. FELISA Altura, cm 164",
+                    "Fecha de nacimien 16/10/1949 Peso, kg 88",
+                    "Grupo etnico Caucasico BMI 32,72",
+                    "Fuma Paquete-ano",
+                ]
+            )
+        )
+
+        self.assertEqual(snapshot["patient_code"], "5999253")
+        self.assertEqual(snapshot["dni"], "5999253")
+        self.assertEqual(snapshot["full_name"], "SIPOLLONI, FELISA")
+        self.assertEqual(snapshot["birth_date"], date(1949, 10, 16))
+        self.assertEqual(snapshot["age_reported"], 76)
+        self.assertEqual(snapshot["gender"], "Femenino")
+        self.assertEqual(snapshot["height_cm"], 164)
+        self.assertEqual(snapshot["weight_kg"], 88)
+        self.assertEqual(str(snapshot["bmi"]), "32.72")
+        self.assertEqual(snapshot["ethnicity"], "Caucasico")
+
+
+class PrintReportViewTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="print-test", password="secret123")
+        self.client.force_login(self.user)
+        self.patient = Patient.objects.create(full_name="FONTANARI ALICIA NOEMI", dni="129")
+        self.encounter = Encounter.objects.create(
+            patient=self.patient,
+            encounter_date=date(2026, 6, 4),
+            encounter_time=time(15, 0),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.MUTUAL,
+            status=EncounterStatus.REVISADA,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        VitalSigns.objects.create(
+            encounter=self.encounter,
+            so2_rest=88,
+            fc_rest=64,
+            so2_post=65,
+            fc_post=117,
+        )
+        WalkTest.objects.create(
+            encounter=self.encounter,
+            distance_meters=100,
+            completed=False,
+            stopped=False,
+            symptoms=False,
+            borg_final=1,
+        )
+        SpirometryResult.objects.create(
+            encounter=self.encounter,
+            respiratory_pattern="Restrictivo",
+            restriction_grade="Moderada",
+        )
+
+    def test_mutual_patient_print_includes_mutual_packet(self):
+        response = self.client.get(reverse("clinic:encounter_print", args=[self.encounter.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn("Capacidad Vital Lenta", html)
+        self.assertIn("PRUEBA DE LOS 6 Y 12 MINUTOS", html)
+        self.assertIn("Resultado Espirometria Computarizada", html)
+        self.assertIn("Moderadamente reducida", html)
+        self.assertIn("dni-value", html)
+
+    def test_daily_print_uses_same_mutual_packet(self):
+        with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 4)):
+            response = self.client.get(reverse("clinic:daily_print"))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn("@page { size: Letter; margin: 0; }", html)
+        self.assertIn("sheet-pdf", html)
+        self.assertIn("Capacidad Vital Lenta", html)
+        self.assertIn("Moderadamente reducida", html)

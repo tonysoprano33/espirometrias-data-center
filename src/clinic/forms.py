@@ -214,6 +214,8 @@ class QuickEncounterForm(forms.Form):
     fc_post = forms.IntegerField(label="FC despues de caminata", required=False, min_value=0)
     distance_meters = forms.ChoiceField(label="Distancia caminata", choices=((100, "100"), (200, "200")), initial=200)
     completed = forms.BooleanField(label="Completada con exito", required=False, initial=True)
+    stopped = forms.BooleanField(label="Se detuvo durante la marcha", required=False, initial=False)
+    symptoms = forms.BooleanField(label="Presento sintomas al final", required=False, initial=False)
     borg_final = forms.ChoiceField(label="Borg final", choices=[(value, str(value)) for value in range(0, 11)], initial=0)
     respiratory_result = forms.CharField(label="Resultado", required=False, max_length=24)
     attended = forms.BooleanField(label="Atendido", required=False, initial=False)
@@ -238,18 +240,20 @@ class QuickEncounterForm(forms.Form):
         self.fields["fc_post"].widget.attrs.update({"data-nav": "10", "max": "999", "inputmode": "numeric", "data-autoadvance-length": "3"})
         self.fields["distance_meters"].widget.attrs.update({"data-nav": "11"})
         self.fields["completed"].widget.attrs.update({"data-nav": "12"})
-        self.fields["borg_final"].widget.attrs.update({"data-nav": "13"})
+        self.fields["stopped"].widget.attrs.update({"data-nav": "13"})
+        self.fields["symptoms"].widget.attrs.update({"data-nav": "14"})
+        self.fields["borg_final"].widget.attrs.update({"data-nav": "15"})
         self.fields["respiratory_result"].widget.attrs.update(
             {
-                "data-nav": "14",
+                "data-nav": "16",
                 "list": "result-code-options",
                 "placeholder": "N, OL, RL, RLOMS...",
                 "autocomplete": "off",
                 "data-result-code": "1",
             }
         )
-        self.fields["attended"].widget.attrs.update({"data-nav": "15"})
-        self.fields["no_show"].widget.attrs.update({"data-nav": "16"})
+        self.fields["attended"].widget.attrs.update({"data-nav": "17"})
+        self.fields["no_show"].widget.attrs.update({"data-nav": "18"})
 
     def clean_respiratory_result(self):
         value = self.cleaned_data.get("respiratory_result", "")
