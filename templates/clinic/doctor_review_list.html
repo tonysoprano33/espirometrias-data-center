@@ -50,6 +50,19 @@
         background: #fff;
         border: 1px solid #e2e8f0;
     }
+    .review-kpi.missing {
+        background: linear-gradient(180deg, #f8fafc, #eef2f7);
+        border-color: #cbd5e1;
+    }
+    .review-kpi.pending {
+        background: linear-gradient(180deg, #fff3d6, #ffe5ad);
+        border-color: #f59e0b;
+        box-shadow: 0 14px 28px rgba(217, 119, 6, .16);
+    }
+    .review-kpi.done {
+        background: linear-gradient(180deg, #e6f7ed, #d7f1e1);
+        border-color: #22a06b;
+    }
     .review-kpi strong {
         font-size: 1.8rem;
         color: #0f3344;
@@ -80,6 +93,33 @@
     }
     .review-card.today {
         border-left: 4px solid #0f5a5f;
+    }
+    .review-card.missing_pdf {
+        background: linear-gradient(90deg, #f8fafc 0%, #ffffff 58%);
+        border-color: #d6e0e8;
+        border-left: 5px solid #94a3b8;
+        opacity: .88;
+    }
+    .review-card.pending {
+        background:
+            linear-gradient(90deg, rgba(255, 247, 237, .98) 0%, rgba(255, 255, 255, .98) 54%),
+            #fff7ed;
+        border-color: #f59e0b;
+        border-left: 7px solid #ea8500;
+        box-shadow: 0 12px 30px rgba(217, 119, 6, .18);
+    }
+    .review-card.done {
+        background:
+            linear-gradient(90deg, rgba(236, 253, 245, .98) 0%, rgba(255, 255, 255, .98) 58%),
+            #ecfdf5;
+        border-color: #1f9d66;
+        border-left: 7px solid #178a55;
+    }
+    .review-card.pending .patient-name {
+        color: #9a4d00;
+    }
+    .review-card.done .patient-name {
+        color: #0f5f3d;
     }
     .review-date-box {
         font-size: 0.85rem;
@@ -121,6 +161,48 @@
         font-size: 0.9rem;
         font-weight: 700;
         text-transform: uppercase;
+    }
+    .review-card.pending .doctor-open-button {
+        background: #e38b22;
+        box-shadow: 0 10px 22px rgba(227, 139, 34, .24);
+        font-size: 1rem;
+    }
+    .review-card.done .doctor-open-button {
+        background: #178a55;
+    }
+    .state-pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        font-weight: 900;
+        letter-spacing: .02em;
+        text-transform: uppercase;
+    }
+    .state-pill.missing_pdf {
+        background: #e2e8f0;
+        color: #475569;
+    }
+    .state-pill.pending {
+        background: #ffedd5;
+        color: #9a4d00;
+        border: 1px solid #f59e0b;
+    }
+    .state-pill.done {
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #86d49d;
+    }
+    .review-help {
+        margin-top: 5px;
+        color: #526879;
+        font-size: .82rem;
+        font-weight: 700;
+    }
+    .review-card.pending .review-help {
+        color: #9a4d00;
+    }
+    .review-card.done .review-help {
+        color: #166534;
     }
     .pagination {
         display: flex;
@@ -226,17 +308,17 @@
     </div>
 
     <div class="review-kpis" aria-label="Resumen de revisiones">
-        <div class="review-kpi pending">
-            <strong>{{ review_counters.pending }}</strong>
-            <span>Pendientes</span>
-        </div>
         <div class="review-kpi missing">
             <strong>{{ review_counters.missing_pdf }}</strong>
-            <span>Sin PDF</span>
+            <span>Falta atender / PDF</span>
+        </div>
+        <div class="review-kpi pending">
+            <strong>{{ review_counters.pending }}</strong>
+            <span>Para revisar</span>
         </div>
         <div class="review-kpi done">
             <strong>{{ review_counters.done }}</strong>
-            <span>Resueltos</span>
+            <span>Con resultado</span>
         </div>
     </div>
 
@@ -255,6 +337,7 @@
                         <span class="meta-chip">{{ card.encounter.patient.dni|default:"-" }}</span>
                         <span class="state-pill {{ card.review_state }}" style="font-size: 0.7rem; padding: 4px 8px;">{{ card.state_label }}</span>
                     </div>
+                    <div class="review-help">{{ card.state_help }}</div>
                 </div>
 
                 <div class="action-panel">

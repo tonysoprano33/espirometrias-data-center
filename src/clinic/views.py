@@ -2650,12 +2650,12 @@ def doctor_review_list(request):
     for enc in counter_qs:
         has_pdf = enc.attachments.filter(file_kind=AttachmentKind.PDF_RESULTADO).exists()
         is_done = enc.status in done_statuses
-        if not has_pdf:
-            counters["missing_pdf"] += 1
-        elif is_done:
+        if is_done:
             counters["done"] += 1
-        else:
+        elif enc.attended and has_pdf:
             counters["pending"] += 1
+        else:
+            counters["missing_pdf"] += 1
 
     for encounter in encounters_qs.order_by("-encounter_date", "-created_at"):
         pdf_attachment = get_latest_result_attachment(encounter)
@@ -2663,24 +2663,24 @@ def doctor_review_list(request):
         has_pdf = bool(pdf_attachment)
         is_done = encounter.status in done_statuses
 
-        if not has_pdf:
-            review_state = "missing_pdf"
-            state_label = "Falta subir PDF"
-            state_help = "Recepcion todavia no cargo el resultado."
-            action_label = "Abrir ficha"
-            priority = 2
-        elif is_done:
+        if is_done:
             review_state = "done"
             state_label = "Resultado listo"
             state_help = f"Resultado cargado: {result_code or 'N/A'}."
             action_label = "Ver revision"
             priority = 3
-        else:
+        elif encounter.attended and has_pdf:
             review_state = "pending"
-            state_label = "Pendiente"
-            state_help = "PDF cargado. Falta revision."
-            action_label = "Abrir resultado"
+            state_label = "Revisar ahora"
+            state_help = "Paciente atendido con PDF cargado. Falta que el medico marque el resultado."
+            action_label = "Revisar PDF"
             priority = 1
+        else:
+            review_state = "missing_pdf"
+            state_label = "Sin PDF / no atendido"
+            state_help = "Todavia no esta listo para revision medica."
+            action_label = "Abrir ficha"
+            priority = 2
 
         review_cards.append(
             {
