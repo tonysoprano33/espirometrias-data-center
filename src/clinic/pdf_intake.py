@@ -693,6 +693,22 @@ def extract_profile_values_from_labeled_text(text_lines: list[str]) -> dict:
     return values
 
 
+def clean_profile_snapshot_values(snapshot: dict) -> dict:
+    if not snapshot:
+        return snapshot
+    if snapshot.get("smoking_status"):
+        normalized_smoking = normalize_for_match(snapshot["smoking_status"])
+        normalized_names = {
+            normalize_for_match(f"{snapshot.get('last_name', '')} {snapshot.get('first_name', '')}"),
+            normalize_for_match(f"{snapshot.get('first_name', '')} {snapshot.get('last_name', '')}"),
+        }
+        if normalized_smoking.startswith("GRUPOPACIENTE") or normalized_smoking in normalized_names:
+            snapshot["smoking_status"] = ""
+    if snapshot.get("ethnicity") and normalize_for_match(snapshot["ethnicity"]) in {"CAUCSICO", "CAUCASICO"}:
+        snapshot["ethnicity"] = "Caucásico"
+    return snapshot
+
+
 def profile_standalone_label_for_line(line: str):
     normalized_line = normalize_for_match(line)
     for field_name, label_options in PROFILE_STANDALONE_LABELS:
@@ -844,6 +860,7 @@ def extract_patient_snapshot_from_text(raw_text: str):
             normalize_for_match(f"{snapshot['first_name']} {snapshot['last_name']}"),
         }:
             snapshot["patient_group"] = ""
+    snapshot = clean_profile_snapshot_values(snapshot)
 
     if snapshot["last_name"] and snapshot["first_name"]:
         snapshot["full_name"] = f"{snapshot['last_name']}, {snapshot['first_name']}"

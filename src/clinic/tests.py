@@ -6,7 +6,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
-from .models import CoverageType, Encounter, EncounterStatus, Patient, SpirometryResult, StudyType, VitalSigns, WalkTest
+from .models import Attachment, AttachmentKind, CoverageType, Encounter, EncounterStatus, Patient, SpirometryResult, StudyType, VitalSigns, WalkTest
 from .pdf_intake import (
     build_analysis_from_text,
     build_spirometry_analysis,
@@ -259,6 +259,63 @@ class DoctorReviewViewTests(TestCase):
         self.assertEqual(self.patient.gender, "Femenino")
         self.assertEqual(self.patient.height_cm, 154)
         self.assertEqual(str(self.patient.bmi), "42.17")
+
+    def test_save_review_re_reads_existing_pdf_and_autofills_profile(self):
+        self.client.force_login(self.user)
+        Attachment.objects.create(
+            encounter=self.encounter,
+            file_kind=AttachmentKind.PDF_RESULTADO,
+            original_name="castro.pdf",
+            file="encounters/45/castro.pdf",
+            mime_type="application/pdf",
+            uploaded_by=self.user,
+        )
+        analysis = {
+            "source": "server-pdf-text",
+            "code": "RS",
+            "probability": 99,
+            "summary": "99% probable RS.",
+            "values": {
+                "fvc": {"lln": 1.96, "predicted": 2.90, "best": 0.68, "percent": 23},
+                "fev1": {"lln": 1.62, "predicted": 2.23, "best": 0.59, "percent": 26},
+                "fev1_fvc": {"lln": 66.1, "predicted": 77.7, "best": 86.8, "percent": 112},
+            },
+            "snapshot": {
+                "patient_code": "12231324",
+                "dni": "12231324",
+                "last_name": "CASTRO",
+                "first_name": "ARGENTINA",
+                "full_name": "CASTRO, ARGENTINA",
+                "birth_date": date(1955, 12, 25),
+                "age_reported": 70,
+                "gender": "Femenino",
+                "height_cm": 165,
+                "weight_kg": "63",
+                "bmi": "23.14",
+                "ethnicity": "Caucásico",
+            },
+        }
+
+        self.patient.full_name = "CASTRO ARGENTINA"
+        self.patient.dni = "12231324"
+        self.patient.save(update_fields=["full_name", "dni", "updated_at"])
+        with patch("clinic.views.build_analysis_for_uploaded_result", return_value=analysis):
+            response = self.client.post(
+                reverse("clinic:doctor_review_detail", args=[self.encounter.pk]),
+                {
+                    "pdf_file": "",
+                    "respiratory_result": "RS",
+                    "analysis_payload_json": "",
+                },
+            )
+
+        self.assertRedirects(response, reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+        self.patient.refresh_from_db()
+        self.assertEqual(self.patient.gender, "Femenino")
+        self.assertEqual(self.patient.birth_date, date(1955, 12, 25))
+        self.assertEqual(self.patient.age_reported, 70)
+        self.assertEqual(self.patient.height_cm, 165)
+        self.assertEqual(str(self.patient.bmi), "23.14")
 
 
 class DrappImportDeduplicationTests(TestCase):

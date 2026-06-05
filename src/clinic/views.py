@@ -270,6 +270,30 @@ def store_spirometry_analysis(encounter, analysis: dict):
     return result
 
 
+def apply_profile_analysis_to_encounter(encounter, analysis: dict):
+    snapshot = (analysis or {}).get("snapshot") or {}
+    if not snapshot:
+        return {}, [], False
+
+    snapshot_full_name = normalize_identity_value(
+        snapshot.get("full_name")
+        or f"{snapshot.get('last_name', '')} {snapshot.get('first_name', '')}"
+    )
+    patient_full_name = normalize_identity_value(getattr(encounter.patient, "full_name", "") or "")
+    name_mismatch = bool(snapshot_full_name and patient_full_name and snapshot_full_name != patient_full_name)
+    should_update_full_name = not name_mismatch or can_autofill_missing_identity(encounter.patient, snapshot)
+    patient_identity_mismatch = not snapshot_matches_patient(encounter.patient, snapshot)
+    changed_fields = []
+    if not patient_identity_mismatch:
+        _, changed_fields = apply_snapshot_to_encounter_patient(
+            encounter,
+            snapshot,
+            update_full_name=should_update_full_name,
+        )
+        encounter.refresh_from_db()
+    return snapshot, changed_fields, patient_identity_mismatch
+
+
 def build_stored_suggestion_context(spirometry_result):
     if not spirometry_result or not spirometry_result.suggested_code:
         return None
@@ -2733,23 +2757,7 @@ def doctor_review_detail(request, pk):
                 patient_identity_mismatch = False
                 try:
                     analysis = build_analysis_for_uploaded_result(attachment, analysis_payload_json=analysis_payload_json)
-                    snapshot = analysis.get("snapshot") or {}
-                    if snapshot:
-                        snapshot_full_name = normalize_identity_value(
-                            snapshot.get("full_name")
-                            or f"{snapshot.get('last_name', '')} {snapshot.get('first_name', '')}"
-                        )
-                        patient_full_name = normalize_identity_value(getattr(encounter.patient, "full_name", "") or "")
-                        name_mismatch = bool(snapshot_full_name and patient_full_name and snapshot_full_name != patient_full_name)
-                        should_update_full_name = not name_mismatch or can_autofill_missing_identity(encounter.patient, snapshot)
-                        patient_identity_mismatch = not snapshot_matches_patient(encounter.patient, snapshot)
-                        if not patient_identity_mismatch:
-                            _, changed_fields = apply_snapshot_to_encounter_patient(
-                                encounter,
-                                snapshot,
-                                update_full_name=should_update_full_name,
-                            )
-                            encounter.refresh_from_db()
+                    snapshot, changed_fields, patient_identity_mismatch = apply_profile_analysis_to_encounter(encounter, analysis)
                     if analysis.get("values"):
                         store_spirometry_analysis(encounter, analysis)
                 except Exception as error:
@@ -2784,6 +2792,22 @@ def doctor_review_detail(request, pk):
                     extraction_message = f" Sugerencia automatica: {analysis.get('summary')}."
                 elif file_kind == AttachmentKind.FOTO_RESULTADO:
                     extraction_message = " Foto cargada correctamente."
+            else:
+                pdf_attachment = get_latest_result_attachment(encounter)
+                if pdf_attachment:
+                    try:
+                        analysis = build_analysis_for_uploaded_result(pdf_attachment, analysis_payload_json=analysis_payload_json)
+                        snapshot, changed_fields, patient_identity_mismatch = apply_profile_analysis_to_encounter(encounter, analysis)
+                        if analysis.get("values"):
+                            store_spirometry_analysis(encounter, analysis)
+                        if snapshot and not patient_identity_mismatch:
+                            extracted_name = snapshot.get("full_name") or encounter.patient.full_name
+                            extracted_code = snapshot.get("patient_code") or snapshot.get("dni") or "-"
+                            extraction_message = f" PDF revisado: {extracted_name} / doc {extracted_code}."
+                            if changed_fields:
+                                extraction_message += f" Datos actualizados: {', '.join(changed_fields)}."
+                    except Exception as error:
+                        messages.warning(request, f"No se pudieron releer los datos del PDF ya cargado: {error}")
 
             result_code = form.cleaned_data.get("respiratory_result") or current_result or ""
             if not result_code:
