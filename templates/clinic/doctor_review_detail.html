@@ -89,6 +89,14 @@
         display: block;
         background: #fff;
     }
+    .pdf-page-frame.spirometry-primary .pdf-page-viewport {
+        height: calc(100vh - 92px);
+        min-height: 940px;
+    }
+    .pdf-page-frame.spirometry-primary .pdf-page-image {
+        width: 84%;
+        max-width: 980px;
+    }
     .review-panel-compact {
         position: sticky;
         top: 10px;
@@ -173,6 +181,13 @@
         }
         .pdf-page-image {
             width: 95%;
+        }
+        .pdf-page-frame.spirometry-primary .pdf-page-viewport {
+            height: calc(100vh - 110px);
+            min-height: 860px;
+        }
+        .pdf-page-frame.spirometry-primary .pdf-page-image {
+            width: 88%;
         }
         .review-panel-compact {
             font-size: .9rem;
@@ -270,7 +285,7 @@
             {% if pdf_preview_pages %}
                 <div class="pdf-page-stack">
                     {% for page in pdf_preview_pages %}
-                        <figure class="pdf-page-frame">
+                        <figure class="pdf-page-frame{% if not result_attachment_is_image and page.index == 1 %} spirometry-primary{% endif %}">
                             <div class="muted pdf-page-label">
                                 {% if result_attachment_is_image %}Foto del resultado{% else %}Pagina {{ page.index }}{% endif %}
                             </div>
