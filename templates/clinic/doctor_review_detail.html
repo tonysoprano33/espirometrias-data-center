@@ -107,7 +107,31 @@
     }
     .review-panel-compact .suggestion-box {
         margin: 8px 0 10px;
-        padding: 10px;
+        padding: 12px;
+        border: 2px solid #6eb8d8;
+        border-radius: 16px;
+        background: linear-gradient(180deg, #eefafd, #d9f3fb);
+        box-shadow: 0 12px 26px rgba(53, 141, 181, .14);
+    }
+    .review-panel-compact .suggestion-box .muted {
+        color: #256682;
+    }
+    .review-panel-compact .suggestion-box .button {
+        background: #2e9bc2;
+        border-color: #2e9bc2;
+    }
+    .review-panel-compact .suggestion-box .button:hover {
+        background: #2287ab;
+        border-color: #2287ab;
+    }
+    .review-panel-compact .suggestion-box .measurement-grid div {
+        border: 1px solid rgba(46, 155, 194, .26);
+        background: rgba(255,255,255,.9);
+    }
+    .review-panel-compact .suggestion-box .suggestion-code {
+        background: linear-gradient(180deg, #38a8d2, #2088b2);
+        border: 1px solid #17799e;
+        color: #fff;
     }
     .review-panel-compact .measurement-grid {
         grid-template-columns: 1fr;
@@ -136,6 +160,7 @@
         border-radius: 16px;
         background: linear-gradient(180deg, #fff7d6, #fff0b5);
         box-shadow: 0 14px 28px rgba(227, 139, 34, .18);
+        transition: background .18s ease, border-color .18s ease, box-shadow .18s ease;
     }
     .doctor-result-field label {
         display: block;
@@ -157,12 +182,50 @@
         font-weight: 900;
         text-transform: uppercase;
         letter-spacing: .05em;
+        transition: border-color .18s ease, background .18s ease, color .18s ease, box-shadow .18s ease;
     }
     .doctor-result-help {
         margin: 8px 0 0;
         color: #7a3a00;
         font-size: .92rem;
         font-weight: 800;
+    }
+    .doctor-result-state {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 10px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(227, 139, 34, .12);
+        color: #8a4300;
+        font-size: .82rem;
+        font-weight: 900;
+        letter-spacing: .03em;
+        text-transform: uppercase;
+    }
+    .doctor-result-field.has-value {
+        border-color: #d3a900;
+        background: linear-gradient(180deg, #fff8de, #fff3bf);
+    }
+    .doctor-result-field.is-saved {
+        border-color: #3ea76a;
+        background: linear-gradient(180deg, #ebfbf1, #d8f6e3);
+        box-shadow: 0 14px 28px rgba(62, 167, 106, .16);
+    }
+    .doctor-result-field.is-saved label,
+    .doctor-result-field.is-saved .doctor-result-help {
+        color: #1d6c43;
+    }
+    .doctor-result-field.is-saved input {
+        border-color: #3ea76a;
+        background: #f8fffa;
+        color: #115233;
+        box-shadow: inset 0 0 0 1px rgba(62, 167, 106, .12);
+    }
+    .doctor-result-field.is-saved .doctor-result-state {
+        background: rgba(62, 167, 106, .14);
+        color: #1d6c43;
     }
     .save-result-button {
         min-height: 58px;
@@ -364,10 +427,13 @@
             {% csrf_token %}
             {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
             <div class="form-grid" style="grid-template-columns:1fr;">
-                <div class="field doctor-result-field">
+                <div class="field doctor-result-field{% if current_result %} is-saved{% endif %}" data-doctor-result-field data-saved-value="{{ current_result|default:'' }}">
                     <label for="{{ form.respiratory_result.id_for_label }}">Resultado final del medico</label>
                     {{ form.respiratory_result }}
                     <p class="doctor-result-help">Aca va el resultado final elegido por el medico.</p>
+                    <div class="doctor-result-state" data-doctor-result-state>
+                        {% if current_result %}Resultado guardado{% else %}Pendiente de guardar{% endif %}
+                    </div>
                     {% if form.respiratory_result.errors %}
                         <div class="muted">{{ form.respiratory_result.errors }}</div>
                     {% endif %}
@@ -408,9 +474,40 @@
         }
         var useSuggestion = document.querySelector("[data-use-suggestion]");
         var suggestedCode = document.querySelector("[data-suggested-code]");
+        var doctorResultField = document.querySelector("[data-doctor-result-field]");
+        var doctorResultState = document.querySelector("[data-doctor-result-state]");
+
+        function syncDoctorResultState() {
+            if (!doctorResultField || !resultInputs.length) {
+                return;
+            }
+            var currentValue = String(resultInputs[0].value || "").trim();
+            var savedValue = String(doctorResultField.getAttribute("data-saved-value") || "").trim();
+            var hasValue = !!currentValue;
+            var isSaved = !!savedValue && currentValue === savedValue;
+            doctorResultField.classList.toggle("has-value", hasValue && !isSaved);
+            doctorResultField.classList.toggle("is-saved", isSaved);
+            if (doctorResultState) {
+                if (isSaved) {
+                    doctorResultState.textContent = "Resultado guardado";
+                } else if (hasValue) {
+                    doctorResultState.textContent = "Resultado listo para guardar";
+                } else {
+                    doctorResultState.textContent = "Pendiente de guardar";
+                }
+            }
+        }
+
+        syncDoctorResultState();
+        for (var resultIndex = 0; resultIndex < resultInputs.length; resultIndex += 1) {
+            resultInputs[resultIndex].addEventListener("input", syncDoctorResultState);
+            resultInputs[resultIndex].addEventListener("change", syncDoctorResultState);
+        }
+
         if (useSuggestion && suggestedCode && resultInputs.length) {
             useSuggestion.addEventListener("click", function () {
                 resultInputs[0].value = suggestedCode.textContent.replace(/\s+/g, "");
+                syncDoctorResultState();
                 resultInputs[0].focus();
             });
         }

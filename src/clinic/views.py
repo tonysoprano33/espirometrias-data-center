@@ -2883,6 +2883,7 @@ def doctor_review_detail(request, pk):
         {
             "encounter": encounter,
             "form": form,
+            "current_result": current_result,
             "pdf_attachment": pdf_attachment,
             "pdf_preview_pages": pdf_preview_pages,
             "preview_error": preview_error,
