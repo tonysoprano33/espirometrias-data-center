@@ -10,6 +10,7 @@ from .models import CoverageType, Encounter, EncounterStatus, Patient, Spirometr
 from .pdf_intake import (
     build_analysis_from_text,
     build_spirometry_analysis,
+    snapshot_with_computed_age,
     extract_patient_snapshot_from_text,
     extract_spirometry_numbers_from_text,
 )
@@ -202,6 +203,62 @@ class DoctorReviewViewTests(TestCase):
         self.assertEqual(self.encounter.status, EncounterStatus.PENDIENTE)
         self.assertEqual(self.encounter.spirometry_result.suggested_code, "RM")
         self.assertEqual(self.encounter.spirometry_result.respiratory_pattern, "")
+
+    def test_upload_autofills_missing_document_and_profile_without_replacing_mismatched_name(self):
+        self.client.force_login(self.user)
+        self.patient.full_name = "ASDASDAS"
+        self.patient.dni = None
+        self.patient.save(update_fields=["full_name", "dni", "updated_at"])
+        pdf_file = SimpleUploadedFile("palermo.pdf", b"%PDF-1.4 fake", content_type="application/pdf")
+        analysis = {
+            "source": "browser-pdf-text",
+            "code": "N",
+            "probability": 99,
+            "summary": "99% probable N.",
+            "values": {
+                "fvc": {"lln": 1.79, "predicted": 2.50, "best": 2.37, "percent": 95},
+                "fev1": {"lln": 1.48, "predicted": 2.11, "best": 2.34, "percent": 111},
+                "fev1_fvc": {"lln": 67.9, "predicted": 78.6, "best": 98.7, "percent": 125},
+            },
+            "snapshot": {
+                "patient_code": "12345678",
+                "dni": "12345678",
+                "last_name": "MARTIN",
+                "first_name": "PALERMO",
+                "full_name": "MARTIN, PALERMO",
+                "birth_date": date(1970, 11, 23),
+                "age_reported": 23,
+                "gender": "Femenino",
+                "height_cm": 154,
+                "weight_kg": "100",
+                "bmi": "42.17",
+                "ethnicity": "Caucasico",
+                "smoking_status": "No fumador",
+            },
+        }
+
+        with patch("clinic.views.build_analysis_for_uploaded_result", return_value=analysis):
+            response = self.client.post(
+                reverse("clinic:doctor_review_detail", args=[self.encounter.pk]),
+                {
+                    "pdf_file": pdf_file,
+                    "respiratory_result": "",
+                    "analysis_payload_json": "{}",
+                },
+            )
+
+        self.assertRedirects(response, reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+        self.patient.refresh_from_db()
+        self.assertEqual(self.patient.full_name, "ASDASDAS")
+        self.assertEqual(self.patient.dni, "12345678")
+        self.assertEqual(self.patient.patient_code, "12345678")
+        self.assertEqual(self.patient.last_name, "MARTIN")
+        self.assertEqual(self.patient.first_name, "PALERMO")
+        self.assertEqual(self.patient.birth_date, date(1970, 11, 23))
+        self.assertEqual(self.patient.age_reported, 55)
+        self.assertEqual(self.patient.gender, "Femenino")
+        self.assertEqual(self.patient.height_cm, 154)
+        self.assertEqual(str(self.patient.bmi), "42.17")
 
 
 class DrappImportDeduplicationTests(TestCase):
@@ -428,7 +485,48 @@ class SpirometryPdfParsingTests(SimpleTestCase):
         self.assertEqual(snapshot["height_cm"], 164)
         self.assertEqual(snapshot["weight_kg"], 88)
         self.assertEqual(str(snapshot["bmi"]), "32.72")
-        self.assertEqual(snapshot["ethnicity"], "Caucasico")
+        self.assertEqual(snapshot["ethnicity"], "Caucásico")
+
+    def test_reads_vertical_patient_profile_block_and_computes_age_from_birth_date(self):
+        snapshot = extract_patient_snapshot_from_text(
+            "\n".join(
+                [
+                    "Fecha de visita 04/06/2026",
+                    "Cod. paciente 12345678 Edad 23",
+                    "Apellido",
+                    "Nom.",
+                    "Fecha de nacimien",
+                    "Grupo etnico",
+                    "Fuma",
+                    "Grupo pacientes",
+                    "MARTIN",
+                    "PALERMO",
+                    "23/11/1970",
+                    "Caucasico",
+                    "No fumador",
+                    "Genero Femenino",
+                    "Altura, cm 154",
+                    "Peso:, kg 100",
+                    "BMI 42,17",
+                    "Paquete-ano",
+                ]
+            )
+        )
+        snapshot = snapshot_with_computed_age(snapshot, date(2026, 6, 5))
+
+        self.assertEqual(snapshot["patient_code"], "12345678")
+        self.assertEqual(snapshot["dni"], "12345678")
+        self.assertEqual(snapshot["last_name"], "MARTIN")
+        self.assertEqual(snapshot["first_name"], "PALERMO")
+        self.assertEqual(snapshot["full_name"], "MARTIN, PALERMO")
+        self.assertEqual(snapshot["birth_date"], date(1970, 11, 23))
+        self.assertEqual(snapshot["age_reported"], 55)
+        self.assertEqual(snapshot["gender"], "Femenino")
+        self.assertEqual(snapshot["height_cm"], 154)
+        self.assertEqual(snapshot["weight_kg"], 100)
+        self.assertEqual(str(snapshot["bmi"]), "42.17")
+        self.assertEqual(snapshot["ethnicity"], "Caucásico")
+        self.assertEqual(snapshot["smoking_status"], "No fumador")
 
 
 class PrintReportViewTests(TestCase):

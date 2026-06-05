@@ -606,6 +606,7 @@ def value_after_any_label(text_lines: list[str], labels: list[str]) -> str:
 
 
 PROFILE_LABEL_PATTERNS = [
+    ("visit_date", r"Fecha\s+de\s+visita"),
     ("patient_code", r"(?:C[oó]d\.?|Codigo|C[oó]digo)\s*(?:de\s*)?paciente"),
     ("dni", r"\b(?:DNI|Documento)\b"),
     ("last_name", r"\bApellido\b"),
@@ -622,6 +623,26 @@ PROFILE_LABEL_PATTERNS = [
     ("patient_group", r"Grupo\s+pacientes?"),
 ]
 
+PROFILE_STANDALONE_LABELS = [
+    ("last_name", ["apellido"]),
+    ("first_name", ["nom", "nombre"]),
+    ("birth_date", ["fecha de nacimien", "fecha de nacimiento", "fecha de nac"]),
+    ("ethnicity", ["grupo etnico"]),
+    ("smoking_status", ["fuma"]),
+    ("patient_group", ["grupo pacientes", "grupo paciente"]),
+]
+
+PROFILE_BLOCK_STOP_PREFIXES = [
+    "FECHAPRUEBA",
+    "PARAMETROS",
+    "FVC",
+    "FEV1",
+    "PEF",
+    "ELA",
+    "FET",
+    "INFORMEMEDICO",
+]
+
 
 def clean_profile_value(raw_value: str) -> str:
     return collapse_spaces(raw_value).strip(" :-;,.")
@@ -634,12 +655,14 @@ def parse_profile_field(field_name: str, raw_value: str):
     if field_name in {"patient_code", "dni"}:
         match = re.search(r"[0-9][0-9.\-]{3,}", value)
         return match.group(0) if match else value
-    if field_name == "birth_date":
+    if field_name in {"birth_date", "visit_date"}:
         return parse_date(value)
     if field_name in {"age_reported", "height_cm"}:
         return parse_integer(value)
     if field_name in {"weight_kg", "bmi", "pack_years"}:
         return parse_decimal(value)
+    if field_name == "ethnicity" and normalize_for_match(value) in {"CAUCSICO", "CAUCASICO"}:
+        return "Caucásico"
     return value
 
 
@@ -667,6 +690,58 @@ def extract_profile_values_from_labeled_text(text_lines: list[str]) -> dict:
         for field_name, value in extract_profile_values_from_line(line).items():
             if value not in [None, ""]:
                 values[field_name] = value
+    return values
+
+
+def profile_standalone_label_for_line(line: str):
+    normalized_line = normalize_for_match(line)
+    for field_name, label_options in PROFILE_STANDALONE_LABELS:
+        if normalized_line in {normalize_for_match(label) for label in label_options}:
+            return field_name
+    return None
+
+
+def should_stop_profile_value_block(line: str) -> bool:
+    normalized_line = normalize_for_match(line)
+    return any(normalized_line.startswith(prefix) for prefix in PROFILE_BLOCK_STOP_PREFIXES)
+
+
+def extract_vertical_profile_values(text_lines: list[str]) -> dict:
+    values = {}
+    index = 0
+    while index < len(text_lines):
+        field_name = profile_standalone_label_for_line(text_lines[index])
+        if not field_name:
+            index += 1
+            continue
+
+        labels = []
+        cursor = index
+        while cursor < len(text_lines):
+            label_field = profile_standalone_label_for_line(text_lines[cursor])
+            if not label_field:
+                break
+            labels.append(label_field)
+            cursor += 1
+
+        raw_values = []
+        value_cursor = cursor
+        while value_cursor < len(text_lines) and len(raw_values) < len(labels):
+            line = text_lines[value_cursor]
+            if profile_standalone_label_for_line(line) or extract_profile_values_from_line(line) or should_stop_profile_value_block(line):
+                break
+            raw_values.append(line)
+            value_cursor += 1
+
+        if labels and raw_values:
+            for label_field, raw_value in zip(labels, raw_values):
+                parsed_value = parse_profile_field(label_field, raw_value)
+                if parsed_value not in [None, ""]:
+                    values[label_field] = parsed_value
+            index = value_cursor
+            continue
+
+        index += 1
     return values
 
 
@@ -729,6 +804,7 @@ def extract_patient_snapshot_from_text(raw_text: str):
         return ""
 
     snapshot = {
+        "visit_date": parse_date(find_value([r"Fecha\s+de\s+visita[:\s]+([0-9/\-]{8,10})"])),
         "patient_code": find_value(
             [
                 "line:codigo de paciente",
@@ -755,9 +831,19 @@ def extract_patient_snapshot_from_text(raw_text: str):
     for field_name, value in extract_profile_values_from_labeled_text(text_lines).items():
         if value not in [None, ""]:
             snapshot[field_name] = value
+    for field_name, value in extract_vertical_profile_values(text_lines).items():
+        if value not in [None, ""]:
+            snapshot[field_name] = value
     snapshot = fill_snapshot_from_labeled_lines(snapshot, text_lines)
     if not snapshot.get("dni") and snapshot.get("patient_code"):
         snapshot["dni"] = snapshot["patient_code"]
+    if snapshot.get("patient_group") and snapshot.get("last_name") and snapshot.get("first_name"):
+        normalized_group = normalize_for_match(snapshot["patient_group"])
+        if normalized_group in {
+            normalize_for_match(f"{snapshot['last_name']} {snapshot['first_name']}"),
+            normalize_for_match(f"{snapshot['first_name']} {snapshot['last_name']}"),
+        }:
+            snapshot["patient_group"] = ""
 
     if snapshot["last_name"] and snapshot["first_name"]:
         snapshot["full_name"] = f"{snapshot['last_name']}, {snapshot['first_name']}"
@@ -820,7 +906,7 @@ def extract_patient_snapshot_from_pdf(pdf_path: str, attachment_id: int | None =
     return snapshot
 
 
-def apply_snapshot_to_patient(patient, snapshot: dict):
+def apply_snapshot_to_patient(patient, snapshot: dict, *, update_full_name: bool = True):
     if not snapshot:
         return []
 
@@ -856,7 +942,7 @@ def apply_snapshot_to_patient(patient, snapshot: dict):
             patient.dni = extracted_dni
             changed_fields.append("dni")
 
-    extracted_full_name = snapshot.get("full_name")
+    extracted_full_name = snapshot.get("full_name") if update_full_name else ""
     if extracted_full_name and patient.full_name != extracted_full_name:
         patient.full_name = extracted_full_name
         changed_fields.append("full_name")
@@ -887,6 +973,26 @@ def find_existing_patient_for_snapshot(current_patient, snapshot: dict):
     return None
 
 
+def calculate_age_on_date(birth_date, reference_date):
+    if not birth_date or not reference_date:
+        return None
+    years = reference_date.year - birth_date.year
+    if (reference_date.month, reference_date.day) < (birth_date.month, birth_date.day):
+        years -= 1
+    return years if years >= 0 else None
+
+
+def snapshot_with_computed_age(snapshot: dict, reference_date=None) -> dict:
+    if not snapshot or not snapshot.get("birth_date"):
+        return snapshot
+    computed_age = calculate_age_on_date(snapshot.get("birth_date"), reference_date or snapshot.get("visit_date"))
+    if computed_age is None:
+        return snapshot
+    updated_snapshot = dict(snapshot)
+    updated_snapshot["age_reported"] = computed_age
+    return updated_snapshot
+
+
 def build_analysis_from_text(raw_text: str, source: str = "text"):
     text = "\n".join(split_text_lines(raw_text))
     if not text:
@@ -912,7 +1018,8 @@ def build_analysis_from_browser_payload(raw_payload):
     return build_analysis_from_text(text, source=source or "browser")
 
 
-def apply_snapshot_to_encounter_patient(encounter, snapshot: dict):
+def apply_snapshot_to_encounter_patient(encounter, snapshot: dict, *, update_full_name: bool = True):
+    snapshot = snapshot_with_computed_age(snapshot, getattr(encounter, "encounter_date", None))
     patient = encounter.patient
     target_patient = find_existing_patient_for_snapshot(patient, snapshot) or patient
     changed_fields = []
@@ -922,7 +1029,7 @@ def apply_snapshot_to_encounter_patient(encounter, snapshot: dict):
         encounter.save(update_fields=["patient", "updated_at"])
         changed_fields.append("historia_clinica_unificada")
 
-    changed_fields.extend(apply_snapshot_to_patient(target_patient, snapshot))
+    changed_fields.extend(apply_snapshot_to_patient(target_patient, snapshot, update_full_name=update_full_name))
     return target_patient, sorted(set(changed_fields))
 
 
@@ -931,6 +1038,7 @@ def ingest_pdf_attachment_into_patient(attachment):
         return {}, []
     snapshot = extract_patient_snapshot_from_pdf(attachment.file.path, attachment_id=attachment.pk)
     encounter = attachment.encounter
+    snapshot = snapshot_with_computed_age(snapshot, getattr(encounter, "encounter_date", None))
     patient = encounter.patient
     target_patient = find_existing_patient_for_snapshot(patient, snapshot) or patient
     changed_fields = []

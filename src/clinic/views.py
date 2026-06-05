@@ -149,14 +149,30 @@ def normalize_identity_value(value: str) -> str:
     return normalize_for_match(collapse_spaces(value or ""))
 
 
+def identity_digits(value: str) -> str:
+    return re.sub(r"\D+", "", str(value or ""))
+
+
+def has_complete_identity_document(value: str) -> bool:
+    return len(identity_digits(value)) >= 7
+
+
+def can_autofill_missing_identity(patient, snapshot: dict) -> bool:
+    snapshot_dni = normalize_identity_value(snapshot.get("dni") or snapshot.get("patient_code") or "")
+    patient_dni = normalize_identity_value(getattr(patient, "dni", "") or getattr(patient, "patient_code", "") or "")
+    return bool(snapshot_dni) and not has_complete_identity_document(patient_dni)
+
+
 def snapshot_matches_patient(patient, snapshot: dict) -> bool:
     if not patient or not snapshot:
         return True
 
     snapshot_dni = normalize_identity_value(snapshot.get("dni") or snapshot.get("patient_code") or "")
     patient_dni = normalize_identity_value(getattr(patient, "dni", "") or getattr(patient, "patient_code", "") or "")
-    if snapshot_dni and patient_dni:
+    if snapshot_dni and patient_dni and has_complete_identity_document(patient_dni):
         return snapshot_dni == patient_dni
+    if snapshot_dni and not has_complete_identity_document(patient_dni):
+        return True
 
     snapshot_full_name = normalize_identity_value(
         snapshot.get("full_name")
@@ -2719,9 +2735,19 @@ def doctor_review_detail(request, pk):
                     analysis = build_analysis_for_uploaded_result(attachment, analysis_payload_json=analysis_payload_json)
                     snapshot = analysis.get("snapshot") or {}
                     if snapshot:
+                        snapshot_full_name = normalize_identity_value(
+                            snapshot.get("full_name")
+                            or f"{snapshot.get('last_name', '')} {snapshot.get('first_name', '')}"
+                        )
+                        patient_full_name = normalize_identity_value(getattr(encounter.patient, "full_name", "") or "")
+                        name_mismatch = bool(snapshot_full_name and patient_full_name and snapshot_full_name != patient_full_name)
                         patient_identity_mismatch = not snapshot_matches_patient(encounter.patient, snapshot)
                         if not patient_identity_mismatch:
-                            _, changed_fields = apply_snapshot_to_encounter_patient(encounter, snapshot)
+                            _, changed_fields = apply_snapshot_to_encounter_patient(
+                                encounter,
+                                snapshot,
+                                update_full_name=not name_mismatch,
+                            )
                             encounter.refresh_from_db()
                     if analysis.get("values"):
                         store_spirometry_analysis(encounter, analysis)
