@@ -498,6 +498,125 @@
             min-width: 980px;
         }
     }
+    @media (max-width: 1350px) {
+        .agenda-card {
+            padding: 10px;
+        }
+        .responsive-table-wrap.notebook-stack {
+            border-radius: 12px;
+        }
+        .responsive-table-wrap.notebook-stack .table {
+            min-width: 920px;
+        }
+        .responsive-table-wrap.notebook-stack thead tr,
+        .responsive-table-wrap.notebook-stack [data-encounter-row] {
+            grid-template-columns: 24px 50px minmax(190px, 2.15fr) 62px 36px 36px minmax(130px, 1.05fr) 70px 70px 58px 66px 62px 58px;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed {
+            grid-template-columns: 24px 50px minmax(210px, 2.3fr) 62px 36px 36px minmax(132px, 1fr) 70px 70px 58px 66px 62px;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row] {
+            min-height: 40px;
+            border-radius: 10px;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row] > td,
+        .responsive-table-wrap.notebook-stack thead th {
+            padding: 3px 3px;
+        }
+        .responsive-table-wrap.notebook-stack thead th {
+            font-size: .52rem;
+        }
+        .responsive-table-wrap.notebook-stack .cell-input,
+        .responsive-table-wrap.notebook-stack .inline-input,
+        .responsive-table-wrap.notebook-stack .result-input {
+            min-height: 22px;
+            padding: 2px 4px;
+            border-radius: 7px;
+            font-size: .62rem;
+        }
+        .responsive-table-wrap.notebook-stack .cell-time {
+            font-size: .62rem;
+        }
+        .responsive-table-wrap.notebook-stack .patient-cell .cell-input {
+            font-size: .66rem;
+            border-left-width: 4px;
+        }
+        .responsive-table-wrap.notebook-stack .vitals-cell[data-label="DNI"] .inline-display {
+            max-width: 100%;
+            padding: 0;
+            border: none;
+            background: transparent;
+            color: #0d3f55;
+            font-size: .72rem;
+            line-height: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .responsive-table-wrap.notebook-stack .study-cell .cell-select,
+        .responsive-table-wrap.notebook-stack td[data-label="Cobertura"] .cell-select,
+        .responsive-table-wrap.notebook-stack td[data-label="Dr. deriva"] .cell-select {
+            min-height: 22px;
+            font-size: .62rem;
+            line-height: 1;
+        }
+        .responsive-table-wrap.notebook-stack td[data-label="Dr. deriva"] .cell-select {
+            padding-left: 3px;
+            padding-right: 14px;
+        }
+        .responsive-table-wrap.notebook-stack .cell-small {
+            width: 29px;
+            max-width: 29px;
+            min-height: 22px;
+            font-size: .58rem;
+        }
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"]::before,
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"]::before {
+            width: 12px;
+            height: 16px;
+            flex-basis: 12px;
+            font-size: .5rem;
+        }
+        .responsive-table-wrap.notebook-stack .inline-pair {
+            gap: 1px;
+        }
+        .responsive-table-wrap.notebook-stack .inline-pair span {
+            font-size: .56rem;
+        }
+        .responsive-table-wrap.notebook-stack .result-input {
+            width: 48px !important;
+            min-width: 48px !important;
+            max-width: 48px;
+            font-size: .58rem;
+            border-width: 1px;
+        }
+        .responsive-table-wrap.notebook-stack .attendance-button,
+        .responsive-table-wrap.notebook-stack .button.small {
+            padding: 3px 4px;
+            border-radius: 7px;
+            font-size: .58rem;
+            line-height: 1;
+            min-height: 22px;
+        }
+        .responsive-table-wrap.notebook-stack .status-badge {
+            max-width: 58px;
+            padding: 3px 4px;
+            border-radius: 7px;
+            font-size: .58rem;
+            line-height: 1;
+        }
+        .responsive-table-wrap.notebook-stack .td-actions > div {
+            gap: 1px !important;
+        }
+        .responsive-table-wrap.notebook-stack .td-actions .button.small {
+            max-width: 54px;
+        }
+        .responsive-table-wrap.notebook-stack .td-actions a,
+        .responsive-table-wrap.notebook-stack .td-actions .muted,
+        .responsive-table-wrap.notebook-stack .td-actions .link-button {
+            font-size: .52rem;
+        }
+    }
     @media (max-width: 1500px) {
         .agenda-entry-panel,
         .doctor-mini-grid {
