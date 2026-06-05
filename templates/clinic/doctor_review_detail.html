@@ -52,7 +52,7 @@
         line-height: 1.1;
     }
     .review-workspace {
-        grid-template-columns: minmax(620px, 1.55fr) minmax(360px, .85fr);
+        grid-template-columns: minmax(720px, 1.75fr) minmax(340px, .65fr);
         gap: 14px;
         align-items: start;
     }
@@ -72,22 +72,16 @@
         font-size: .82rem;
     }
     .pdf-page-viewport {
-        height: calc(100vh - 158px);
-        min-height: 620px;
-        display: flex;
-        align-items: flex-start;
-        justify-content: center;
-        overflow: hidden;
+        max-height: none;
+        overflow: visible;
         border: 1px solid var(--line);
         border-radius: 12px;
         background: #fff;
     }
     .pdf-page-image {
-        width: auto;
+        width: 100%;
         max-width: 100%;
-        height: 100%;
-        object-fit: contain;
-        object-position: top center;
+        height: auto;
         display: block;
         background: #fff;
     }
@@ -123,14 +117,51 @@
     .review-panel-compact .button[type="submit"] {
         margin-top: 12px !important;
     }
+    .doctor-result-field {
+        padding: 14px;
+        border: 3px solid #e38b22;
+        border-radius: 16px;
+        background: linear-gradient(180deg, #fff7d6, #fff0b5);
+        box-shadow: 0 14px 28px rgba(227, 139, 34, .18);
+    }
+    .doctor-result-field label {
+        display: block;
+        color: #8a4300;
+        font-size: 1.18rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+    .doctor-result-field input {
+        width: 100%;
+        min-height: 68px;
+        margin-top: 8px;
+        border: 3px solid #d3a900;
+        border-radius: 14px;
+        background: #fffdf2;
+        color: #0f3344;
+        font-size: 2rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+    }
+    .doctor-result-help {
+        margin: 8px 0 0;
+        color: #7a3a00;
+        font-size: .92rem;
+        font-weight: 800;
+    }
+    .save-result-button {
+        min-height: 58px;
+        font-size: 1.2rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        box-shadow: 0 14px 30px rgba(13, 111, 138, .22);
+    }
     @media (max-width: 1500px) {
         .review-workspace {
-            grid-template-columns: minmax(560px, 1.7fr) minmax(320px, .7fr);
+            grid-template-columns: minmax(680px, 1.8fr) minmax(320px, .55fr);
             gap: 10px;
-        }
-        .pdf-page-viewport {
-            height: calc(100vh - 136px);
-            min-height: 560px;
         }
         .review-panel-compact {
             font-size: .9rem;
@@ -146,10 +177,6 @@
         }
         .doctor-profile-strip {
             grid-template-columns: repeat(3, minmax(0, 1fr));
-        }
-        .pdf-page-viewport {
-            height: 72vh;
-            min-height: 480px;
         }
         .review-panel-compact {
             position: static;
@@ -297,19 +324,22 @@
             {% csrf_token %}
             {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
             <div class="form-grid" style="grid-template-columns:1fr;">
-                {% for field in form.visible_fields %}
-                    <div class="field">
-                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                        {{ field }}
-                        {% if field.name == "pdf_file" %}
-                            <div class="muted" style="margin-top:8px;">Desde el celular podes elegir PDF, sacar una foto o subir una imagen JPG/PNG/WEBP.</div>
-                            <div class="muted" data-analysis-status style="margin-top:8px;">Si el PDF trae texto, lo leo solo. Si es una imagen, lo analizo en tu navegador antes de guardarlo.</div>
-                        {% endif %}
-                        {% if field.errors %}
-                            <div class="muted">{{ field.errors }}</div>
-                        {% endif %}
-                    </div>
-                {% endfor %}
+                <div class="field doctor-result-field">
+                    <label for="{{ form.respiratory_result.id_for_label }}">Resultado final del medico</label>
+                    {{ form.respiratory_result }}
+                    <p class="doctor-result-help">Aca va el resultado final elegido por el medico.</p>
+                    {% if form.respiratory_result.errors %}
+                        <div class="muted">{{ form.respiratory_result.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="field">
+                    <label for="{{ form.pdf_file.id_for_label }}">Cambiar PDF o foto</label>
+                    {{ form.pdf_file }}
+                    <div class="muted" data-analysis-status style="display:none;"></div>
+                    {% if form.pdf_file.errors %}
+                        <div class="muted">{{ form.pdf_file.errors }}</div>
+                    {% endif %}
+                </div>
             </div>
             <p class="muted" style="margin:12px 0 0;">
                 Codigos: N, OL, OM, OMS, OS, RL, RM, RMS, RS o mixto tipo RLOMS.
@@ -319,7 +349,7 @@
                     <option value="{{ value }}">{{ label }}</option>
                 {% endfor %}
             </datalist>
-            <button class="button" type="submit" style="margin-top:24px;width:100%;">Guardar revision</button>
+            <button class="button save-result-button" type="submit" style="margin-top:18px;width:100%;">Guardar resultado</button>
         </form>
     </aside>
 </section>
