@@ -154,6 +154,36 @@
     .review-panel-compact .button[type="submit"] {
         margin-top: 12px !important;
     }
+    .review-upload-panel {
+        margin: 0 0 14px;
+        padding: 10px 12px;
+        border: 1px solid rgba(23,49,63,.12);
+        border-radius: 14px;
+        background: rgba(247, 251, 252, .96);
+    }
+    .review-upload-panel summary {
+        cursor: pointer;
+        list-style: none;
+        font-weight: 900;
+        color: #24546a;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+    .review-upload-panel summary::-webkit-details-marker {
+        display: none;
+    }
+    .review-upload-panel summary span {
+        color: var(--muted);
+        font-size: .84rem;
+        font-weight: 700;
+    }
+    .review-upload-body {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px dashed rgba(23,49,63,.14);
+    }
     .doctor-result-field {
         padding: 14px;
         border: 3px solid #e38b22;
@@ -384,48 +414,64 @@
     </article>
 
     <aside class="card review-panel review-panel-compact">
-        <p class="pill">Resultado medico</p>
-        {% if spirometry_suggestion %}
-            <div class="suggestion-box">
-                <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
-                    <div>
-                        <div class="muted" style="font-weight:bold;">Sugerido por valores del PDF</div>
-                        <span class="suggestion-code" data-suggested-code>{{ spirometry_suggestion.code }}</span>
-                    </div>
-                    <button class="button small alt" type="button" data-use-suggestion>Usar sugerido</button>
-                </div>
-                {% if spirometry_suggestion.probability_phrase %}
-                    <p style="margin:10px 0 0;"><strong>{{ spirometry_suggestion.probability_phrase }}</strong></p>
-                {% endif %}
-                <p class="muted" style="margin:10px 0 0;">{{ spirometry_suggestion.reason }}</p>
-                <div class="measurement-grid">
-                    <div>
-                        <strong>FVC</strong><br>
-                        Best {{ spirometry_suggestion.values.fvc.best|default:"-" }} |
-                        LLN {{ spirometry_suggestion.values.fvc.lln|default:"-" }} |
-                        % {{ spirometry_suggestion.values.fvc.percent|default:"-" }}
-                    </div>
-                    <div>
-                        <strong>FEV1</strong><br>
-                        Best {{ spirometry_suggestion.values.fev1.best|default:"-" }} |
-                        LLN {{ spirometry_suggestion.values.fev1.lln|default:"-" }} |
-                        % {{ spirometry_suggestion.values.fev1.percent|default:"-" }}
-                    </div>
-                    <div>
-                        <strong>FEV1/FVC</strong><br>
-                        Best {{ spirometry_suggestion.values.fev1_fvc.best|default:"-" }} |
-                        LLN {{ spirometry_suggestion.values.fev1_fvc.lln|default:"-" }} |
-                        % {{ spirometry_suggestion.values.fev1_fvc.percent|default:"-" }}
-                    </div>
-                </div>
-                <p class="muted" style="font-size:.84rem;margin-bottom:0;">
-                    Es ayuda para carga rapida. La decision final queda en la revision medica.
-                </p>
-            </div>
-        {% endif %}
         <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
             {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+            <details class="review-upload-panel" {% if not pdf_attachment %}open{% endif %}>
+                <summary>
+                    <strong>{% if pdf_attachment %}Cambiar PDF o foto{% else %}Subir PDF o foto{% endif %}</strong>
+                    <span>{% if pdf_attachment %}Abrilo solo si realmente queres reemplazar el archivo.{% else %}Necesario si todavia no hay archivo cargado.{% endif %}</span>
+                </summary>
+                <div class="review-upload-body">
+                    <div class="field" style="margin:0;">
+                        <label for="{{ form.pdf_file.id_for_label }}">Archivo del estudio</label>
+                        {{ form.pdf_file }}
+                        <div class="muted" data-analysis-status style="display:none;"></div>
+                        {% if form.pdf_file.errors %}
+                            <div class="muted">{{ form.pdf_file.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </details>
+            <p class="pill">Resultado medico</p>
+            {% if spirometry_suggestion %}
+                <div class="suggestion-box">
+                    <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
+                        <div>
+                            <div class="muted" style="font-weight:bold;">Sugerido por valores del PDF</div>
+                            <span class="suggestion-code" data-suggested-code>{{ spirometry_suggestion.code }}</span>
+                        </div>
+                        <button class="button small alt" type="button" data-use-suggestion>Usar sugerido</button>
+                    </div>
+                    {% if spirometry_suggestion.probability_phrase %}
+                        <p style="margin:10px 0 0;"><strong>{{ spirometry_suggestion.probability_phrase }}</strong></p>
+                    {% endif %}
+                    <p class="muted" style="margin:10px 0 0;">{{ spirometry_suggestion.reason }}</p>
+                    <div class="measurement-grid">
+                        <div>
+                            <strong>FVC</strong><br>
+                            Best {{ spirometry_suggestion.values.fvc.best|default:"-" }} |
+                            LLN {{ spirometry_suggestion.values.fvc.lln|default:"-" }} |
+                            % {{ spirometry_suggestion.values.fvc.percent|default:"-" }}
+                        </div>
+                        <div>
+                            <strong>FEV1</strong><br>
+                            Best {{ spirometry_suggestion.values.fev1.best|default:"-" }} |
+                            LLN {{ spirometry_suggestion.values.fev1.lln|default:"-" }} |
+                            % {{ spirometry_suggestion.values.fev1.percent|default:"-" }}
+                        </div>
+                        <div>
+                            <strong>FEV1/FVC</strong><br>
+                            Best {{ spirometry_suggestion.values.fev1_fvc.best|default:"-" }} |
+                            LLN {{ spirometry_suggestion.values.fev1_fvc.lln|default:"-" }} |
+                            % {{ spirometry_suggestion.values.fev1_fvc.percent|default:"-" }}
+                        </div>
+                    </div>
+                    <p class="muted" style="font-size:.84rem;margin-bottom:0;">
+                        Es ayuda para carga rapida. La decision final queda en la revision medica.
+                    </p>
+                </div>
+            {% endif %}
             <div class="form-grid" style="grid-template-columns:1fr;">
                 <div class="field doctor-result-field{% if current_result %} is-saved{% endif %}" data-doctor-result-field data-saved-value="{{ current_result|default:'' }}">
                     <label for="{{ form.respiratory_result.id_for_label }}">Resultado final del medico</label>
@@ -436,14 +482,6 @@
                     </div>
                     {% if form.respiratory_result.errors %}
                         <div class="muted">{{ form.respiratory_result.errors }}</div>
-                    {% endif %}
-                </div>
-                <div class="field">
-                    <label for="{{ form.pdf_file.id_for_label }}">Cambiar PDF o foto</label>
-                    {{ form.pdf_file }}
-                    <div class="muted" data-analysis-status style="display:none;"></div>
-                    {% if form.pdf_file.errors %}
-                        <div class="muted">{{ form.pdf_file.errors }}</div>
                     {% endif %}
                 </div>
             </div>
