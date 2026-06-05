@@ -158,6 +158,58 @@ class DrappImportViewTests(TestCase):
         self.assertEqual(import_mock.call_args[0][1], self.user)
 
 
+class DashboardInlineUpdateTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="agenda-test", password="secret123")
+        self.client.force_login(self.user)
+        self.patient = Patient.objects.create(full_name="SUAREZ, MARIA JESUS", dni="10731742")
+        self.encounter = Encounter.objects.create(
+            patient=self.patient,
+            encounter_date=date(2026, 6, 5),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            status=EncounterStatus.PENDIENTE,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+
+    def test_inline_time_update_persists_and_returns_normalized_value(self):
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "action": "inline_update",
+                "encounter_id": self.encounter.pk,
+                "field_name": "encounter_time",
+                "value": "15:30",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.encounter.refresh_from_db()
+        self.assertEqual(self.encounter.encounter_time, time(15, 30))
+        payload = response.json()
+        self.assertEqual(payload["value"], "15:30")
+        self.assertEqual(payload["encounter_time"], "15:30")
+
+    def test_inline_time_update_accepts_compact_manual_value(self):
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "action": "inline_update",
+                "encounter_id": self.encounter.pk,
+                "field_name": "encounter_time",
+                "value": "1530",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.encounter.refresh_from_db()
+        self.assertEqual(self.encounter.encounter_time, time(15, 30))
+        self.assertEqual(response.json()["value"], "15:30")
+
+
 class DoctorReviewViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="review-test", password="secret123")

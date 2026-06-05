@@ -1,7 +1,7 @@
 import calendar as month_calendar
 import base64
 from collections import Counter
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time as datetime_time, timedelta
 import json
 import mimetypes
 from pathlib import Path
@@ -492,6 +492,26 @@ def parse_optional_int(raw_value, max_value=None):
     return value
 
 
+def parse_optional_time(raw_value):
+    text = str(raw_value or "").strip()
+    if not text:
+        return None
+    text = text.replace(".", ":")
+    if re.fullmatch(r"\d{1,2}", text):
+        text = f"{text}:00"
+    elif re.fullmatch(r"\d{3,4}", text):
+        text = f"{text[:-2]}:{text[-2:]}"
+
+    match = re.fullmatch(r"(\d{1,2}):(\d{2})", text)
+    if not match:
+        return None
+    hour = int(match.group(1))
+    minute = int(match.group(2))
+    if hour > 23 or minute > 59:
+        return None
+    return datetime_time(hour, minute)
+
+
 def get_row_state_payload(encounter):
     can_generate_report, report_block_reason = get_report_readiness(encounter)
     inconsistency_flags = get_encounter_inconsistencies(encounter)
@@ -597,7 +617,7 @@ def update_inline_field(encounter, field_name: str, raw_value: str, request_user
 
     if field_name == "encounter_time":
         old_label = encounter.encounter_time.strftime("%H:%M") if encounter.encounter_time else "-"
-        encounter.encounter_time = raw_value or None
+        encounter.encounter_time = parse_optional_time(raw_value)
         new_label = encounter.encounter_time.strftime("%H:%M") if encounter.encounter_time else "-"
     elif field_name == "study_type":
         old_label = encounter.study_type
