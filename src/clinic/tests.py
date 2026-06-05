@@ -204,7 +204,7 @@ class DoctorReviewViewTests(TestCase):
         self.assertEqual(self.encounter.spirometry_result.suggested_code, "RM")
         self.assertEqual(self.encounter.spirometry_result.respiratory_pattern, "")
 
-    def test_upload_autofills_missing_document_and_profile_without_replacing_mismatched_name(self):
+    def test_upload_autofills_missing_document_profile_and_replaces_random_name(self):
         self.client.force_login(self.user)
         self.patient.full_name = "ASDASDAS"
         self.patient.dni = None
@@ -249,7 +249,7 @@ class DoctorReviewViewTests(TestCase):
 
         self.assertRedirects(response, reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
         self.patient.refresh_from_db()
-        self.assertEqual(self.patient.full_name, "ASDASDAS")
+        self.assertEqual(self.patient.full_name, "MARTIN, PALERMO")
         self.assertEqual(self.patient.dni, "12345678")
         self.assertEqual(self.patient.patient_code, "12345678")
         self.assertEqual(self.patient.last_name, "MARTIN")

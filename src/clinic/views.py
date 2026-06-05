@@ -2741,12 +2741,13 @@ def doctor_review_detail(request, pk):
                         )
                         patient_full_name = normalize_identity_value(getattr(encounter.patient, "full_name", "") or "")
                         name_mismatch = bool(snapshot_full_name and patient_full_name and snapshot_full_name != patient_full_name)
+                        should_update_full_name = not name_mismatch or can_autofill_missing_identity(encounter.patient, snapshot)
                         patient_identity_mismatch = not snapshot_matches_patient(encounter.patient, snapshot)
                         if not patient_identity_mismatch:
                             _, changed_fields = apply_snapshot_to_encounter_patient(
                                 encounter,
                                 snapshot,
-                                update_full_name=not name_mismatch,
+                                update_full_name=should_update_full_name,
                             )
                             encounter.refresh_from_db()
                     if analysis.get("values"):
