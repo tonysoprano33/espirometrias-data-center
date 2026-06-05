@@ -173,6 +173,24 @@
         margin: 0;
         color: var(--muted);
     }
+    .patient-inline-form {
+        display: block;
+        width: 100%;
+    }
+    .patient-inline-dni {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 3px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(13,63,85,.14);
+        background: rgba(241,248,252,.98);
+        color: #0d3f55;
+        font-size: .68rem;
+        font-weight: bold;
+        line-height: 1;
+        white-space: nowrap;
+    }
     .encounter-summary-head,
     .encounter-summary-cell {
         display: none;
@@ -291,12 +309,12 @@
         .responsive-table-wrap.notebook-stack thead tr,
         .responsive-table-wrap.notebook-stack [data-encounter-row] {
             display: grid;
-            grid-template-columns: 28px 62px minmax(260px, 2.35fr) 72px 42px 42px 82px 58px 58px 64px 74px 70px 80px;
+            grid-template-columns: 28px 58px minmax(180px, 1.55fr) 82px 42px 42px minmax(132px, 1fr) 58px 58px 64px 74px 70px 74px;
             align-items: center;
             column-gap: 0;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed {
-            grid-template-columns: 28px 62px minmax(292px, 2.55fr) 72px 42px 42px minmax(86px, .8fr) 58px 58px 64px 74px 70px;
+            grid-template-columns: 28px 58px minmax(196px, 1.7fr) 82px 42px 42px minmax(132px, 1fr) 58px 58px 64px 74px 70px;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row] {
             box-shadow: none;
@@ -426,10 +444,27 @@
             font-weight: 800;
         }
         .responsive-table-wrap.notebook-stack .patient-cell .cell-input {
-            font-size: .72rem;
+            font-size: .7rem;
             padding-left: 5px;
             padding-right: 5px;
             white-space: nowrap;
+        }
+        .responsive-table-wrap.notebook-stack .patient-inline-form {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 6px;
+        }
+        .responsive-table-wrap.notebook-stack .patient-inline-dni {
+            display: inline-flex;
+            max-width: 82px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .responsive-table-wrap.notebook-stack .vitals-cell[data-label="DNI"] {
+            justify-content: flex-start;
+            padding-left: 2px;
+            padding-right: 2px;
         }
         .responsive-table-wrap.notebook-stack .result-input {
             width: 54px !important;
@@ -529,10 +564,10 @@
         }
         .responsive-table-wrap.notebook-stack thead tr,
         .responsive-table-wrap.notebook-stack [data-encounter-row] {
-            grid-template-columns: 24px 50px minmax(190px, 2.15fr) 62px 36px 36px minmax(130px, 1.05fr) 70px 70px 58px 66px 62px 58px;
+            grid-template-columns: 24px 48px minmax(160px, 1.35fr) 76px 34px 34px minmax(118px, .95fr) 64px 64px 54px 64px 58px 56px;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed {
-            grid-template-columns: 24px 50px minmax(210px, 2.3fr) 62px 36px 36px minmax(132px, 1fr) 70px 70px 58px 66px 62px;
+            grid-template-columns: 24px 48px minmax(172px, 1.5fr) 76px 34px 34px minmax(118px, .95fr) 64px 64px 54px 64px 58px;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row] {
             min-height: 40px;
@@ -560,13 +595,18 @@
             font-size: .66rem;
             border-left-width: 4px;
         }
+        .responsive-table-wrap.notebook-stack .patient-inline-dni {
+            max-width: 76px;
+            font-size: .6rem;
+            padding: 2px 6px;
+        }
         .responsive-table-wrap.notebook-stack .vitals-cell[data-label="DNI"] .inline-display {
             max-width: 100%;
             padding: 0;
             border: none;
             background: transparent;
             color: #0d3f55;
-            font-size: .72rem;
+            font-size: .68rem;
             line-height: 1;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -921,12 +961,13 @@
                             </form>
                         </td>
                         <td class="patient-cell" data-label="Paciente">
-                            <form method="post" class="inline-cell-form" data-inline-ajax>
+                            <form method="post" class="inline-cell-form patient-inline-form" data-inline-ajax>
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="inline_update">
                                 <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
                                 <input type="hidden" name="field_name" value="patient_name">
                                 <input type="text" name="value" value="{{ encounter.patient.full_name }}" class="cell-input cell-name" data-inline-submit>
+                                <span class="patient-inline-dni" data-patient-dni-chip>{{ encounter.patient.dni|default:"Sin DNI" }}</span>
                             </form>
                         </td>
                         <td class="vitals-cell" data-label="DNI">
@@ -1499,6 +1540,14 @@
             }
         }
 
+        function updatePatientDniChip(row, value) {
+            if (!row) return;
+            const chip = row.querySelector("[data-patient-dni-chip]");
+            if (chip) {
+                chip.textContent = value || "Sin DNI";
+            }
+        }
+
         function updatePostFieldsVisibility(row, studyType) {
             if (!row) return;
             row.dataset.studyType = studyType || row.dataset.studyType || "";
@@ -1582,6 +1631,9 @@
                     inlineDisplay.textContent = payload.patient_dni_display;
                     inlineEdit.classList.remove("editing");
                 }
+            }
+            if (typeof payload.patient_dni_display !== "undefined") {
+                updatePatientDniChip(row, payload.patient_dni_display);
             }
             if (payload.field_name === "patient_name") {
                 const input = form.querySelector('input[name="value"]');
@@ -1996,9 +2048,11 @@
             var editBox = row && row.querySelector ? row.querySelector("[data-inline-edit]") : null;
             var display = editBox && editBox.querySelector ? editBox.querySelector("[data-inline-open]") : null;
             var input = editBox && editBox.querySelector ? editBox.querySelector('input[name="patient_dni"]') : null;
+            var chip = row && row.querySelector ? row.querySelector("[data-patient-dni-chip]") : null;
             var editing = editBox && (" " + editBox.className + " ").indexOf(" editing ") !== -1;
             if (!forceClose && input && (document.activeElement === input || editing)) return;
             if (display && payload.patient_dni_display) display.innerHTML = escapeHtml(payload.patient_dni_display);
+            if (chip) chip.innerHTML = escapeHtml(payload.patient_dni_display || "Sin DNI");
             if (input) input.value = payload.patient_dni || "";
             if (editBox) removeClass(editBox, "editing");
         }
