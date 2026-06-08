@@ -3,20 +3,89 @@
 {% block title %}Estadistica | Clinica Espiro{% endblock %}
 
 {% block content %}
-<section class="card" style="margin-bottom:20px;">
+<style>
+    .statistics-page {
+        display: grid;
+        gap: 20px;
+    }
+    .statistics-section {
+        margin: 0;
+    }
+    .statistics-title {
+        font-size: 2rem;
+        margin-top: 12px;
+    }
+    .statistics-subtitle {
+        margin-top: 0;
+    }
+    .statistics-card-title {
+        margin-top: 10px;
+    }
+    .statistics-table-wrap {
+        width: 100%;
+    }
+    @media (max-width: 760px) {
+        .statistics-page {
+            gap: 14px;
+        }
+        .statistics-title {
+            font-size: 1.32rem;
+            line-height: 1.08;
+            margin-top: 8px;
+        }
+        .statistics-subtitle {
+            font-size: .9rem;
+            line-height: 1.35;
+        }
+        .statistics-card-title {
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+        .statistics-page .metric-row {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .statistics-page .metric {
+            padding: 9px 10px;
+            border-radius: 12px;
+        }
+        .statistics-page .metric span {
+            font-size: .74rem;
+        }
+        .statistics-page .metric strong {
+            font-size: 1.08rem;
+        }
+    }
+    @media (max-width: 560px) {
+        .statistics-page .metric-row {
+            grid-template-columns: 1fr 1fr;
+        }
+        .statistics-page .responsive-table-wrap.notebook-stack tbody tr td {
+            grid-template-columns: 88px minmax(0, 1fr);
+            gap: 5px 8px;
+            padding: 7px 0;
+        }
+        .statistics-page .responsive-table-wrap.notebook-stack tbody tr td::before {
+            font-size: .66rem;
+        }
+    }
+</style>
+
+<div class="statistics-page">
+<section class="card statistics-section">
     <p class="pill">Estadistica</p>
-    <h1 class="section-title" style="font-size:2rem; margin-top:12px;">Mira rapido la operacion del dia y los datos clinicos que ya salieron de los PDFs.</h1>
-    <p class="muted" style="margin-top:0;">
+    <h1 class="section-title statistics-title">Mira rapido la operacion del dia y los datos clinicos que ya salieron de los PDFs.</h1>
+    <p class="muted statistics-subtitle">
         Aca conviven dos cosas: la agenda diaria y el perfil de pacientes extraido automaticamente desde las espirometrias.
     </p>
 </section>
 
-<section class="grid-3" style="margin-bottom:20px;">
+<section class="grid-3 statistics-section">
     {% for period in period_cards %}
         <article class="card period-card">
             <div>
                 <p class="pill">{{ period.label }}</p>
-                <h2 class="section-title" style="margin-top:10px;">{{ period.range_label }}</h2>
+                <h2 class="section-title statistics-card-title">{{ period.range_label }}</h2>
             </div>
             <div class="metric-row">
                 <div class="metric">
@@ -48,10 +117,10 @@
     {% endfor %}
 </section>
 
-<section class="grid-2">
+<section class="grid-2 statistics-section">
     <article class="card">
         <p class="pill">Mes actual</p>
-        <h2 class="section-title" style="margin-top:10px;">{{ month_label }}</h2>
+        <h2 class="section-title statistics-card-title">{{ month_label }}</h2>
         <div class="metric-row" style="margin-bottom:18px;">
             <div class="metric">
                 <span>% mutual</span>
@@ -71,6 +140,7 @@
             </div>
         </div>
 
+        <div class="responsive-table-wrap notebook-stack statistics-table-wrap">
         <table class="stats-table">
             <thead>
                 <tr>
@@ -81,17 +151,18 @@
             <tbody>
                 {% for row in status_rows %}
                     <tr>
-                        <td>{{ row.label }}</td>
-                        <td>{{ row.total }}</td>
+                        <td data-label="Estado">{{ row.label }}</td>
+                        <td data-label="Total">{{ row.total }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </article>
 
     <article class="card">
         <p class="pill">Operacion clinica</p>
-        <h2 class="section-title" style="margin-top:10px;">Alertas del mes</h2>
+        <h2 class="section-title statistics-card-title">Alertas del mes</h2>
         <div class="metric-row" style="margin-bottom:18px;">
             <div class="metric">
                 <span>Pendientes de revision</span>
@@ -114,7 +185,8 @@
 
     <article class="card">
         <p class="pill">Ultimos 7 dias</p>
-        <h2 class="section-title" style="margin-top:10px;">Movimiento diario</h2>
+        <h2 class="section-title statistics-card-title">Movimiento diario</h2>
+        <div class="responsive-table-wrap notebook-stack statistics-table-wrap">
         <table class="stats-table">
             <thead>
                 <tr>
@@ -128,22 +200,23 @@
             <tbody>
                 {% for day in last_7_days %}
                     <tr>
-                        <td>{{ day.label }}</td>
-                        <td>{{ day.total }}</td>
-                        <td>{{ day.mutual }}</td>
-                        <td>{{ day.attended }}</td>
-                        <td>{{ day.no_show }}</td>
+                        <td data-label="Dia">{{ day.label }}</td>
+                        <td data-label="Total">{{ day.total }}</td>
+                        <td data-label="Mutual">{{ day.mutual }}</td>
+                        <td data-label="Atendidos">{{ day.attended }}</td>
+                        <td data-label="No llego">{{ day.no_show }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </article>
 </section>
 
-<section class="grid-2" style="margin-top:20px;">
+<section class="grid-2 statistics-section">
     <article class="card">
         <p class="pill">Perfiles desde PDF</p>
-        <h2 class="section-title" style="margin-top:10px;">Base acumulada</h2>
+        <h2 class="section-title statistics-card-title">Base acumulada</h2>
         <div class="metric-row">
             <div class="metric">
                 <span>Pacientes perfilados</span>
@@ -182,7 +255,7 @@
 
     <article class="card">
         <p class="pill">Mes actual</p>
-        <h2 class="section-title" style="margin-top:10px;">Pacientes del mes con PDF procesado</h2>
+        <h2 class="section-title statistics-card-title">Pacientes del mes con PDF procesado</h2>
         <div class="metric-row">
             <div class="metric">
                 <span>Perfilados</span>
@@ -212,10 +285,11 @@
     </article>
 </section>
 
-<section class="grid-3" style="margin-top:20px;">
+<section class="grid-3 statistics-section">
     <article class="card">
         <p class="pill">Genero</p>
-        <h2 class="section-title" style="margin-top:10px;">Distribucion</h2>
+        <h2 class="section-title statistics-card-title">Distribucion</h2>
+        <div class="responsive-table-wrap notebook-stack statistics-table-wrap">
         <table class="stats-table">
             <thead>
                 <tr>
@@ -226,21 +300,23 @@
             <tbody>
                 {% for row in profile_summary.gender_rows %}
                     <tr>
-                        <td>{{ row.label }}</td>
-                        <td>{{ row.total }}</td>
+                        <td data-label="Genero">{{ row.label }}</td>
+                        <td data-label="Total">{{ row.total }}</td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="2">Todavia no hay perfiles leidos desde PDF.</td>
+                        <td colspan="2" data-label="Estado">Todavia no hay perfiles leidos desde PDF.</td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </article>
 
     <article class="card">
         <p class="pill">Tabaquismo</p>
-        <h2 class="section-title" style="margin-top:10px;">Distribucion</h2>
+        <h2 class="section-title statistics-card-title">Distribucion</h2>
+        <div class="responsive-table-wrap notebook-stack statistics-table-wrap">
         <table class="stats-table">
             <thead>
                 <tr>
@@ -251,21 +327,23 @@
             <tbody>
                 {% for row in profile_summary.smoking_rows %}
                     <tr>
-                        <td>{{ row.label }}</td>
-                        <td>{{ row.total }}</td>
+                        <td data-label="Categoria">{{ row.label }}</td>
+                        <td data-label="Total">{{ row.total }}</td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="2">Todavia no hay perfiles leidos desde PDF.</td>
+                        <td colspan="2" data-label="Estado">Todavia no hay perfiles leidos desde PDF.</td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </article>
 
     <article class="card">
         <p class="pill">Grupo etnico</p>
-        <h2 class="section-title" style="margin-top:10px;">Mas frecuentes</h2>
+        <h2 class="section-title statistics-card-title">Mas frecuentes</h2>
+        <div class="responsive-table-wrap notebook-stack statistics-table-wrap">
         <table class="stats-table">
             <thead>
                 <tr>
@@ -276,23 +354,25 @@
             <tbody>
                 {% for row in profile_summary.ethnicity_rows %}
                     <tr>
-                        <td>{{ row.label }}</td>
-                        <td>{{ row.total }}</td>
+                        <td data-label="Grupo">{{ row.label }}</td>
+                        <td data-label="Total">{{ row.total }}</td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="2">Todavia no hay perfiles leidos desde PDF.</td>
+                        <td colspan="2" data-label="Estado">Todavia no hay perfiles leidos desde PDF.</td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </article>
 </section>
 
-<section class="grid-2" style="margin-top:20px;">
+<section class="grid-2 statistics-section">
     <article class="card">
         <p class="pill">Probabilidad clinica</p>
-        <h2 class="section-title" style="margin-top:10px;">Cohortes que mas se repiten</h2>
+        <h2 class="section-title statistics-card-title">Cohortes que mas se repiten</h2>
+        <div class="responsive-table-wrap notebook-stack statistics-table-wrap">
         <table class="stats-table">
             <thead>
                 <tr>
@@ -305,26 +385,28 @@
             <tbody>
                 {% for row in cohort_rows %}
                     <tr>
-                        <td>{{ row.label }}</td>
-                        <td>{{ row.total }}</td>
-                        <td>{{ row.abnormal_percent }}%</td>
-                        <td>
+                        <td data-label="Cohorte">{{ row.label }}</td>
+                        <td data-label="Pacientes">{{ row.total }}</td>
+                        <td data-label="% con alteracion">{{ row.abnormal_percent }}%</td>
+                        <td data-label="Mas frecuente">
                             {{ row.top_code }}{% if row.top_code != "-" %} - {{ row.top_percent }}%{% endif %}
                             <div class="muted">{{ row.top_label }}</div>
                         </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="4">Todavia no hay espirometrias suficientes para comparar cohortes.</td>
+                        <td colspan="4" data-label="Estado">Todavia no hay espirometrias suficientes para comparar cohortes.</td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </article>
 
     <article class="card">
         <p class="pill">Distribucion diagnostica</p>
-        <h2 class="section-title" style="margin-top:10px;">Ultimo resultado por paciente</h2>
+        <h2 class="section-title statistics-card-title">Ultimo resultado por paciente</h2>
+        <div class="responsive-table-wrap notebook-stack statistics-table-wrap">
         <table class="stats-table">
             <thead>
                 <tr>
@@ -337,24 +419,26 @@
             <tbody>
                 {% for row in diagnosis_rows %}
                     <tr>
-                        <td>{{ row.code }}</td>
-                        <td>{{ row.label }}</td>
-                        <td>{{ row.total }}</td>
-                        <td>{{ row.percent }}%</td>
+                        <td data-label="Codigo">{{ row.code }}</td>
+                        <td data-label="Lectura">{{ row.label }}</td>
+                        <td data-label="Total">{{ row.total }}</td>
+                        <td data-label="%">{{ row.percent }}%</td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="4">Todavia no hay resultados espirometricos consolidados.</td>
+                        <td colspan="4" data-label="Estado">Todavia no hay resultados espirometricos consolidados.</td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </article>
 </section>
 
-<section class="card" style="margin-top:20px;">
+<section class="card statistics-section">
     <p class="pill">Ultimos perfiles</p>
-    <h2 class="section-title" style="margin-top:10px;">Pacientes leidos desde PDF</h2>
+    <h2 class="section-title statistics-card-title">Pacientes leidos desde PDF</h2>
+    <div class="responsive-table-wrap notebook-stack statistics-table-wrap">
     <table class="stats-table">
         <thead>
             <tr>
@@ -369,19 +453,21 @@
         <tbody>
             {% for patient in latest_profiled_patients %}
                 <tr>
-                    <td>{{ patient.full_name }}</td>
-                    <td>{{ patient.dni|default:patient.patient_code|default:"-" }}</td>
-                    <td>{{ patient.gender|default:"-" }}</td>
-                    <td>{{ patient.age_reported|default:"-" }}</td>
-                    <td>{{ patient.bmi|default:"-" }}</td>
-                    <td>{{ patient.smoking_status|default:"-" }}</td>
+                    <td data-label="Paciente">{{ patient.full_name }}</td>
+                    <td data-label="Doc / cod">{{ patient.dni|default:patient.patient_code|default:"-" }}</td>
+                    <td data-label="Genero">{{ patient.gender|default:"-" }}</td>
+                    <td data-label="Edad">{{ patient.age_reported|default:"-" }}</td>
+                    <td data-label="BMI">{{ patient.bmi|default:"-" }}</td>
+                    <td data-label="Fuma">{{ patient.smoking_status|default:"-" }}</td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="6">Todavia no hay datos demograficos guardados desde PDFs.</td>
+                    <td colspan="6" data-label="Estado">Todavia no hay datos demograficos guardados desde PDFs.</td>
                 </tr>
             {% endfor %}
         </tbody>
     </table>
+    </div>
 </section>
+</div>
 {% endblock %}
