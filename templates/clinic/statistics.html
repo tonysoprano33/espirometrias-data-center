@@ -8,12 +8,20 @@
         display: grid;
         gap: 20px;
     }
+    .statistics-page .card {
+        border-radius: 22px;
+        border: 1px solid rgba(23,49,63,.10);
+        background:
+            radial-gradient(circle at top right, rgba(15,90,95,.06), transparent 28%),
+            linear-gradient(180deg, rgba(255,255,255,.98), rgba(245,250,252,.96));
+    }
     .statistics-section {
         margin: 0;
     }
     .statistics-title {
         font-size: 2rem;
         margin-top: 12px;
+        line-height: 1.02;
     }
     .statistics-subtitle {
         margin-top: 0;
@@ -24,9 +32,129 @@
     .statistics-table-wrap {
         width: 100%;
     }
+    .statistics-page .pill {
+        background: linear-gradient(90deg, #d9f7f4, #e9fbff);
+        border-radius: 999px;
+        padding: 6px 10px;
+        box-shadow: inset 0 0 0 1px rgba(15,90,95,.05);
+    }
+    .statistics-page .period-card {
+        padding: 18px;
+        border-radius: 22px;
+        background:
+            radial-gradient(circle at top left, rgba(214,124,50,.10), transparent 28%),
+            linear-gradient(180deg, rgba(255,255,255,.99), rgba(247,251,252,.98));
+    }
+    .statistics-page .metric-row {
+        gap: 12px;
+    }
+    .statistics-page .metric {
+        position: relative;
+        padding: 12px 14px;
+        border-radius: 16px;
+        border: 1px solid rgba(15,90,95,.10);
+        background:
+            linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,252,253,.96));
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+    }
+    .statistics-page .metric::after {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 5px;
+        border-radius: 16px 0 0 16px;
+        background: linear-gradient(180deg, #1a7d97, #0f5a5f);
+        opacity: .88;
+    }
+    .statistics-page .metric span {
+        position: relative;
+        z-index: 1;
+        display: block;
+        color: #5e7684;
+        font-size: .78rem;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: .03em;
+    }
+    .statistics-page .metric strong,
+    .statistics-page .stats-table td:last-child,
+    .statistics-page .stats-table td[data-label="Total"],
+    .statistics-page .stats-table td[data-label="%"],
+    .statistics-page .stats-table td[data-label="Pacientes"],
+    .statistics-page .stats-table td[data-label="% con alteracion"],
+    .statistics-page .stats-table td[data-label="Edad"],
+    .statistics-page .stats-table td[data-label="BMI"] {
+        font-family: "Trebuchet MS", "Segoe UI", Tahoma, sans-serif;
+        font-variant-numeric: tabular-nums;
+    }
+    .statistics-page .metric strong {
+        position: relative;
+        z-index: 1;
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        font-size: 1.5rem;
+        letter-spacing: -.02em;
+        color: #113146;
+    }
+    .statistics-page .metric:nth-child(4n+1)::after {
+        background: linear-gradient(180deg, #1a7d97, #0f5a5f);
+    }
+    .statistics-page .metric:nth-child(4n+2)::after {
+        background: linear-gradient(180deg, #2f6fbb, #245488);
+    }
+    .statistics-page .metric:nth-child(4n+3)::after {
+        background: linear-gradient(180deg, #178a55, #126b41);
+    }
+    .statistics-page .metric:nth-child(4n+4)::after {
+        background: linear-gradient(180deg, #d67c32, #b66421);
+    }
+    .statistics-page .stats-table {
+        border-collapse: separate;
+        border-spacing: 0;
+        overflow: hidden;
+        border-radius: 16px;
+    }
+    .statistics-page .stats-table th {
+        background: linear-gradient(180deg, rgba(230,245,244,.85), rgba(246,250,252,.98));
+        color: #35576a;
+        font-size: .76rem;
+        letter-spacing: .06em;
+        border-bottom: 1px solid rgba(23,49,63,.12);
+    }
+    .statistics-page .stats-table td {
+        background: rgba(255,255,255,.88);
+    }
+    .statistics-page .stats-table tbody tr:nth-child(odd) td {
+        background: rgba(247,251,252,.92);
+    }
+    .statistics-page .stats-table tbody tr:hover td {
+        background: rgba(232,245,255,.55);
+    }
+    .statistics-page .stats-table td:first-child {
+        color: #113146;
+        font-weight: bold;
+    }
+    .statistics-page .stats-table td[data-label="Codigo"],
+    .statistics-page .stats-table td[data-label="Lectura"],
+    .statistics-page .stats-table td[data-label="Genero"],
+    .statistics-page .stats-table td[data-label="Categoria"],
+    .statistics-page .stats-table td[data-label="Grupo"] {
+        color: #0f5a5f;
+    }
+    .statistics-page .stats-table td[data-label="Mas frecuente"],
+    .statistics-page .stats-table td:last-child .muted {
+        color: #6b7f8b;
+    }
+    .statistics-page .stats-table td[data-label="Mas frecuente"] {
+        font-weight: bold;
+    }
     @media (max-width: 760px) {
         .statistics-page {
             gap: 14px;
+        }
+        .statistics-page .card {
+            border-radius: 18px;
         }
         .statistics-title {
             font-size: 1.32rem;
@@ -49,11 +177,16 @@
             padding: 9px 10px;
             border-radius: 12px;
         }
+        .statistics-page .metric::after {
+            width: 4px;
+            border-radius: 12px 0 0 12px;
+        }
         .statistics-page .metric span {
             font-size: .74rem;
         }
         .statistics-page .metric strong {
-            font-size: 1.08rem;
+            min-height: 24px;
+            font-size: 1.16rem;
         }
     }
     @media (max-width: 560px) {
