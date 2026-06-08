@@ -845,8 +845,46 @@
         }
         @media (max-width: 900px) {
             .hero, .grid-2, .grid-3, .form-grid, .detail-list, .panel-grid, .agenda-entry-panel, .compact-form-grid, .measurement-grid { grid-template-columns: 1fr; }
-            .topbar-inner { align-items: flex-start; flex-direction: column; }
-            .shell, .topbar-inner { padding-left: 16px; padding-right: 16px; }
+            body { font-size: 14px; }
+            .topbar-inner { align-items: flex-start; flex-direction: column; gap: 10px; }
+            .shell, .topbar-inner { padding-left: 12px; padding-right: 12px; }
+            .shell { padding-top: 12px; padding-bottom: 20px; }
+            .brand { font-size: .94rem; line-height: 1.05; }
+            .brand small { font-size: .58rem; letter-spacing: .08em; }
+            .nav {
+                width: 100%;
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 6px;
+                align-items: stretch;
+            }
+            .nav a,
+            .nav form,
+            .nav .button {
+                width: 100%;
+            }
+            .nav a,
+            .nav .button {
+                text-align: center;
+                padding: 8px 6px;
+                font-size: .8rem;
+                border-radius: 10px;
+            }
+            .card {
+                padding: 11px 12px;
+                border-radius: 14px;
+            }
+            .stats-strip {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 7px;
+            }
+            .stat {
+                padding: 7px 9px;
+                border-left-width: 5px;
+            }
+            .stat strong { font-size: 1.02rem; }
+            .section-title { font-size: 1.02rem; }
+            .pill { padding: 4px 8px; font-size: .72rem; }
             .hero-title { max-width: none; }
             .agenda-head { align-items: flex-start; flex-direction: column; }
             .calendar-day {
@@ -857,6 +895,22 @@
                 grid-template-columns: 1fr;
                 gap: 6px;
             }
+        }
+        @media (max-width: 560px) {
+            .nav {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+            .nav a,
+            .nav .button {
+                min-height: 34px;
+                font-size: .72rem;
+                padding: 7px 4px;
+            }
+            .stats-strip { gap: 6px; }
+            .stat { padding: 6px 8px; }
+            .stat strong { font-size: .96rem; }
+            .brand { font-size: .88rem; }
+            .brand small { font-size: .54rem; }
         }
     </style>
 </head>

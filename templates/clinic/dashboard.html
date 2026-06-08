@@ -714,8 +714,259 @@
         .quick-secondary-grid {
             grid-template-columns: 1fr;
         }
+        .agenda-entry-panel {
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .quick-add-box,
+        .drapp-box,
+        .doctor-mini-panel {
+            padding: 11px;
+            border-radius: 14px;
+            gap: 8px;
+        }
+        .ops-card {
+            padding: 10px 11px;
+            border-radius: 14px;
+        }
+        .ops-card strong {
+            font-size: 1.15rem;
+        }
+        .quick-hint,
+        .drapp-paste-zone span,
+        .physician-search-hint {
+            font-size: .8rem;
+        }
+        .drapp-paste-zone {
+            min-height: 62px;
+            padding: 11px 12px;
+        }
         .drapp-box textarea {
-            min-height: 140px;
+            min-height: 118px;
+        }
+        .doctor-mini-grid {
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+        .quick-core-grid > .button {
+            min-height: 42px;
+        }
+    }
+    @media (max-width: 760px) {
+        .ops-strip {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .agenda-card > .pill,
+        .agenda-head .pill {
+            margin-bottom: 4px;
+        }
+        .agenda-head .button.alt {
+            width: 100%;
+            max-width: 280px;
+            padding: 10px 12px;
+        }
+        .section-title {
+            font-size: .94rem;
+        }
+        .mini-title {
+            font-size: .94rem;
+            margin-bottom: 0;
+        }
+        .quick-hint {
+            font-size: .74rem;
+            line-height: 1.28;
+        }
+        .quick-add-box .field label,
+        .drapp-box .field label,
+        .doctor-mini-panel .field label {
+            font-size: .72rem;
+            margin-bottom: 4px;
+        }
+        .quick-add-box .field input,
+        .quick-add-box .field select,
+        .drapp-box .field input,
+        .drapp-box .field select,
+        .drapp-box textarea,
+        .doctor-mini-panel .field input,
+        .doctor-mini-panel .field select {
+            padding: 8px 10px;
+            border-radius: 10px;
+            font-size: .95rem;
+        }
+        .responsive-table-wrap.notebook-stack {
+            overflow: visible;
+        }
+        .responsive-table-wrap.notebook-stack .table {
+            min-width: 0;
+            display: block;
+            width: 100%;
+            border-spacing: 0;
+        }
+        .responsive-table-wrap.notebook-stack thead {
+            display: none;
+        }
+        .responsive-table-wrap.notebook-stack tbody {
+            display: grid;
+            gap: 10px;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row],
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed {
+            display: block;
+            min-height: 0;
+            padding: 12px;
+            border: 1px solid rgba(23,49,63,.12);
+            border-radius: 16px;
+            background: rgba(255,255,255,.97);
+            box-shadow: 0 8px 20px rgba(16,43,60,.07);
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row] > td {
+            display: grid;
+            grid-template-columns: 92px minmax(0, 1fr);
+            align-items: start;
+            gap: 6px 10px;
+            width: 100%;
+            padding: 6px 0;
+            border: none;
+            overflow: visible;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row] > td::before {
+            display: block !important;
+            content: attr(data-label) !important;
+            color: var(--muted);
+            font-size: .68rem;
+            font-weight: bold;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-head {
+            display: none;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-cell {
+            display: block;
+            padding-bottom: 8px;
+            margin-bottom: 6px;
+            border-bottom: 1px dashed rgba(23,49,63,.14);
+            background: transparent;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-cell::before {
+            display: none !important;
+            content: none !important;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-shell,
+        .responsive-table-wrap.notebook-stack .encounter-summary-top {
+            display: grid;
+            gap: 8px;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-top {
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: start;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-top > div,
+        .responsive-table-wrap.notebook-stack .encounter-summary-meta,
+        .responsive-table-wrap.notebook-stack [data-toggle-label] {
+            display: flex;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-top > div {
+            flex-direction: column;
+            gap: 4px;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-meta {
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-name {
+            font-size: 1rem;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-toggle {
+            min-width: 72px;
+            width: auto;
+            height: auto;
+            padding: 5px 9px;
+            font-size: .72rem;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-toggle strong {
+            font-size: .8rem;
+        }
+        .responsive-table-wrap.notebook-stack .patient-cell .cell-input,
+        .responsive-table-wrap.notebook-stack .study-cell .cell-select,
+        .responsive-table-wrap.notebook-stack td[data-label="Cobertura"] .cell-select,
+        .responsive-table-wrap.notebook-stack td[data-label="Dr. deriva"] .cell-select,
+        .responsive-table-wrap.notebook-stack .physician-search-input,
+        .responsive-table-wrap.notebook-stack .result-input,
+        .responsive-table-wrap.notebook-stack .cell-time,
+        .responsive-table-wrap.notebook-stack .inline-input {
+            width: 100%;
+            max-width: none;
+            min-width: 0;
+        }
+        .responsive-table-wrap.notebook-stack .patient-inline-dni,
+        .responsive-table-wrap.notebook-stack .physician-search-hint,
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"]::before,
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"]::before {
+            display: none !important;
+        }
+        .responsive-table-wrap.notebook-stack .vitals-cell,
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"],
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"] {
+            justify-content: flex-start;
+            gap: 6px;
+        }
+        .responsive-table-wrap.notebook-stack .cell-small {
+            max-width: 76px;
+        }
+        .responsive-table-wrap.notebook-stack .inline-pair {
+            flex-wrap: nowrap;
+            gap: 4px;
+        }
+        .responsive-table-wrap.notebook-stack .inline-pair span {
+            font-size: .82rem;
+        }
+        .responsive-table-wrap.notebook-stack .td-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+            padding-top: 10px;
+            margin-top: 6px;
+            border-top: 1px dashed rgba(23,49,63,.14);
+        }
+        .responsive-table-wrap.notebook-stack .td-actions > div {
+            width: 100%;
+        }
+        .responsive-table-wrap.notebook-stack .td-actions a,
+        .responsive-table-wrap.notebook-stack .td-actions .button.small,
+        .responsive-table-wrap.notebook-stack .attendance-button {
+            width: 100%;
+            justify-content: center;
+            text-align: center;
+        }
+        .result-legend {
+            font-size: .82rem;
+            line-height: 1.3;
+        }
+    }
+    @media (max-width: 560px) {
+        .ops-strip {
+            grid-template-columns: 1fr;
+        }
+        .ops-card {
+            padding: 9px 10px;
+        }
+        .ops-card strong {
+            font-size: 1.02rem;
+        }
+        .quick-add-box,
+        .drapp-box {
+            padding: 10px;
+        }
+        .drapp-paste-zone strong {
+            font-size: .9rem;
+        }
+        .drapp-paste-zone span {
+            font-size: .76rem;
+        }
+        .drapp-paste-indicator {
+            padding: 5px 8px;
+            font-size: .74rem;
         }
     }
 </style>

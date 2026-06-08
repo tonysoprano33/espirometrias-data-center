@@ -30,6 +30,26 @@
         flex: 1;
         max-width: 450px;
     }
+    .search-field-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        min-width: 0;
+    }
+    .search-field-stack label {
+        font-size: 0.8rem;
+        font-weight: 800;
+        color: #64748b;
+    }
+    .search-inline-actions {
+        display: flex;
+        gap: 5px;
+        min-width: 0;
+    }
+    .search-reset {
+        align-self: flex-end;
+        padding: 10px;
+    }
     .search-input {
         flex: 1;
         padding: 10px 15px;
@@ -256,16 +276,104 @@
         }
     }
     @media (max-width: 760px) {
+        .doctor-board {
+            box-shadow: 0 10px 24px rgba(20, 83, 103, .12);
+        }
+        .doctor-hero {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .doctor-title {
+            font-size: 1.35rem;
+            margin: 3px 0 4px;
+        }
+        .doctor-subtitle {
+            margin: 0;
+            font-size: .88rem;
+        }
+        .search-bar {
+            display: grid;
+            grid-template-columns: 1fr;
+            max-width: none;
+            width: 100%;
+            gap: 8px;
+        }
+        .search-field-stack {
+            width: 100%;
+        }
+        .search-inline-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+            align-items: stretch;
+            gap: 6px;
+        }
+        .search-input {
+            min-width: 0;
+            padding: 9px 12px;
+            font-size: .92rem;
+        }
+        .search-reset,
+        .search-inline-actions .button {
+            width: 100%;
+            text-align: center;
+            justify-self: stretch;
+        }
         .review-kpis,
         .action-panel {
             grid-template-columns: 1fr;
         }
+        .review-kpis {
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .review-kpi {
+            padding: 10px;
+            border-radius: 12px;
+        }
+        .review-kpi strong {
+            font-size: 1.25rem;
+        }
+        .review-kpi span {
+            font-size: .72rem;
+        }
         .review-card {
+            gap: 10px;
             padding: 12px;
-            border-radius: 20px;
+            border-radius: 16px;
+        }
+        .patient-name {
+            font-size: 1rem;
+        }
+        .patient-meta {
+            gap: 6px;
+        }
+        .meta-chip,
+        .state-pill {
+            font-size: .69rem !important;
+        }
+        .review-help {
+            font-size: .76rem;
         }
         .doctor-open-button {
-            padding: 18px 12px;
+            padding: 14px 12px;
+            font-size: .9rem;
+        }
+    }
+    @media (max-width: 560px) {
+        .doctor-title {
+            font-size: 1.2rem;
+        }
+        .review-card {
+            padding: 10px;
+        }
+        .review-date-box .time {
+            font-size: .92rem;
+        }
+        .doctor-open-button {
+            padding: 12px 10px;
+            font-size: .84rem;
         }
     }
 </style>
@@ -290,19 +398,19 @@
             </p>
         </div>
         <form method="get" class="search-bar" id="filter-form">
-            <div style="display: flex; flex-direction: column; gap: 5px;">
-                <label style="font-size: 0.8rem; font-weight: 800; color: #64748b;">FILTRAR POR FECHA</label>
+            <div class="search-field-stack">
+                <label>FILTRAR POR FECHA</label>
                 <input type="date" name="date" value="{{ selected_date }}" class="search-input" onchange="document.getElementById('filter-form').submit()">
             </div>
-            <div style="display: flex; flex-direction: column; gap: 5px;">
-                <label style="font-size: 0.8rem; font-weight: 800; color: #64748b;">BUSCAR PACIENTE</label>
-                <div style="display: flex; gap: 5px;">
+            <div class="search-field-stack">
+                <label>BUSCAR PACIENTE</label>
+                <div class="search-inline-actions">
                     <input type="text" name="q" value="{{ search_query }}" placeholder="Nombre o DNI..." class="search-input">
                     <button type="submit" class="button">Ir</button>
                 </div>
             </div>
             {% if search_query or selected_date != today|date:"Y-m-d" %}
-                <a href="{% url 'clinic:doctor_review_list' %}" class="button alt" style="align-self: flex-end; padding: 10px;">Hoy</a>
+                <a href="{% url 'clinic:doctor_review_list' %}" class="button alt search-reset">Hoy</a>
             {% endif %}
         </form>
     </div>
