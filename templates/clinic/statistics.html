@@ -8,6 +8,89 @@
         display: grid;
         gap: 20px;
     }
+    .statistics-highlight-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+    }
+    .statistics-insight {
+        position: relative;
+        overflow: hidden;
+        padding: 18px 18px 16px;
+        border-radius: 24px;
+        border: 1px solid rgba(23,49,63,.10);
+        box-shadow: 0 14px 34px rgba(17,49,70,.10);
+        color: #0f2f44;
+    }
+    .statistics-insight::before {
+        content: "";
+        position: absolute;
+        inset: auto auto 0 0;
+        width: 100%;
+        height: 6px;
+        opacity: .92;
+    }
+    .statistics-insight .label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: .74rem;
+        font-weight: bold;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+        background: rgba(255,255,255,.74);
+        border: 1px solid rgba(255,255,255,.55);
+        backdrop-filter: blur(6px);
+    }
+    .statistics-insight strong {
+        display: block;
+        margin-top: 12px;
+        font-family: "Trebuchet MS", "Segoe UI", Tahoma, sans-serif;
+        font-variant-numeric: tabular-nums;
+        font-size: 2.3rem;
+        line-height: .94;
+        letter-spacing: -.04em;
+    }
+    .statistics-insight p {
+        margin: 8px 0 0;
+        color: #416172;
+        font-size: .92rem;
+        line-height: 1.28;
+    }
+    .statistics-insight--success {
+        background:
+            radial-gradient(circle at top right, rgba(23,138,85,.22), transparent 34%),
+            linear-gradient(180deg, #f4fff9, #e8f8ef);
+    }
+    .statistics-insight--success::before {
+        background: linear-gradient(90deg, #178a55, #5fd18f);
+    }
+    .statistics-insight--info {
+        background:
+            radial-gradient(circle at top right, rgba(47,111,187,.20), transparent 34%),
+            linear-gradient(180deg, #f4faff, #e8f2ff);
+    }
+    .statistics-insight--info::before {
+        background: linear-gradient(90deg, #2f6fbb, #67a4f3);
+    }
+    .statistics-insight--warning {
+        background:
+            radial-gradient(circle at top right, rgba(214,124,50,.22), transparent 34%),
+            linear-gradient(180deg, #fff8ef, #ffedd5);
+    }
+    .statistics-insight--warning::before {
+        background: linear-gradient(90deg, #d67c32, #efab61);
+    }
+    .statistics-insight--teal {
+        background:
+            radial-gradient(circle at top right, rgba(15,90,95,.22), transparent 34%),
+            linear-gradient(180deg, #f2ffff, #e2f7f5);
+    }
+    .statistics-insight--teal::before {
+        background: linear-gradient(90deg, #0f5a5f, #25a2ab);
+    }
     .statistics-page .card {
         border-radius: 22px;
         border: 1px solid rgba(23,49,63,.10);
@@ -28,6 +111,46 @@
     }
     .statistics-card-title {
         margin-top: 10px;
+    }
+    .statistics-card--month {
+        background:
+            radial-gradient(circle at top right, rgba(47,111,187,.12), transparent 28%),
+            linear-gradient(180deg, rgba(248,252,255,.99), rgba(241,247,255,.96)) !important;
+    }
+    .statistics-card--ops {
+        background:
+            radial-gradient(circle at top right, rgba(214,124,50,.14), transparent 28%),
+            linear-gradient(180deg, rgba(255,251,245,.99), rgba(255,244,229,.96)) !important;
+    }
+    .statistics-card--timeline {
+        background:
+            radial-gradient(circle at top right, rgba(15,90,95,.10), transparent 28%),
+            linear-gradient(180deg, rgba(248,252,253,.99), rgba(243,249,250,.96)) !important;
+    }
+    .statistics-card--profiles {
+        background:
+            radial-gradient(circle at top right, rgba(23,138,85,.12), transparent 28%),
+            linear-gradient(180deg, rgba(247,255,250,.99), rgba(237,250,243,.96)) !important;
+    }
+    .statistics-card--demography {
+        background:
+            radial-gradient(circle at top right, rgba(37,162,171,.10), transparent 28%),
+            linear-gradient(180deg, rgba(247,255,255,.99), rgba(238,249,250,.96)) !important;
+    }
+    .statistics-card--cohort {
+        background:
+            radial-gradient(circle at top right, rgba(214,124,50,.14), transparent 28%),
+            linear-gradient(180deg, rgba(255,250,245,.99), rgba(255,243,234,.96)) !important;
+    }
+    .statistics-card--diagnosis {
+        background:
+            radial-gradient(circle at top right, rgba(47,111,187,.12), transparent 28%),
+            linear-gradient(180deg, rgba(249,251,255,.99), rgba(241,246,255,.96)) !important;
+    }
+    .statistics-card--latest {
+        background:
+            radial-gradient(circle at top right, rgba(15,90,95,.10), transparent 28%),
+            linear-gradient(180deg, rgba(252,255,255,.99), rgba(243,249,252,.96)) !important;
     }
     .statistics-table-wrap {
         width: 100%;
@@ -149,9 +272,43 @@
     .statistics-page .stats-table td[data-label="Mas frecuente"] {
         font-weight: bold;
     }
+    .statistics-page .stats-table td[data-label="Total"],
+    .statistics-page .stats-table td[data-label="%"],
+    .statistics-page .stats-table td[data-label="Pacientes"],
+    .statistics-page .stats-table td[data-label="% con alteracion"],
+    .statistics-page .stats-table td[data-label="Edad"],
+    .statistics-page .stats-table td[data-label="BMI"] {
+        color: #113146;
+        font-weight: bold;
+    }
+    .statistics-page .stats-table td[data-label="Total"] {
+        color: #0f5a5f;
+    }
+    .statistics-page .stats-table td[data-label="% con alteracion"] {
+        color: #b66421;
+    }
+    .statistics-page .stats-table td[data-label="Paciente"] {
+        color: #12364d;
+        font-weight: bold;
+    }
     @media (max-width: 760px) {
         .statistics-page {
             gap: 14px;
+        }
+        .statistics-highlight-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .statistics-insight {
+            padding: 14px 14px 12px;
+            border-radius: 18px;
+        }
+        .statistics-insight strong {
+            margin-top: 10px;
+            font-size: 1.65rem;
+        }
+        .statistics-insight p {
+            font-size: .82rem;
         }
         .statistics-page .card {
             border-radius: 18px;
@@ -190,6 +347,9 @@
         }
     }
     @media (max-width: 560px) {
+        .statistics-highlight-grid {
+            grid-template-columns: 1fr;
+        }
         .statistics-page .metric-row {
             grid-template-columns: 1fr 1fr;
         }
@@ -211,6 +371,29 @@
     <p class="muted statistics-subtitle">
         Aca conviven dos cosas: la agenda diaria y el perfil de pacientes extraido automaticamente desde las espirometrias.
     </p>
+</section>
+
+<section class="statistics-highlight-grid statistics-section" aria-label="Resumen rapido">
+    <article class="statistics-insight statistics-insight--success">
+        <span class="label">Atencion del mes</span>
+        <strong>{{ current_month_summary.attendance_percent }}%</strong>
+        <p>Pacientes atendidos sobre el total cargado este mes.</p>
+    </article>
+    <article class="statistics-insight statistics-insight--info">
+        <span class="label">Mutuales del mes</span>
+        <strong>{{ current_month_summary.mutual_percent }}%</strong>
+        <p>Porcentaje de estudios con cobertura mutual.</p>
+    </article>
+    <article class="statistics-insight statistics-insight--warning">
+        <span class="label">Listos para informe</span>
+        <strong>{{ current_month_alerts.ready_for_report }}</strong>
+        <p>Pacientes ya atendidos que conviene cerrar primero.</p>
+    </article>
+    <article class="statistics-insight statistics-insight--teal">
+        <span class="label">Perfiles completos</span>
+        <strong>{{ profile_summary.profile_completion_percent }}%</strong>
+        <p>Calidad de la base demografica que sale desde PDF.</p>
+    </article>
 </section>
 
 <section class="grid-3 statistics-section">
@@ -251,7 +434,7 @@
 </section>
 
 <section class="grid-2 statistics-section">
-    <article class="card">
+    <article class="card statistics-card--month">
         <p class="pill">Mes actual</p>
         <h2 class="section-title statistics-card-title">{{ month_label }}</h2>
         <div class="metric-row" style="margin-bottom:18px;">
@@ -293,7 +476,7 @@
         </div>
     </article>
 
-    <article class="card">
+    <article class="card statistics-card--ops">
         <p class="pill">Operacion clinica</p>
         <h2 class="section-title statistics-card-title">Alertas del mes</h2>
         <div class="metric-row" style="margin-bottom:18px;">
@@ -316,7 +499,7 @@
         </div>
     </article>
 
-    <article class="card">
+    <article class="card statistics-card--timeline">
         <p class="pill">Ultimos 7 dias</p>
         <h2 class="section-title statistics-card-title">Movimiento diario</h2>
         <div class="responsive-table-wrap notebook-stack statistics-table-wrap">
@@ -347,7 +530,7 @@
 </section>
 
 <section class="grid-2 statistics-section">
-    <article class="card">
+    <article class="card statistics-card--profiles">
         <p class="pill">Perfiles desde PDF</p>
         <h2 class="section-title statistics-card-title">Base acumulada</h2>
         <div class="metric-row">
@@ -386,7 +569,7 @@
         </div>
     </article>
 
-    <article class="card">
+    <article class="card statistics-card--profiles">
         <p class="pill">Mes actual</p>
         <h2 class="section-title statistics-card-title">Pacientes del mes con PDF procesado</h2>
         <div class="metric-row">
@@ -419,7 +602,7 @@
 </section>
 
 <section class="grid-3 statistics-section">
-    <article class="card">
+    <article class="card statistics-card--demography">
         <p class="pill">Genero</p>
         <h2 class="section-title statistics-card-title">Distribucion</h2>
         <div class="responsive-table-wrap notebook-stack statistics-table-wrap">
@@ -446,7 +629,7 @@
         </div>
     </article>
 
-    <article class="card">
+    <article class="card statistics-card--demography">
         <p class="pill">Tabaquismo</p>
         <h2 class="section-title statistics-card-title">Distribucion</h2>
         <div class="responsive-table-wrap notebook-stack statistics-table-wrap">
@@ -473,7 +656,7 @@
         </div>
     </article>
 
-    <article class="card">
+    <article class="card statistics-card--demography">
         <p class="pill">Grupo etnico</p>
         <h2 class="section-title statistics-card-title">Mas frecuentes</h2>
         <div class="responsive-table-wrap notebook-stack statistics-table-wrap">
@@ -502,7 +685,7 @@
 </section>
 
 <section class="grid-2 statistics-section">
-    <article class="card">
+    <article class="card statistics-card--cohort">
         <p class="pill">Probabilidad clinica</p>
         <h2 class="section-title statistics-card-title">Cohortes que mas se repiten</h2>
         <div class="responsive-table-wrap notebook-stack statistics-table-wrap">
@@ -536,7 +719,7 @@
         </div>
     </article>
 
-    <article class="card">
+    <article class="card statistics-card--diagnosis">
         <p class="pill">Distribucion diagnostica</p>
         <h2 class="section-title statistics-card-title">Ultimo resultado por paciente</h2>
         <div class="responsive-table-wrap notebook-stack statistics-table-wrap">
@@ -568,7 +751,7 @@
     </article>
 </section>
 
-<section class="card statistics-section">
+<section class="card statistics-section statistics-card--latest">
     <p class="pill">Ultimos perfiles</p>
     <h2 class="section-title statistics-card-title">Pacientes leidos desde PDF</h2>
     <div class="responsive-table-wrap notebook-stack statistics-table-wrap">
