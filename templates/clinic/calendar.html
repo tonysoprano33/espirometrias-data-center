@@ -63,6 +63,10 @@
         background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(247,243,235,.96));
         border: 1px solid rgba(23,49,63,.08);
     }
+    .calendar-month-scroller {
+        display: grid;
+        gap: 10px;
+    }
     .calendar-grid {
         gap: 12px;
     }
@@ -347,6 +351,101 @@
             font-size: 1.8rem;
         }
     }
+    @media (max-width: 760px) {
+        .calendar-page {
+            gap: 14px;
+        }
+        .calendar-shell {
+            gap: 14px;
+        }
+        .calendar-toolbar {
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .calendar-nav {
+            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .calendar-nav a,
+        .calendar-nav button {
+            width: 100%;
+            min-width: 0;
+            height: 40px;
+            padding: 0 8px;
+            font-size: .9rem;
+        }
+        .calendar-legend {
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .calendar-legend-item {
+            padding: 7px 10px;
+            font-size: .78rem;
+        }
+        .calendar-board {
+            padding: 12px 10px;
+            border-radius: 16px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .calendar-month-scroller {
+            min-width: 720px;
+        }
+        .calendar-grid {
+            gap: 8px;
+        }
+        .calendar-weekday {
+            font-size: .74rem;
+            padding-bottom: 4px;
+        }
+        .calendar-day {
+            min-height: 118px;
+            padding: 10px 8px;
+            border-radius: 16px;
+        }
+        .calendar-day-number {
+            font-size: 1rem;
+        }
+        .calendar-day-chip {
+            min-width: 24px;
+            height: 24px;
+            padding: 0 6px;
+            font-size: .72rem;
+        }
+        .calendar-mini,
+        .calendar-flag {
+            font-size: .68rem;
+        }
+        .calendar-summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .calendar-summary-card {
+            padding: 12px;
+            border-radius: 14px;
+        }
+        .calendar-summary-card strong {
+            font-size: 1.4rem;
+        }
+    }
+    @media (max-width: 560px) {
+        .calendar-hero .section-title {
+            font-size: 1.34rem;
+            line-height: 1.04;
+        }
+        .calendar-subtitle {
+            margin-top: 6px;
+            font-size: .9rem;
+        }
+        .calendar-toolbar .section-title {
+            font-size: 1.08rem;
+        }
+        .calendar-month-scroller {
+            min-width: 690px;
+        }
+    }
 </style>
 
 <div class="calendar-page">
@@ -382,63 +481,65 @@
         </div>
 
         <div class="calendar-board">
-            <div class="calendar-grid" style="margin-bottom:10px;">
-                {% for label in weekday_labels %}
-                    <div class="calendar-weekday">{{ label }}</div>
-                {% endfor %}
-            </div>
-
-            <div class="calendar-grid">
-                {% for week in calendar_weeks %}
-                    {% for day in week %}
-                        <a
-                            href="{% url 'clinic:calendar' %}?month={{ day.month_param }}&date={{ day.iso }}"
-                            class="calendar-day {% if not day.in_month %}outside{% endif %} {% if day.is_today %}today{% endif %} {% if day.is_selected %}selected{% endif %} {% if day.total %}has-encounters{% endif %} {% if day.all_attended %}all-attended{% endif %} {% if day.is_default_offday %}is-default-offday{% endif %}"
-                        >
-                            <div class="calendar-day-top">
-                                <span class="calendar-day-number">{{ day.day_number }}</span>
-                                {% if day.total %}
-                                    <span class="calendar-day-chip busy">{{ day.total }}</span>
-                                {% elif day.is_default_offday %}
-                                    <span class="calendar-day-chip offday">No</span>
-                                {% endif %}
-                            </div>
-
-                            <div class="calendar-day-meta">
-                                {% if day.total %}
-                                    <span class="calendar-mini strong">
-                                        {{ day.total }} paciente{{ day.total|pluralize }}
-                                    </span>
-                                    <div class="calendar-day-flags">
-                                        {% if day.attended %}
-                                            <span class="calendar-flag attended">Atendidos {{ day.attended }}</span>
-                                        {% endif %}
-                                        {% if day.pending %}
-                                            <span class="calendar-flag pending">Pendientes {{ day.pending }}</span>
-                                        {% endif %}
-                                        {% if day.no_show %}
-                                            <span class="calendar-flag no-show">No llego {{ day.no_show }}</span>
-                                        {% endif %}
-                                        {% if day.mutual %}
-                                            <span class="calendar-flag mutual">Mutual {{ day.mutual }}</span>
-                                        {% endif %}
-                                        {% if day.is_default_offday %}
-                                            <span class="calendar-flag offday">Dia no habitual</span>
-                                        {% endif %}
-                                    </div>
-                                {% else %}
-                                    {% if day.is_default_offday %}
-                                        <span class="calendar-mini strong">Dia normalmente libre</span>
-                                        <span class="calendar-mini">Sin pacientes cargados</span>
-                                    {% else %}
-                                        <span class="calendar-mini strong">Sin pacientes</span>
-                                        <span class="calendar-mini">Agenda libre</span>
-                                    {% endif %}
-                                {% endif %}
-                            </div>
-                        </a>
+            <div class="calendar-month-scroller">
+                <div class="calendar-grid" style="margin-bottom:10px;">
+                    {% for label in weekday_labels %}
+                        <div class="calendar-weekday">{{ label }}</div>
                     {% endfor %}
-                {% endfor %}
+                </div>
+
+                <div class="calendar-grid">
+                    {% for week in calendar_weeks %}
+                        {% for day in week %}
+                            <a
+                                href="{% url 'clinic:calendar' %}?month={{ day.month_param }}&date={{ day.iso }}"
+                                class="calendar-day {% if not day.in_month %}outside{% endif %} {% if day.is_today %}today{% endif %} {% if day.is_selected %}selected{% endif %} {% if day.total %}has-encounters{% endif %} {% if day.all_attended %}all-attended{% endif %} {% if day.is_default_offday %}is-default-offday{% endif %}"
+                            >
+                                <div class="calendar-day-top">
+                                    <span class="calendar-day-number">{{ day.day_number }}</span>
+                                    {% if day.total %}
+                                        <span class="calendar-day-chip busy">{{ day.total }}</span>
+                                    {% elif day.is_default_offday %}
+                                        <span class="calendar-day-chip offday">No</span>
+                                    {% endif %}
+                                </div>
+
+                                <div class="calendar-day-meta">
+                                    {% if day.total %}
+                                        <span class="calendar-mini strong">
+                                            {{ day.total }} paciente{{ day.total|pluralize }}
+                                        </span>
+                                        <div class="calendar-day-flags">
+                                            {% if day.attended %}
+                                                <span class="calendar-flag attended">Atendidos {{ day.attended }}</span>
+                                            {% endif %}
+                                            {% if day.pending %}
+                                                <span class="calendar-flag pending">Pendientes {{ day.pending }}</span>
+                                            {% endif %}
+                                            {% if day.no_show %}
+                                                <span class="calendar-flag no-show">No llego {{ day.no_show }}</span>
+                                            {% endif %}
+                                            {% if day.mutual %}
+                                                <span class="calendar-flag mutual">Mutual {{ day.mutual }}</span>
+                                            {% endif %}
+                                            {% if day.is_default_offday %}
+                                                <span class="calendar-flag offday">Dia no habitual</span>
+                                            {% endif %}
+                                        </div>
+                                    {% else %}
+                                        {% if day.is_default_offday %}
+                                            <span class="calendar-mini strong">Dia normalmente libre</span>
+                                            <span class="calendar-mini">Sin pacientes cargados</span>
+                                        {% else %}
+                                            <span class="calendar-mini strong">Sin pacientes</span>
+                                            <span class="calendar-mini">Agenda libre</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </a>
+                        {% endfor %}
+                    {% endfor %}
+                </div>
             </div>
         </div>
     </section>
