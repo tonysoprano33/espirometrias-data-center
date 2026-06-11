@@ -157,6 +157,60 @@ class DrappImportViewTests(TestCase):
         self.assertEqual(import_mock.call_args[0][0], screenshot_rows)
         self.assertEqual(import_mock.call_args[0][1], self.user)
 
+    def test_prefers_browser_ocr_rows_over_plain_raw_text_from_same_capture(self):
+        self.client.force_login(self.user)
+        browser_rows = [
+            {
+                "patient_name": "ORTIZ, MARTA LILIANA",
+                "coverage_raw": "Particular",
+                "practice_raw": "Cicloespirometria",
+                "datetime_raw": "15:55",
+                "phone": "",
+                "dni": "16484284",
+                "agenda_date": date(2026, 6, 11),
+            },
+            {
+                "patient_name": "SUAREZ, RODRIGO",
+                "coverage_raw": "Particular",
+                "practice_raw": "Cicloespirometria",
+                "datetime_raw": "16:30",
+                "phone": "+542657292348",
+                "dni": "37797896",
+                "agenda_date": date(2026, 6, 11),
+            },
+        ]
+
+        with (
+            patch(
+                "clinic.views.extract_drapp_rows_from_text",
+                return_value=[
+                    {
+                        "patient_name": "ESPIROMETRIA, DINOS CENTRO I RESPIRATORIO CL INTEGRAL I",
+                        "coverage_raw": "Particular",
+                        "practice_raw": "Cicloespirometria",
+                        "datetime_raw": "15:55",
+                        "phone": "",
+                        "dni": "",
+                        "agenda_date": date(2026, 6, 11),
+                    }
+                ],
+            ) as text_mock,
+            patch("clinic.views.extract_drapp_rows_from_browser_ocr", return_value=browser_rows),
+            patch("clinic.views.import_drapp_rows", return_value=(2, 0)) as import_mock,
+        ):
+            response = self.client.post(
+                reverse("clinic:dashboard"),
+                {
+                    "action": "import_drapp",
+                    "raw_text": "15:55 ORTIZ, MARTA LILIANA Particular Espirometria Centro Respiratorio Integral",
+                    "ocr_lines_json": '[{"text":"15:55 ORTIZ, MARTA LILIANA","y":40}]',
+                },
+            )
+
+        self.assertRedirects(response, reverse("clinic:dashboard"))
+        text_mock.assert_not_called()
+        self.assertEqual(import_mock.call_args[0][0], browser_rows)
+
 
 class DashboardInlineUpdateTests(TestCase):
     def setUp(self):

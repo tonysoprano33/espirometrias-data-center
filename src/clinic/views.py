@@ -1118,6 +1118,13 @@ def parse_drapp_agenda_date(raw_value: str):
         return None
 
 
+def looks_like_drapp_tabular_text(raw_text: str) -> bool:
+    lines = [line.strip() for line in str(raw_text or "").splitlines() if line.strip()]
+    if not lines:
+        return False
+    return any(len([part for part in line.split("\t") if part.strip()]) >= 5 for line in lines)
+
+
 def extract_drapp_rows_from_text(raw_text: str):
     rows = []
     agenda_date = parse_drapp_agenda_date(raw_text)
@@ -1882,13 +1889,19 @@ def dashboard(request):
                 screenshot = import_form.cleaned_data.get("screenshot")
                 browser_ocr_error = None
                 screenshot_error = None
-                if raw_text:
-                    imported_rows.extend(extract_drapp_rows_from_text(raw_text))
                 if ocr_lines_json:
                     try:
                         imported_rows.extend(extract_drapp_rows_from_browser_ocr(ocr_lines_json))
                     except ValueError as error:
                         browser_ocr_error = error
+                use_raw_text = bool(raw_text) and (not ocr_lines_json or looks_like_drapp_tabular_text(raw_text))
+                if raw_text and not use_raw_text and ocr_lines_json:
+                    # Cuando la captura ya trae OCR estructurado del navegador,
+                    # evitamos reprocesar el texto plano autogenerado porque pierde
+                    # la geometria de filas y puede mezclar estudios/clinica con nombres.
+                    raw_text = ""
+                if use_raw_text and (not imported_rows or looks_like_drapp_tabular_text(raw_text)):
+                    imported_rows.extend(extract_drapp_rows_from_text(raw_text))
                 if screenshot and not imported_rows:
                     try:
                         if hasattr(screenshot, "seek"):
