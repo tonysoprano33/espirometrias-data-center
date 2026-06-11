@@ -19,6 +19,7 @@ from .views import (
     extract_drapp_rows_from_browser_ocr,
     extract_drapp_rows_from_ocr_lines,
     extract_drapp_rows_from_text,
+    infer_coverage_type,
     import_drapp_rows,
     unique_encounters_by_patient_day,
 )
@@ -37,6 +38,16 @@ class SpirometryReportTextTests(SimpleTestCase):
 
         self.assertIn("respiratorias", text.lower())
         self.assertNotIn("peque", text.lower())
+
+
+class CoverageInferenceTests(SimpleTestCase):
+    def test_only_particular_stays_particular(self):
+        self.assertEqual(infer_coverage_type("Particular"), "Particular")
+
+    def test_any_other_coverage_becomes_mutual(self):
+        self.assertEqual(infer_coverage_type("grassi"), "Mutual")
+        self.assertEqual(infer_coverage_type("DOSEP"), "Mutual")
+        self.assertEqual(infer_coverage_type(""), "Mutual")
 
 
 class DrappImportParsingTests(SimpleTestCase):

@@ -857,7 +857,7 @@ def normalize_imported_name(raw_name: str) -> str:
 
 def infer_coverage_type(raw_coverage: str) -> str:
     text = (raw_coverage or "").strip().lower()
-    if not text or text == "particular":
+    if text == "particular":
         return "Particular"
     return "Mutual"
 
