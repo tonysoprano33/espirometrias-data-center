@@ -350,13 +350,6 @@ def agregar_seccion_caminata(
     normal_run = res.add_run(walk_label)
     normal_run.font.name = "Times New Roman"
     normal_run.font.size = Pt(11)
-    if walk_detail:
-        detail = doc.add_paragraph()
-        detail.paragraph_format.space_before = Pt(2)
-        detail.paragraph_format.space_after = Pt(4)
-        detail_run = detail.add_run(walk_detail)
-        detail_run.font.name = "Times New Roman"
-        detail_run.font.size = Pt(10)
 
 
 def crear_informe_mutual(
@@ -502,11 +495,6 @@ def crear_informe_mutual(
     run.underline = True
     run.font.size = Pt(11)
     res.add_run(walk_label).font.size = Pt(11)
-    if walk_detail:
-        walk_detail_paragraph = doc.add_paragraph()
-        walk_detail_paragraph.paragraph_format.space_before = Pt(2)
-        walk_detail_paragraph.paragraph_format.space_after = Pt(4)
-        walk_detail_paragraph.add_run(walk_detail).font.size = Pt(10)
 
     esp_titulo = doc.add_paragraph()
     esp_titulo.paragraph_format.space_before = Pt(6)

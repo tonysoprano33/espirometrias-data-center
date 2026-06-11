@@ -325,9 +325,6 @@
                 </tbody>
             </table>
             <p class="walk-normal-result">PRUEBA DE LOS 6 Y 12 MINUTOS: {{ walk_assessment.label }}</p>
-            {% if walk_assessment.detail %}
-                <p>{{ walk_assessment.detail }}</p>
-            {% endif %}
 
             <div class="signature">
                 DR. PIGUILLEM GUSTAVO GABRIEL<br>
@@ -389,9 +386,6 @@
             </table>
             <p class="mutual-emphasis">SO2: {{ so2 }}% &nbsp;&nbsp;&nbsp; FC: {{ fc }}</p>
             <p><strong><u>PRUEBA DE LOS 6 Y 12 MINUTOS:</u></strong> {{ walk_assessment.label }}</p>
-            {% if walk_assessment.detail %}
-                <p>{{ walk_assessment.detail }}</p>
-            {% endif %}
 
             <h2>Resultado Espirometria Computarizada:</h2>
             <p>{{ report_text }}</p>
