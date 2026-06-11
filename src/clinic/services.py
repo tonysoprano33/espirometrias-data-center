@@ -129,7 +129,7 @@ def build_walk_test_assessment(
             detail = f"{detail} (bajo {drop} puntos)"
         return {
             "is_normal": False,
-            "label": "PRUEBA ALTERADA",
+            "label": "PRUEBA ANORMAL",
             "detail": detail.capitalize() + ".",
             "tone": "alert",
         }

@@ -846,8 +846,12 @@ def normalize_imported_name(raw_name: str) -> str:
     normalized = collapse_spaces(normalized.replace(" ,", ","))
     normalized = normalized.strip(" ,")
     normalized_upper = normalized.upper()
-    if re.match(r"^O [A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ' ]+, [A-ZÁÉÍÓÚÜÑ' ]+$", normalized_upper):
-        normalized_upper = normalized_upper[2:].strip()
+    prefix_match = re.match(
+        r"^([A-ZÁÉÍÓÚÜÑ]{1,2})\s+([A-ZÁÉÍÓÚÜÑ' ]+, [A-ZÁÉÍÓÚÜÑ' ]+)$",
+        normalized_upper,
+    )
+    if prefix_match and prefix_match.group(1) in {"O", "OR", "Q", "C"}:
+        normalized_upper = prefix_match.group(2).strip()
     return normalized_upper
 
 
@@ -894,6 +898,24 @@ DRAPP_NAME_NOISE_PATTERNS = [
     re.compile(r"\bCICLO\s*ESPIROMETRIA\b", re.IGNORECASE),
     re.compile(r"\bCICLOMETRIA\b", re.IGNORECASE),
 ]
+DRAPP_NAME_CUTOFF_TOKENS = (
+    "ESPI",
+    "CICLO",
+    "PIG",
+    "CENTRO",
+    "RESP",
+    "INTEG",
+    "LINK",
+    "PAGO",
+    "PARTIC",
+    "PAMI",
+    "DOSEP",
+    "OSDE",
+    "SWISS",
+    "MEDIFE",
+    "OSECAC",
+    "IOSFA",
+)
 
 
 def normalize_document_number(raw_value: str) -> str:
@@ -1051,8 +1073,20 @@ def clean_drapp_name_candidate(raw_value: str, coverage_raw: str = "", practice_
     for pattern in DRAPP_NAME_NOISE_PATTERNS:
         text = pattern.sub(" ", text)
 
+    cutoff_match = re.search(
+        r"\b(?:ESPI\w*|CICLO\w*|PIG\w*|CENTRO|RESP\w*|INTEG\w*|LINK|PAGO|PARTIC\w*|PAMI|DOSEP|OSDE|SWISS|MEDIFE|OSECAC|IOSFA)\b",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if cutoff_match and cutoff_match.start() > 0:
+        text = text[:cutoff_match.start()]
+
     text = text.replace("|", " ")
-    return collapse_spaces(text)
+    cleaned = collapse_spaces(text)
+    cleaned_upper = normalize_for_match(cleaned)
+    if any(cleaned_upper.startswith(token) for token in DRAPP_NAME_CUTOFF_TOKENS):
+        return ""
+    return cleaned
 
 
 def extract_patient_name_from_drapp_row(raw_lines, coverage_raw: str = "", practice_raw: str = "") -> str:
@@ -1076,12 +1110,19 @@ def extract_patient_name_from_drapp_row(raw_lines, coverage_raw: str = "", pract
         word_count = len([token for token in re.split(r"[\s,]+", normalized_name) if token])
         if word_count < 2:
             continue
+        tokens = [token for token in re.split(r"[\s,]+", normalized_name) if token]
+        if "," not in normalized_name and tokens and max(len(token) for token in tokens) <= 3:
+            continue
+        if any(token.startswith(DRAPP_NAME_CUTOFF_TOKENS) for token in tokens):
+            continue
 
         score = len(normalized_name)
         if "," in normalized_name:
             score += 20
         if word_count >= 3:
             score += 8
+        if len(tokens) >= 2 and all(len(token) <= 3 for token in tokens[:2]):
+            score -= 20
         if raw_line == (raw_lines[0] if raw_lines else ""):
             score += 2
 

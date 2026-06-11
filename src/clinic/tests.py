@@ -116,6 +116,32 @@ class DrappImportParsingTests(SimpleTestCase):
         self.assertEqual(rows[2]["patient_name"], "FREDES, JOSEFA")
         self.assertEqual(rows[3]["dni"], "3697049")
 
+    def test_trims_study_fragments_and_false_prefixes_from_patient_name(self):
+        rows = extract_drapp_rows_from_ocr_lines(
+            [
+                {"text": "Jueves 11 - junio 2026", "y": 0},
+                {"text": "15:55 ORTIZ, MARTA LILIANA 16.484.284 Link de Pago Cicloespirometria Espirometria Espirometria, Piguillem Gustavo Centro Respiratorio Integral", "y": 40},
+                {"text": "Reservado hace 6 horas Particular", "y": 64},
+                {"text": "16:30 SUAREZ, RODRIGO ESPI 37.797.996 Particular", "y": 98},
+                {"text": "16:55 OR DEVIA, CARLOS EVA 13.435.809 PAMI ESPIROMETRIA", "y": 130},
+                {"text": "17:15 ESPIROMETRIA, DIM CE 6.484.284 Particular", "y": 160},
+                {"text": "18:00 Mercado, Rosario 54.002.437 DOSEP 8/11 Cicloespirometria Espirometria", "y": 190},
+            ]
+        )
+
+        self.assertEqual(
+            [(row["datetime_raw"], row["patient_name"]) for row in rows],
+            [
+                ("15:55", "ORTIZ, MARTA LILIANA"),
+                ("16:30", "SUAREZ, RODRIGO"),
+                ("16:55", "DEVIA, CARLOS EVA"),
+                ("18:00", "MERCADO, ROSARIO"),
+            ],
+        )
+        self.assertEqual(rows[0]["dni"], "16484284")
+        self.assertEqual(rows[1]["dni"], "37797996")
+        self.assertEqual(rows[2]["dni"], "13435809")
+
 
 class DrappImportViewTests(TestCase):
     def setUp(self):
@@ -738,7 +764,7 @@ class PrintReportViewTests(TestCase):
         self.assertIn("Resultado Espirometria Computarizada", html)
         self.assertIn("Moderadamente reducida", html)
         self.assertIn("dni-value", html)
-        self.assertIn("PRUEBA ALTERADA", html)
+        self.assertIn("PRUEBA ANORMAL", html)
         self.assertIn("desaturacion al esfuerzo", html.lower())
 
     def test_daily_print_uses_same_mutual_packet(self):
@@ -751,7 +777,7 @@ class PrintReportViewTests(TestCase):
         self.assertIn("sheet-pdf", html)
         self.assertIn("Capacidad Vital Lenta", html)
         self.assertIn("Moderadamente reducida", html)
-        self.assertIn("PRUEBA ALTERADA", html)
+        self.assertIn("PRUEBA ANORMAL", html)
 
 
 class PatientHistoryActionsTests(TestCase):
@@ -777,7 +803,7 @@ class PatientHistoryActionsTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
-        self.assertIn("PRUEBA ALTERADA", html)
+        self.assertIn("PRUEBA ANORMAL", html)
         self.assertIn("Editar atencion", html)
         self.assertIn("Subir documento", html)
 
