@@ -2972,7 +2972,15 @@
                     if (!text) continue;
                     payload.push({
                         text: text,
-                        y: entry.y
+                        y: entry.y,
+                        items: entry.items.map(function (part) {
+                            return {
+                                text: part.text,
+                                x: part.x,
+                                y: part.y,
+                                height: part.height
+                            };
+                        })
                     });
                 }
 

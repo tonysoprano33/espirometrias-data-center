@@ -15,6 +15,7 @@ from .pdf_intake import (
     extract_spirometry_numbers_from_text,
 )
 from .views import (
+    extract_drapp_rows_from_browser_ocr,
     extract_drapp_rows_from_ocr_lines,
     extract_drapp_rows_from_text,
     import_drapp_rows,
@@ -141,6 +142,75 @@ class DrappImportParsingTests(SimpleTestCase):
         self.assertEqual(rows[0]["dni"], "16484284")
         self.assertEqual(rows[1]["dni"], "37797996")
         self.assertEqual(rows[2]["dni"], "13435809")
+
+    def test_browser_ocr_structured_columns_keep_name_dni_and_coverage_clean(self):
+        payload = [
+            {
+                "text": "15:55 ORTIZ, MARTA LILIANA Link de Pago Cicloespirometria",
+                "y": 40,
+                "items": [
+                    {"text": "15:55", "x": 60, "y": 40},
+                    {"text": "ORTIZ,", "x": 210, "y": 40},
+                    {"text": "MARTA", "x": 290, "y": 40},
+                    {"text": "LILIANA", "x": 370, "y": 40},
+                    {"text": "Link", "x": 700, "y": 40},
+                    {"text": "de", "x": 745, "y": 40},
+                    {"text": "Pago", "x": 780, "y": 40},
+                    {"text": "Cicloespirometria", "x": 980, "y": 40},
+                ],
+            },
+            {
+                "text": "16.484.284",
+                "y": 68,
+                "items": [
+                    {"text": "16.484.284", "x": 420, "y": 68},
+                ],
+            },
+            {
+                "text": "16:30 Suarez , Rodrigo +54 2657 29 0348 37.797.996 Particular",
+                "y": 110,
+                "items": [
+                    {"text": "16:30", "x": 60, "y": 110},
+                    {"text": "Suarez", "x": 210, "y": 110},
+                    {"text": ",", "x": 300, "y": 110},
+                    {"text": "Rodrigo", "x": 325, "y": 110},
+                    {"text": "+54", "x": 215, "y": 138},
+                    {"text": "2657", "x": 255, "y": 138},
+                    {"text": "29", "x": 320, "y": 138},
+                    {"text": "0348", "x": 355, "y": 138},
+                    {"text": "37.797.996", "x": 430, "y": 138},
+                    {"text": "Particular", "x": 710, "y": 110},
+                ],
+            },
+            {
+                "text": "16:55 OR DEVIA, CARLOS EVARISTO PAMI",
+                "y": 180,
+                "items": [
+                    {"text": "16:55", "x": 60, "y": 180},
+                    {"text": "OR", "x": 190, "y": 180},
+                    {"text": "DEVIA,", "x": 220, "y": 180},
+                    {"text": "CARLOS", "x": 320, "y": 180},
+                    {"text": "EVARISTO", "x": 405, "y": 180},
+                    {"text": "PAMI", "x": 710, "y": 180},
+                    {"text": "+54", "x": 215, "y": 208},
+                    {"text": "2657", "x": 255, "y": 208},
+                    {"text": "44", "x": 320, "y": 208},
+                    {"text": "8093", "x": 355, "y": 208},
+                    {"text": "13.435.809", "x": 430, "y": 208},
+                ],
+            },
+        ]
+
+        rows = extract_drapp_rows_from_browser_ocr(__import__("json").dumps(payload))
+
+        self.assertEqual(
+            [(row["datetime_raw"], row["patient_name"], row["dni"], row["coverage_raw"]) for row in rows],
+            [
+                ("15:55", "ORTIZ, MARTA LILIANA", "16484284", ""),
+                ("16:30", "SUAREZ, RODRIGO", "37797996", "Particular"),
+                ("16:55", "DEVIA, CARLOS EVARISTO", "13435809", "PAMI"),
+            ],
+        )
 
 
 class DrappImportViewTests(TestCase):

@@ -1233,9 +1233,103 @@ def build_ocr_lines_from_image(image_path: str):
     return lines
 
 
+def _estimate_ocr_canvas_width(lines):
+    max_x = 0.0
+    for line in lines or []:
+        for item in line.get("items", []) or []:
+            try:
+                max_x = max(max_x, float(item.get("x", 0) or 0))
+            except (TypeError, ValueError):
+                continue
+    return max_x
+
+
+def _join_structured_items(items):
+    ordered_items = sorted(items or [], key=lambda item: float(item.get("x", 0) or 0))
+    return collapse_spaces(" ".join(str(item.get("text", "") or "") for item in ordered_items))
+
+
+def _structured_zone_text(line, min_ratio, max_ratio=None, canvas_width=None):
+    items = line.get("items", []) or []
+    if not items or not canvas_width:
+        return ""
+    min_x = canvas_width * min_ratio
+    max_x = canvas_width * max_ratio if max_ratio is not None else None
+    zone_items = []
+    for item in items:
+        try:
+            item_x = float(item.get("x", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        if item_x < min_x:
+            continue
+        if max_x is not None and item_x >= max_x:
+            continue
+        zone_items.append(item)
+    return _join_structured_items(zone_items)
+
+
+def _extract_structured_drapp_row_fields(row, canvas_width):
+    structured_lines = row.get("structured_lines") or []
+    if not structured_lines or not canvas_width:
+        return None
+
+    patient_lines = []
+    coverage_chunks = []
+    practice_chunks = []
+    patient_zone_texts = []
+
+    for line in structured_lines:
+        patient_zone = _structured_zone_text(line, 0.11, 0.42, canvas_width)
+        coverage_zone = _structured_zone_text(line, 0.42, 0.60, canvas_width)
+        practice_zone = _structured_zone_text(line, 0.60, None, canvas_width)
+        if patient_zone:
+            patient_lines.append(patient_zone)
+            patient_zone_texts.append(patient_zone)
+        if coverage_zone:
+            coverage_chunks.append(coverage_zone)
+        if practice_zone:
+            practice_chunks.append(practice_zone)
+
+    patient_zone_text = " | ".join(patient_zone_texts)
+    coverage_text = " | ".join(coverage_chunks)
+    practice_text = " | ".join(practice_chunks)
+    upper_coverage = coverage_text.upper()
+    upper_practice = practice_text.upper()
+
+    coverage_raw = ""
+    for candidate in DRAPP_COVERAGE_CANDIDATES:
+        if candidate in upper_coverage:
+            coverage_raw = candidate.title() if candidate == "PARTICULAR" else candidate
+            break
+
+    practice_raw = ""
+    normalized_practice = normalize_for_match(upper_practice)
+    if "CICLOESPIROMETRIA" in normalized_practice or ("CICLO" in upper_practice and "ESPIRO" in upper_practice):
+        practice_raw = "Cicloespirometria"
+    elif "ESPIRO" in upper_practice:
+        practice_raw = "Espirometria"
+
+    patient_name = extract_patient_name_from_drapp_row(
+        patient_lines or row.get("raw_lines", []),
+        coverage_raw=coverage_raw,
+        practice_raw=practice_raw,
+    )
+    phone, dni = extract_phone_and_dni_from_drapp_text(patient_zone_text or " | ".join(row.get("raw_lines", [])))
+
+    return {
+        "patient_name": patient_name,
+        "coverage_raw": coverage_raw,
+        "practice_raw": practice_raw,
+        "phone": phone,
+        "dni": dni,
+    }
+
+
 def extract_drapp_rows_from_ocr_lines(lines):
     rows = []
     agenda_date = parse_drapp_agenda_date(" ".join(line.get("text", "") for line in lines[:8]))
+    canvas_width = _estimate_ocr_canvas_width(lines)
     current = None
     time_pattern = re.compile(r"(?<!\d)(\d{1,2}:\d{2})(?!\d)")
 
@@ -1244,7 +1338,20 @@ def extract_drapp_rows_from_ocr_lines(lines):
         if match:
             if current:
                 rows.append(current)
-            line_without_time = time_pattern.sub("", line["text"]).strip(" -|")
+            if line.get("items"):
+                filtered_items = [
+                    item for item in (line.get("items") or [])
+                    if not time_pattern.search(str(item.get("text", "") or ""))
+                ]
+                line_without_time = _join_structured_items(filtered_items).strip(" -|")
+                structured_line = {
+                    "text": line_without_time,
+                    "y": line.get("y", 0),
+                    "items": filtered_items,
+                }
+            else:
+                line_without_time = time_pattern.sub("", line["text"]).strip(" -|")
+                structured_line = None
             current = {
                 "datetime_raw": match.group(1),
                 "patient_name": "",
@@ -1253,10 +1360,19 @@ def extract_drapp_rows_from_ocr_lines(lines):
                 "phone": "",
                 "dni": "",
                 "raw_lines": [line_without_time] if line_without_time else [],
+                "structured_lines": [structured_line] if structured_line and line_without_time else [],
             }
             continue
         if current:
             current["raw_lines"].append(line["text"])
+            if line.get("items"):
+                current["structured_lines"].append(
+                    {
+                        "text": line.get("text", ""),
+                        "y": line.get("y", 0),
+                        "items": list(line.get("items") or []),
+                    }
+                )
     if current:
         rows.append(current)
 
@@ -1264,28 +1380,38 @@ def extract_drapp_rows_from_ocr_lines(lines):
     for row in rows:
         combined_text = " | ".join(row["raw_lines"])
         upper_text = combined_text.upper()
+        structured_fields = _extract_structured_drapp_row_fields(row, canvas_width)
 
-        phone, dni = extract_phone_and_dni_from_drapp_text(combined_text)
+        phone = structured_fields.get("phone", "") if structured_fields else ""
+        dni = structured_fields.get("dni", "") if structured_fields else ""
+        if not phone or not dni:
+            fallback_phone, fallback_dni = extract_phone_and_dni_from_drapp_text(combined_text)
+            phone = phone or fallback_phone
+            dni = dni or fallback_dni
 
-        coverage_raw = ""
-        for candidate in DRAPP_COVERAGE_CANDIDATES:
-            if candidate in upper_text:
-                coverage_raw = candidate.title() if candidate == "PARTICULAR" else candidate
-                break
+        coverage_raw = structured_fields.get("coverage_raw", "") if structured_fields else ""
+        if not coverage_raw:
+            for candidate in DRAPP_COVERAGE_CANDIDATES:
+                if candidate in upper_text:
+                    coverage_raw = candidate.title() if candidate == "PARTICULAR" else candidate
+                    break
 
-        practice_raw = ""
-        if "CICLOESPIROMETRIA" in normalize_for_match(upper_text):
-            practice_raw = "Cicloespirometria"
-        elif "CICLO" in upper_text and "ESPIRO" in upper_text:
-            practice_raw = "Cicloespirometria"
-        elif "ESPIRO" in upper_text:
-            practice_raw = "Espirometria"
+        practice_raw = structured_fields.get("practice_raw", "") if structured_fields else ""
+        if not practice_raw:
+            if "CICLOESPIROMETRIA" in normalize_for_match(upper_text):
+                practice_raw = "Cicloespirometria"
+            elif "CICLO" in upper_text and "ESPIRO" in upper_text:
+                practice_raw = "Cicloespirometria"
+            elif "ESPIRO" in upper_text:
+                practice_raw = "Espirometria"
 
-        patient_name = extract_patient_name_from_drapp_row(
-            row["raw_lines"],
-            coverage_raw=coverage_raw,
-            practice_raw=practice_raw,
-        )
+        patient_name = structured_fields.get("patient_name", "") if structured_fields else ""
+        if not patient_name:
+            patient_name = extract_patient_name_from_drapp_row(
+                row["raw_lines"],
+                coverage_raw=coverage_raw,
+                practice_raw=practice_raw,
+            )
         if not patient_name or normalize_for_match(patient_name) in DRAPP_ROW_SKIP_WORDS:
             continue
 
@@ -1333,7 +1459,23 @@ def extract_drapp_rows_from_browser_ocr(raw_payload: str):
             y_coord = float(item.get("y", index * 30))
         except (TypeError, ValueError):
             y_coord = float(index * 30)
-        lines.append({"text": text, "y": y_coord, "norm": normalize_for_match(text), "items": []})
+        line_items = []
+        for part in item.get("items", []) or []:
+            if not isinstance(part, dict):
+                continue
+            part_text = collapse_spaces(part.get("text", ""))
+            if not part_text:
+                continue
+            try:
+                part_x = float(part.get("x", 0) or 0)
+            except (TypeError, ValueError):
+                part_x = 0.0
+            try:
+                part_y = float(part.get("y", y_coord) or y_coord)
+            except (TypeError, ValueError):
+                part_y = y_coord
+            line_items.append({"text": part_text, "x": part_x, "y": part_y})
+        lines.append({"text": text, "y": y_coord, "norm": normalize_for_match(text), "items": line_items})
     return extract_drapp_rows_from_ocr_lines(lines)
 
 
