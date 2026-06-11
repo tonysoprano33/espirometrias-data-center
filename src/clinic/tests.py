@@ -738,6 +738,8 @@ class PrintReportViewTests(TestCase):
         self.assertIn("Resultado Espirometria Computarizada", html)
         self.assertIn("Moderadamente reducida", html)
         self.assertIn("dni-value", html)
+        self.assertIn("PRUEBA ALTERADA", html)
+        self.assertIn("desaturacion al esfuerzo", html.lower())
 
     def test_daily_print_uses_same_mutual_packet(self):
         with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 4)):
@@ -749,3 +751,82 @@ class PrintReportViewTests(TestCase):
         self.assertIn("sheet-pdf", html)
         self.assertIn("Capacidad Vital Lenta", html)
         self.assertIn("Moderadamente reducida", html)
+        self.assertIn("PRUEBA ALTERADA", html)
+
+
+class PatientHistoryActionsTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="history-test", password="secret123")
+        self.client.force_login(self.user)
+        self.patient = Patient.objects.create(full_name="TEST, PACIENTE", dni="12345678")
+        self.encounter = Encounter.objects.create(
+            patient=self.patient,
+            encounter_date=date(2026, 6, 11),
+            encounter_time=time(16, 30),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            status=EncounterStatus.PENDIENTE,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        VitalSigns.objects.create(encounter=self.encounter, so2_rest=88, fc_rest=64, so2_post=66, fc_post=117)
+        WalkTest.objects.create(encounter=self.encounter, distance_meters=100, completed=False, stopped=False, symptoms=False, borg_final=1)
+
+    def test_patient_detail_shows_walk_assessment_and_edit_action(self):
+        response = self.client.get(reverse("clinic:patient_detail", args=[self.patient.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn("PRUEBA ALTERADA", html)
+        self.assertIn("Editar atencion", html)
+        self.assertIn("Subir documento", html)
+
+    def test_patient_detail_can_upload_document_to_specific_encounter(self):
+        upload = SimpleUploadedFile(
+            "otro-estudio.pdf",
+            b"%PDF-1.4 extra",
+            content_type="application/pdf",
+        )
+
+        response = self.client.post(
+            reverse("clinic:patient_detail", args=[self.patient.pk]),
+            {
+                "action": "upload_patient_document",
+                "encounter": self.encounter.pk,
+                "file_kind": AttachmentKind.PDF_RESULTADO,
+                "file": upload,
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:patient_detail", args=[self.patient.pk]))
+        self.assertTrue(
+            Attachment.objects.filter(encounter=self.encounter, original_name="otro-estudio.pdf").exists()
+        )
+
+    def test_encounter_edit_can_return_to_patient_history(self):
+        response = self.client.post(
+            reverse("clinic:encounter_edit", args=[self.encounter.pk]),
+            {
+                "patient_name": "TEST, PACIENTE",
+                "patient_dni": "12345678",
+                "encounter_time": "16:30",
+                "study_type": "Ciclometria",
+                "coverage_type": "Particular",
+                "referring_physician": "",
+                "so2_rest": 90,
+                "fc_rest": 70,
+                "so2_post": 85,
+                "fc_post": 120,
+                "distance_meters": 100,
+                "completed": "on",
+                "stopped": "",
+                "symptoms": "",
+                "borg_final": 1,
+                "respiratory_result": "N",
+                "attended": "",
+                "no_show": "",
+                "return_to": reverse("clinic:patient_detail", args=[self.patient.pk]),
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:patient_detail", args=[self.patient.pk]))

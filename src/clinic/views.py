@@ -29,6 +29,7 @@ from .forms import (
     GRADE_TO_OBSTRUCTION_CODE,
     GRADE_TO_RESTRICTION_CODE,
     PatientForm,
+    PatientDocumentUploadForm,
     QuickEncounterForm,
     ReferringPhysicianForm,
     RESULT_CODE_SUGGESTIONS,
@@ -68,6 +69,7 @@ from .pdf_intake import (
 from .services import build_reports_for_encounter
 from .services import (
     DEFAULT_DOCTOR,
+    build_walk_test_assessment,
     construir_informe_espirometria,
     formatear_dni,
     interpolar_valores,
@@ -1786,6 +1788,17 @@ def build_print_context_for_encounter(encounter):
     pdf_attachment = get_latest_result_attachment(encounter)
     pdf_preview_pages = build_result_preview_images(pdf_attachment) if pdf_attachment else []
     include_mutual_packet = encounter.coverage_type == CoverageType.MUTUAL and include_walk
+    walk_assessment = (
+        build_walk_test_assessment(
+            getattr(vital, "so2_rest", None),
+            getattr(vital, "so2_post", None),
+            completed=bool(getattr(walk, "completed", True)),
+            stopped=bool(getattr(walk, "stopped", False)),
+            symptoms=bool(getattr(walk, "symptoms", False)),
+        )
+        if include_walk
+        else None
+    )
 
     return {
         "encounter": encounter,
@@ -1805,6 +1818,7 @@ def build_print_context_for_encounter(encounter):
         "completed": bool(getattr(walk, "completed", True)),
         "stopped": bool(getattr(walk, "stopped", False)),
         "symptoms": bool(getattr(walk, "symptoms", False)),
+        "walk_assessment": walk_assessment,
         "include_mutual_packet": include_mutual_packet,
         "mutual_cvl_result": build_mutual_cvl_result(patron, grado_obst, grado_rest),
         "pdf_preview_pages": pdf_preview_pages,
@@ -2418,6 +2432,32 @@ def patient_list(request):
 @login_required
 def patient_detail(request, pk):
     patient = get_object_or_404(Patient, pk=pk)
+    document_form = PatientDocumentUploadForm(request.POST or None, request.FILES or None, patient=patient)
+
+    if request.method == "POST" and request.POST.get("action") == "upload_patient_document":
+        if document_form.is_valid():
+            encounter = document_form.cleaned_data["encounter"]
+            uploaded = document_form.cleaned_data["file"]
+            file_kind = document_form.cleaned_data["file_kind"]
+            guessed_mime = str(getattr(uploaded, "content_type", "") or mimetypes.guess_type(uploaded.name)[0] or "")
+            attachment = Attachment(
+                encounter=encounter,
+                file_kind=file_kind,
+                original_name=str(getattr(uploaded, "name", "") or "archivo"),
+                mime_type=guessed_mime,
+                uploaded_by=request.user,
+            )
+            attachment.file.save(attachment.original_name, uploaded, save=True)
+            record_encounter_event(
+                encounter,
+                EncounterEventType.DOCUMENT,
+                "Documento agregado desde historia clinica",
+                actor=request.user,
+                details=f"Archivo: {attachment.original_name} | Tipo: {attachment.get_file_kind_display()}",
+            )
+            messages.success(request, "Documento agregado al paciente correctamente.")
+            return redirect("clinic:patient_detail", pk=patient.pk)
+
     encounters = list(
         patient.encounters.select_related("vital_signs", "walk_test", "spirometry_result", "referring_physician")
         .prefetch_related("attachments", "generated_reports__attachment", "events")
@@ -2440,6 +2480,13 @@ def patient_detail(request, pk):
         encounter.pdf_attachment = get_latest_result_attachment(encounter)
         encounter.progression = progression_map.get(encounter.pk, {"label": "Sin base", "tone": "muted", "detail": ""})
         encounter.suggestion = build_stored_suggestion_context(getattr(encounter, "spirometry_result", None))
+        encounter.walk_assessment = build_walk_test_assessment(
+            getattr(getattr(encounter, "vital_signs", None), "so2_rest", None),
+            getattr(getattr(encounter, "vital_signs", None), "so2_post", None),
+            completed=bool(getattr(getattr(encounter, "walk_test", None), "completed", True)),
+            stopped=bool(getattr(getattr(encounter, "walk_test", None), "stopped", False)),
+            symptoms=bool(getattr(getattr(encounter, "walk_test", None), "symptoms", False)),
+        ) if encounter.study_type == StudyType.CICLOMETRIA else None
         latest_report_info = get_latest_report_info(encounter)
         encounter.latest_report_url = latest_report_info["latest_report_url"]
         encounter.latest_report_name = latest_report_info["latest_report_name"]
@@ -2488,6 +2535,7 @@ def patient_detail(request, pk):
             "patient_events": patient_events,
             "operational_summary": operational_summary,
             "latest_comparison": latest_comparison,
+            "document_form": document_form,
         },
     )
 
@@ -2609,6 +2657,9 @@ def encounter_edit(request, pk):
         if form.is_valid():
             save_quick_encounter(form, request.user, encounter=encounter)
             messages.success(request, "Atencion actualizada correctamente.")
+            return_to = request.POST.get("return_to", "").strip()
+            if return_to and url_has_allowed_host_and_scheme(return_to, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+                return redirect(return_to)
             return redirect("clinic:dashboard")
     else:
         form = QuickEncounterForm(
@@ -2636,7 +2687,13 @@ def encounter_edit(request, pk):
     return render(
         request,
         "clinic/encounter_form.html",
-        {"form": form, "edit_mode": True, "encounter": encounter, "result_code_suggestions": RESULT_CODE_SUGGESTIONS},
+        {
+            "form": form,
+            "edit_mode": True,
+            "encounter": encounter,
+            "result_code_suggestions": RESULT_CODE_SUGGESTIONS,
+            "return_to": request.GET.get("next", "").strip(),
+        },
     )
 
 

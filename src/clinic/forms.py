@@ -322,6 +322,39 @@ class DoctorReviewForm(forms.Form):
         return uploaded
 
 
+class PatientDocumentUploadForm(forms.Form):
+    encounter = forms.ModelChoiceField(label="Atencion", queryset=Encounter.objects.none())
+    file_kind = forms.ChoiceField(
+        label="Tipo de archivo",
+        choices=(
+            (AttachmentKind.PDF_RESULTADO, "PDF resultado"),
+            (AttachmentKind.FOTO_RESULTADO, "Foto resultado"),
+            (AttachmentKind.INFORME_DOCX, "Word / DOCX"),
+            (AttachmentKind.OTRO, "Otro"),
+        ),
+    )
+    file = forms.FileField(label="Archivo")
+
+    def __init__(self, *args, patient=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        queryset = Encounter.objects.none()
+        if patient is not None:
+            queryset = patient.encounters.order_by("-encounter_date", "-encounter_time", "-created_at")
+        self.fields["encounter"].queryset = queryset
+        self.fields["file"].widget.attrs.update({"accept": ".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,image/*,application/pdf,.odt"})
+
+    def clean_file(self):
+        uploaded = self.cleaned_data.get("file")
+        if not uploaded:
+            return uploaded
+
+        file_name = str(getattr(uploaded, "name", "") or "").lower()
+        allowed_exts = (".pdf", ".png", ".jpg", ".jpeg", ".webp", ".doc", ".docx", ".odt")
+        if not file_name.endswith(allowed_exts):
+            raise forms.ValidationError("Subi un PDF, imagen o documento Word.")
+        return uploaded
+
+
 class DrappImportForm(forms.Form):
     raw_text = forms.CharField(
         label="Texto del mail o tabla de Drapp",

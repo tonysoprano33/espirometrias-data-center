@@ -34,6 +34,50 @@
     .timeline-item strong {
         display: block;
     }
+    .patient-action-stack {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 6px;
+    }
+    .patient-action-stack a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 34px;
+        padding: 0 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(23,49,63,.14);
+        background: rgba(255,255,255,.96);
+        text-decoration: none;
+        font-weight: 700;
+    }
+    .walk-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        font-weight: 800;
+        font-size: .88rem;
+        margin-top: 6px;
+    }
+    .walk-badge.ok {
+        background: rgba(32, 149, 95, .12);
+        color: #1f7a51;
+        border: 1px solid rgba(32, 149, 95, .22);
+    }
+    .walk-badge.alert {
+        background: rgba(209, 91, 43, .12);
+        color: #b1522b;
+        border: 1px solid rgba(209, 91, 43, .24);
+    }
+    .patient-upload-grid {
+        display: grid;
+        grid-template-columns: 1.3fr .9fr 1fr auto;
+        gap: 10px;
+        align-items: end;
+    }
     .timeline-meta {
         color: var(--muted);
         font-size: .9rem;
@@ -48,9 +92,15 @@
         .patient-ops-grid {
             grid-template-columns: 1fr 1fr;
         }
+        .patient-upload-grid {
+            grid-template-columns: 1fr 1fr;
+        }
     }
     @media (max-width: 640px) {
         .patient-ops-grid {
+            grid-template-columns: 1fr;
+        }
+        .patient-upload-grid {
             grid-template-columns: 1fr;
         }
     }
@@ -109,6 +159,38 @@
 <section class="card" style="margin-top:18px;">
     <div style="display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;">
         <div>
+            <p class="pill">Correcciones y archivos</p>
+            <h2 class="section-title">Cargar documento al paciente</h2>
+            <p class="muted" style="margin-top:6px;">Si te equivocaste o llego otro estudio, lo podes sumar directo desde aca.</p>
+        </div>
+    </div>
+    <form method="post" enctype="multipart/form-data" style="margin-top:14px;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="upload_patient_document">
+        <div class="patient-upload-grid">
+            <div class="field">
+                <label for="{{ document_form.encounter.id_for_label }}">{{ document_form.encounter.label }}</label>
+                {{ document_form.encounter }}
+            </div>
+            <div class="field">
+                <label for="{{ document_form.file_kind.id_for_label }}">{{ document_form.file_kind.label }}</label>
+                {{ document_form.file_kind }}
+            </div>
+            <div class="field">
+                <label for="{{ document_form.file.id_for_label }}">{{ document_form.file.label }}</label>
+                {{ document_form.file }}
+            </div>
+            <button class="button" type="submit">Subir documento</button>
+        </div>
+        {% if document_form.errors %}
+            <div class="muted" style="margin-top:10px;">{{ document_form.errors }}</div>
+        {% endif %}
+    </form>
+</section>
+
+<section class="card" style="margin-top:18px;">
+    <div style="display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;">
+        <div>
             <p class="pill">Analisis y pruebas previas</p>
             <h2 class="section-title">Atenciones guardadas</h2>
         </div>
@@ -126,6 +208,7 @@
                     <th>SO2 / FC reposo</th>
                     <th>SO2 / FC post</th>
                     <th>Resultado</th>
+                    <th>Caminata</th>
                     <th>Evolucion</th>
                     <th>Asistencia</th>
                     <th>Archivos</th>
@@ -154,30 +237,41 @@
                                 <div class="muted" style="margin-top:4px;">{{ encounter.suggestion.probability_phrase }}</div>
                             {% endif %}
                         </td>
+                        <td data-label="Caminata">
+                            {% if encounter.walk_assessment %}
+                                <span class="walk-badge {% if encounter.walk_assessment.is_normal %}ok{% else %}alert{% endif %}">{{ encounter.walk_assessment.label }}</span>
+                                <div class="muted" style="margin-top:4px;">{{ encounter.walk_assessment.detail }}</div>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
                         <td data-label="Evolucion">
                             <strong>{{ encounter.progression.label }}</strong>
                             <div class="muted" style="margin-top:4px;">{{ encounter.progression.detail }}</div>
                         </td>
                         <td data-label="Asistencia">{{ encounter.attendance_label }}</td>
                         <td class="td-actions" data-label="Archivos">
-                            <a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Revision</a> |
-                            <a href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a>
-                            {% if encounter.pdf_attachment %}
-                                | <a href="{{ encounter.pdf_attachment.file.url }}" target="_blank" rel="noopener">PDF</a>
-                            {% endif %}
-                            {% if encounter.complete_report_url %}
-                                | <a href="{{ encounter.complete_report_url }}" target="_blank" rel="noopener">Completo</a>
-                            {% elif encounter.latest_report_url %}
-                                | <a href="{{ encounter.latest_report_url }}" target="_blank" rel="noopener">Informe</a>
-                            {% endif %}
-                            {% if encounter.mutual_report_url %}
-                                | <a href="{{ encounter.mutual_report_url }}" target="_blank" rel="noopener">Mutual</a>
-                            {% endif %}
+                            <div class="patient-action-stack">
+                                <a href="{% url 'clinic:encounter_edit' encounter.pk %}?next={% url 'clinic:patient_detail' patient.pk %}">Editar atencion</a>
+                                <a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Revision</a>
+                                <a href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a>
+                                {% if encounter.pdf_attachment %}
+                                    <a href="{{ encounter.pdf_attachment.file.url }}" target="_blank" rel="noopener">Abrir PDF</a>
+                                {% endif %}
+                                {% if encounter.complete_report_url %}
+                                    <a href="{{ encounter.complete_report_url }}" target="_blank" rel="noopener">Informe completo</a>
+                                {% elif encounter.latest_report_url %}
+                                    <a href="{{ encounter.latest_report_url }}" target="_blank" rel="noopener">Informe</a>
+                                {% endif %}
+                                {% if encounter.mutual_report_url %}
+                                    <a href="{{ encounter.mutual_report_url }}" target="_blank" rel="noopener">Informe mutual</a>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="10">Todavia no hay atenciones guardadas para este paciente.</td>
+                        <td colspan="11">Todavia no hay atenciones guardadas para este paciente.</td>
                     </tr>
                 {% endfor %}
             </tbody>

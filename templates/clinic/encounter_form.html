@@ -9,6 +9,9 @@
     <p class="muted" style="margin-top:0;">Solo lo importante para recibir al paciente. La fecha queda en hoy automaticamente y el PDF se carga aparte en revision medica.</p>
     <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
+        {% if return_to %}
+            <input type="hidden" name="return_to" value="{{ return_to }}">
+        {% endif %}
         <div class="form-grid">
             {% for field in form %}
                 <div class="field">

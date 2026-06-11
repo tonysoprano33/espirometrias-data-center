@@ -91,6 +91,57 @@ def interpolar_valores(minimo, maximo, cantidad: int = 7) -> list[int]:
     return [round(minimo + (paso * i)) for i in range(cantidad)]
 
 
+def build_walk_test_assessment(
+    so2_rest=None,
+    so2_post=None,
+    *,
+    completed: bool = True,
+    stopped: bool = False,
+    symptoms: bool = False,
+):
+    def parse_optional_int(value):
+        try:
+            if value in (None, ""):
+                return None
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    rest = parse_optional_int(so2_rest)
+    post = parse_optional_int(so2_post)
+    reasons = []
+    drop = None if rest is None or post is None else rest - post
+
+    if post is not None and post <= 88:
+        reasons.append("desaturacion al esfuerzo")
+    if drop is not None and drop >= 4:
+        reasons.append("caida significativa de SO2")
+    if not completed:
+        reasons.append("marcha no completada")
+    if stopped:
+        reasons.append("se detuvo durante la marcha")
+    if symptoms:
+        reasons.append("presento sintomas")
+
+    if reasons:
+        detail = ", ".join(reasons)
+        if drop is not None:
+            detail = f"{detail} (bajo {drop} puntos)"
+        return {
+            "is_normal": False,
+            "label": "PRUEBA ALTERADA",
+            "detail": detail.capitalize() + ".",
+            "tone": "alert",
+        }
+
+    return {
+        "is_normal": True,
+        "label": "PRUEBA NORMAL",
+        "detail": "Sin desaturacion significativa ni incidentes durante la caminata.",
+        "tone": "ok",
+    }
+
+
 def crear_encabezado(doc: Document):
     doc.styles["Normal"].font.name = "Times New Roman"
     doc.styles["Normal"]._element.rPr.rFonts.set(qn("w:eastAsia"), "Times New Roman")
@@ -217,7 +268,18 @@ def agregar_seccion_espirometria(doc: Document, so2: str, fc: str, informe: str,
         rec_run.bold = True
 
 
-def agregar_seccion_caminata(doc: Document, so2_vals: list[int], fc_vals: list[int], distancia: str, concluida: bool, detuvo: bool, sintomas: bool, borg_vals: list[int]):
+def agregar_seccion_caminata(
+    doc: Document,
+    so2_vals: list[int],
+    fc_vals: list[int],
+    distancia: str,
+    concluida: bool,
+    detuvo: bool,
+    sintomas: bool,
+    borg_vals: list[int],
+    walk_label: str,
+    walk_detail: str = "",
+):
     titulo = doc.add_paragraph()
     run = titulo.add_run("PRUEBA DE LOS 6 Y 12 MINUTOS")
     run.bold = True
@@ -288,12 +350,39 @@ def agregar_seccion_caminata(doc: Document, so2_vals: list[int], fc_vals: list[i
     run.font.name = "Times New Roman"
     doc.add_paragraph()
     run.font.size = Pt(11)
-    normal_run = res.add_run("PRUEBA NORMAL")
+    normal_run = res.add_run(walk_label)
     normal_run.font.name = "Times New Roman"
     normal_run.font.size = Pt(11)
+    if walk_detail:
+        detail = doc.add_paragraph()
+        detail.paragraph_format.space_before = Pt(2)
+        detail.paragraph_format.space_after = Pt(4)
+        detail_run = detail.add_run(walk_detail)
+        detail_run.font.name = "Times New Roman"
+        detail_run.font.size = Pt(10)
 
 
-def crear_informe_mutual(nombre: str, dni: str, fecha: str, deriva: str, so2: str, fc: str, so2_vals: list[int], fc_vals: list[int], borg_vals: list[int], distancia: str, concluida: bool, detuvo: bool, sintomas: bool, informe_espiro: str, patron: str, grado_obst: str, grado_rest: str) -> Document:
+def crear_informe_mutual(
+    nombre: str,
+    dni: str,
+    fecha: str,
+    deriva: str,
+    so2: str,
+    fc: str,
+    so2_vals: list[int],
+    fc_vals: list[int],
+    borg_vals: list[int],
+    distancia: str,
+    concluida: bool,
+    detuvo: bool,
+    sintomas: bool,
+    informe_espiro: str,
+    patron: str,
+    grado_obst: str,
+    grado_rest: str,
+    walk_label: str,
+    walk_detail: str = "",
+) -> Document:
     doc = Document()
     for section in doc.sections:
         section.top_margin = Inches(0.6)
@@ -415,7 +504,12 @@ def crear_informe_mutual(nombre: str, dni: str, fecha: str, deriva: str, so2: st
     run.bold = True
     run.underline = True
     run.font.size = Pt(11)
-    res.add_run("PRUEBA NORMAL").font.size = Pt(11)
+    res.add_run(walk_label).font.size = Pt(11)
+    if walk_detail:
+        walk_detail_paragraph = doc.add_paragraph()
+        walk_detail_paragraph.paragraph_format.space_before = Pt(2)
+        walk_detail_paragraph.paragraph_format.space_after = Pt(4)
+        walk_detail_paragraph.add_run(walk_detail).font.size = Pt(10)
 
     esp_titulo = doc.add_paragraph()
     esp_titulo.paragraph_format.space_before = Pt(6)
@@ -615,6 +709,13 @@ def build_reports_for_encounter(encounter) -> list[GeneratedArtifact]:
     concluida = bool(getattr(walk, "completed", True))
     detuvo = bool(getattr(walk, "stopped", False))
     sintomas = bool(getattr(walk, "symptoms", False))
+    walk_assessment = build_walk_test_assessment(
+        getattr(vital, "so2_rest", None),
+        getattr(vital, "so2_post", None),
+        completed=concluida,
+        stopped=detuvo,
+        symptoms=sintomas,
+    )
 
     nombre_archivo_seguro = sanitizar_nombre_archivo(nombre)
     fecha_archivo = fecha_impresion.replace("/", "-")
@@ -666,7 +767,18 @@ def build_reports_for_encounter(encounter) -> list[GeneratedArtifact]:
     crear_encabezado(doc_normal)
     agregar_fecha(doc_normal, fecha_impresion)
     agregar_datos_paciente(doc_normal, nombre, dni, deriva)
-    agregar_seccion_caminata(doc_normal, so2_vals, fc_vals, distancia, concluida, detuvo, sintomas, borg_vals)
+    agregar_seccion_caminata(
+        doc_normal,
+        so2_vals,
+        fc_vals,
+        distancia,
+        concluida,
+        detuvo,
+        sintomas,
+        borg_vals,
+        walk_assessment["label"],
+        walk_assessment["detail"],
+    )
     agregar_firma(doc_normal, as_footer=True)
 
     artifacts.append(
@@ -697,6 +809,8 @@ def build_reports_for_encounter(encounter) -> list[GeneratedArtifact]:
             patron,
             grado_obst,
             grado_rest,
+            walk_assessment["label"],
+            walk_assessment["detail"],
         )
         artifacts.append(
             GeneratedArtifact(
