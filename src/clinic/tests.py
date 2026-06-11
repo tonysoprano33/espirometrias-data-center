@@ -953,3 +953,46 @@ class PatientHistoryActionsTests(TestCase):
         )
 
         self.assertRedirects(response, reverse("clinic:patient_detail", args=[self.patient.pk]))
+
+
+class CalendarEditingTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="calendar-edit", password="secret123")
+        self.client.force_login(self.user)
+        self.patient = Patient.objects.create(full_name="ARRIETA, LIDIA", dni="17124122")
+        self.encounter = Encounter.objects.create(
+            patient=self.patient,
+            encounter_date=date(2026, 6, 12),
+            encounter_time=time(10, 0),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            status=EncounterStatus.PENDIENTE,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+
+    def test_calendar_allows_updating_coverage(self):
+        response = self.client.post(
+            reverse("clinic:calendar"),
+            {
+                "action": "update_encounter_field",
+                "encounter_id": self.encounter.pk,
+                "field_name": "coverage_type",
+                "value": "Mutual",
+                "month": "2026-06",
+                "date": "2026-06-12",
+            },
+        )
+
+        self.assertRedirects(response, f"{reverse('clinic:calendar')}?month=2026-06&date=2026-06-12")
+        self.encounter.refresh_from_db()
+        self.assertEqual(self.encounter.coverage_type, CoverageType.MUTUAL)
+
+    def test_calendar_detail_renders_inline_edit_selects(self):
+        response = self.client.get(f"{reverse('clinic:calendar')}?month=2026-06&date=2026-06-12")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn('name="field_name" value="coverage_type"', html)
+        self.assertIn('name="field_name" value="study_type"', html)
+        self.assertIn("Editar ficha", html)

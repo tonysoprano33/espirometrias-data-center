@@ -328,6 +328,32 @@
         text-decoration: underline;
         font-weight: bold;
     }
+    .calendar-inline-form {
+        display: inline-flex;
+        width: 100%;
+    }
+    .calendar-inline-select {
+        width: 100%;
+        min-width: 0;
+        padding: 8px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(23,49,63,.12);
+        background: rgba(255,255,255,.94);
+        color: var(--ink);
+        font: inherit;
+        font-weight: 700;
+    }
+    .calendar-actions-stack {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    .calendar-edit-link {
+        color: var(--brand);
+        text-decoration: underline;
+        font-weight: bold;
+    }
     @media (max-width: 1280px) {
         .calendar-day {
             min-height: 122px;
@@ -618,8 +644,36 @@
                                             <div class="calendar-dni">{{ encounter.patient.dni }}</div>
                                         {% endif %}
                                     </td>
-                                    <td data-label="Estudio">{{ encounter.study_type }}</td>
-                                    <td data-label="Cobertura">{{ encounter.coverage_type }}</td>
+                                    <td data-label="Estudio">
+                                        <form method="post" class="calendar-inline-form">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="update_encounter_field">
+                                            <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                            <input type="hidden" name="field_name" value="study_type">
+                                            <input type="hidden" name="month" value="{{ current_month_param }}">
+                                            <input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}">
+                                            <select name="value" class="calendar-inline-select" onchange="this.form.submit()">
+                                                {% for value, label in study_choices %}
+                                                    <option value="{{ value }}"{% if encounter.study_type == value %} selected{% endif %}>{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </form>
+                                    </td>
+                                    <td data-label="Cobertura">
+                                        <form method="post" class="calendar-inline-form">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="update_encounter_field">
+                                            <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                            <input type="hidden" name="field_name" value="coverage_type">
+                                            <input type="hidden" name="month" value="{{ current_month_param }}">
+                                            <input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}">
+                                            <select name="value" class="calendar-inline-select" onchange="this.form.submit()">
+                                                {% for value, label in coverage_choices %}
+                                                    <option value="{{ value }}"{% if encounter.coverage_type == value %} selected{% endif %}>{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </form>
+                                    </td>
                                     <td data-label="SO2 / FC reposo">
                                         <span class="calendar-reading">
                                             {{ encounter.vital_signs.so2_rest|default:"-" }} / {{ encounter.vital_signs.fc_rest|default:"-" }}
@@ -641,14 +695,17 @@
                                         </span>
                                     </td>
                                     <td class="td-actions" data-label="Acciones">
-                                        <form method="post" onsubmit="return confirm('¿Eliminar este paciente agendado?');">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="action" value="delete_encounter">
-                                            <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
-                                            <input type="hidden" name="month" value="{{ current_month_param }}">
-                                            <input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}">
-                                            <button type="submit" class="calendar-link-button">Eliminar</button>
-                                        </form>
+                                        <div class="calendar-actions-stack">
+                                            <a href="{% url 'clinic:encounter_edit' encounter.pk %}?next=/calendario/?month={{ current_month_param }}%26date={{ selected_date|date:'Y-m-d' }}" class="calendar-edit-link">Editar ficha</a>
+                                            <form method="post" onsubmit="return confirm('¿Eliminar este paciente agendado?');">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="delete_encounter">
+                                                <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                                <input type="hidden" name="month" value="{{ current_month_param }}">
+                                                <input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}">
+                                                <button type="submit" class="calendar-link-button">Eliminar</button>
+                                            </form>
+                                        </div>
                                     </td>
                                 </tr>
                             {% endfor %}

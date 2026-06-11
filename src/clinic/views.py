@@ -2338,17 +2338,37 @@ def calendar_view(request):
     except ValueError:
         selected_date = today
 
-    if request.method == "POST" and request.POST.get("action") == "delete_encounter":
-        encounter = get_object_or_404(
-            Encounter.objects.select_related("patient"),
-            pk=request.POST.get("encounter_id"),
-        )
-        patient_name = encounter.patient.full_name
-        encounter.delete()
-        messages.success(request, f"Se elimino {patient_name} de la agenda.")
+    if request.method == "POST":
+        action = request.POST.get("action")
         redirect_month = request.POST.get("month") or selected_date.strftime("%Y-%m")
         redirect_date = request.POST.get("date") or selected_date.isoformat()
-        return redirect(f"{reverse('clinic:calendar')}?month={redirect_month}&date={redirect_date}")
+        if action == "delete_encounter":
+            encounter = get_object_or_404(
+                Encounter.objects.select_related("patient"),
+                pk=request.POST.get("encounter_id"),
+            )
+            patient_name = encounter.patient.full_name
+            encounter.delete()
+            messages.success(request, f"Se elimino {patient_name} de la agenda.")
+            return redirect(f"{reverse('clinic:calendar')}?month={redirect_month}&date={redirect_date}")
+        if action == "update_encounter_field":
+            encounter = get_object_or_404(
+                Encounter.objects.select_related("patient"),
+                pk=request.POST.get("encounter_id"),
+            )
+            field_name = (request.POST.get("field_name") or "").strip()
+            raw_value = (request.POST.get("value") or "").strip()
+            if field_name == "coverage_type" and raw_value in dict(CoverageType.choices):
+                encounter.coverage_type = raw_value
+                encounter.save(update_fields=["coverage_type", "updated_at"])
+                messages.success(request, f"Cobertura actualizada para {encounter.patient.full_name}.")
+            elif field_name == "study_type" and raw_value in dict(StudyType.choices):
+                encounter.study_type = raw_value
+                encounter.save(update_fields=["study_type", "updated_at"])
+                messages.success(request, f"Estudio actualizado para {encounter.patient.full_name}.")
+            else:
+                messages.error(request, "No pude actualizar ese dato de la agenda.")
+            return redirect(f"{reverse('clinic:calendar')}?month={redirect_month}&date={redirect_date}")
 
     previous_month = (current_month - timedelta(days=1)).replace(day=1)
     next_month = (current_month + timedelta(days=32)).replace(day=1)
@@ -2442,6 +2462,8 @@ def calendar_view(request):
         "selected_encounters": selected_encounters,
         "selected_summary": selected_summary,
         "default_offday_labels": ["Lunes", "Miercoles", "Sabado", "Domingo"],
+        "coverage_choices": CoverageType.choices,
+        "study_choices": StudyType.choices,
     }
     return render(request, "clinic/calendar.html", context)
 
