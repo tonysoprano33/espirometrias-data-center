@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load clinic_extras %}
 
 {% block title %}Inicio | Clinica Espiro{% endblock %}
 
@@ -138,10 +139,16 @@
         font-size: 1.3rem;
         font-weight: bold;
         color: #0d3f55;
+        font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+        font-variant-numeric: tabular-nums lining-nums;
+        letter-spacing: .02em;
     }
     .vitals-cell[data-label="DNI"] .inline-input {
         font-size: 1.2rem;
         font-weight: bold;
+        font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+        font-variant-numeric: tabular-nums lining-nums;
+        letter-spacing: .02em;
     }
     .quick-core-grid {
         display: grid;
@@ -188,6 +195,9 @@
         color: #0d3f55;
         font-size: .68rem;
         font-weight: bold;
+        font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+        font-variant-numeric: tabular-nums lining-nums;
+        letter-spacing: .02em;
         line-height: 1;
         white-space: nowrap;
     }
@@ -1228,19 +1238,19 @@
                                 <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
                                 <input type="hidden" name="field_name" value="patient_name">
                                 <input type="text" name="value" value="{{ encounter.patient.full_name }}" class="cell-input cell-name" data-inline-submit>
-                                <span class="patient-inline-dni" data-patient-dni-chip>{{ encounter.patient.dni|default:"Sin DNI" }}</span>
+                                <span class="patient-inline-dni" data-patient-dni-chip>{% if encounter.patient.dni %}{{ encounter.patient.dni|dni_format }}{% else %}Sin DNI{% endif %}</span>
                             </form>
                         </td>
                         <td class="vitals-cell" data-label="DNI">
                             <div class="inline-edit" data-inline-edit>
                                 <button class="inline-display" type="button" data-inline-open>
-                                    {{ encounter.patient.dni|default:"Completar DNI" }}
+                                    {% if encounter.patient.dni %}{{ encounter.patient.dni|dni_format }}{% else %}Completar DNI{% endif %}
                                 </button>
                                 <form method="post" class="inline-form" data-inline-form data-inline-ajax>
                                     {% csrf_token %}
                                     <input type="hidden" name="action" value="update_dni">
                                     <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
-                                    <input type="text" name="patient_dni" value="{{ encounter.patient.dni|default:'' }}" maxlength="20" class="inline-input">
+                                    <input type="text" name="patient_dni" value="{% if encounter.patient.dni %}{{ encounter.patient.dni|dni_format }}{% endif %}" maxlength="20" class="inline-input">
                                     <button class="inline-save" type="submit">Guardar</button>
                                 </form>
                             </div>

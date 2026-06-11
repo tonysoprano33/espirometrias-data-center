@@ -834,8 +834,8 @@ class PrintReportViewTests(TestCase):
         self.assertIn("Resultado Espirometria Computarizada", html)
         self.assertIn("Moderadamente reducida", html)
         self.assertIn("dni-value", html)
-        self.assertIn("PRUEBA ANORMAL", html)
-        self.assertIn("desaturacion al esfuerzo", html.lower())
+        self.assertIn("PRUEBA NO NORMAL", html)
+        self.assertNotIn("desaturacion al esfuerzo", html.lower())
 
     def test_daily_print_uses_same_mutual_packet(self):
         with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 4)):
@@ -847,7 +847,7 @@ class PrintReportViewTests(TestCase):
         self.assertIn("sheet-pdf", html)
         self.assertIn("Capacidad Vital Lenta", html)
         self.assertIn("Moderadamente reducida", html)
-        self.assertIn("PRUEBA ANORMAL", html)
+        self.assertIn("PRUEBA NO NORMAL", html)
 
 
 class PatientHistoryActionsTests(TestCase):
@@ -873,7 +873,7 @@ class PatientHistoryActionsTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
-        self.assertIn("PRUEBA ANORMAL", html)
+        self.assertIn("PRUEBA NO NORMAL", html)
         self.assertIn("Editar atencion", html)
         self.assertIn("Subir documento", html)
 

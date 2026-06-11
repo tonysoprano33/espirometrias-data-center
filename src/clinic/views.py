@@ -538,7 +538,7 @@ def get_row_state_payload(encounter):
         "encounter_time": encounter.encounter_time.strftime("%H:%M") if encounter.encounter_time else "",
         "patient_name": encounter.patient.full_name,
         "patient_dni": encounter.patient.dni or "",
-        "patient_dni_display": encounter.patient.dni or "Completar DNI",
+        "patient_dni_display": formatear_dni(encounter.patient.dni) if encounter.patient.dni else "Completar DNI",
         "patient_url": reverse("clinic:patient_detail", args=[encounter.patient_id]),
         "so2_rest": "" if getattr(vital, "so2_rest", None) is None else str(vital.so2_rest),
         "fc_rest": "" if getattr(vital, "fc_rest", None) is None else str(vital.fc_rest),
@@ -2183,7 +2183,7 @@ def dashboard(request):
                     {
                         "ok": True,
                         "patient_dni": encounter.patient.dni or "",
-                        "patient_dni_display": encounter.patient.dni or "Completar DNI",
+                        "patient_dni_display": formatear_dni(encounter.patient.dni) if encounter.patient.dni else "Completar DNI",
                         "message": "Historia clinica unificada por DNI." if reassigned else "",
                         **get_row_state_payload(encounter),
                     }

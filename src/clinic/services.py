@@ -124,13 +124,10 @@ def build_walk_test_assessment(
         reasons.append("presento sintomas")
 
     if reasons:
-        detail = ", ".join(reasons)
-        if drop is not None:
-            detail = f"{detail} (bajo {drop} puntos)"
         return {
             "is_normal": False,
-            "label": "PRUEBA ANORMAL",
-            "detail": detail.capitalize() + ".",
+            "label": "PRUEBA NO NORMAL",
+            "detail": "",
             "tone": "alert",
         }
 
