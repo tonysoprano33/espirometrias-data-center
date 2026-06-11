@@ -134,7 +134,7 @@ def build_walk_test_assessment(
     return {
         "is_normal": True,
         "label": "PRUEBA NORMAL",
-        "detail": "Sin desaturacion significativa ni incidentes durante la caminata.",
+        "detail": "",
         "tone": "ok",
     }
 
