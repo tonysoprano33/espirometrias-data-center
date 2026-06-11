@@ -106,6 +106,42 @@
         margin-top: 12px;
         line-height: 1.02;
     }
+    .statistics-month-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .statistics-month-nav {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .statistics-month-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 42px;
+        height: 42px;
+        padding: 0 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(23,49,63,.12);
+        background: rgba(255,255,255,.92);
+        color: var(--brand);
+        font-weight: bold;
+        text-decoration: none;
+        box-shadow: 0 8px 20px rgba(17,49,70,.06);
+    }
+    .statistics-month-link.is-disabled {
+        opacity: .45;
+        pointer-events: none;
+    }
+    .statistics-month-range {
+        margin: 6px 0 0;
+        color: #5a7382;
+        font-size: .92rem;
+    }
     .statistics-subtitle {
         margin-top: 0;
     }
@@ -435,8 +471,17 @@
 
 <section class="grid-2 statistics-section">
     <article class="card statistics-card--month">
-        <p class="pill">Mes actual</p>
-        <h2 class="section-title statistics-card-title">{{ month_label }}</h2>
+        <div class="statistics-month-head">
+            <div>
+                <p class="pill">{% if is_current_month %}Mes actual{% else %}Mes elegido{% endif %}</p>
+                <h2 class="section-title statistics-card-title">{{ month_label }}</h2>
+                <p class="statistics-month-range">{{ selected_month_range_label }}</p>
+            </div>
+            <div class="statistics-month-nav">
+                <a class="statistics-month-link" href="{% url 'clinic:statistics' %}?month={{ previous_month_param }}" aria-label="Mes anterior">‹</a>
+                <a class="statistics-month-link {% if not can_go_next_month %}is-disabled{% endif %}" href="{% url 'clinic:statistics' %}?month={{ next_month_param }}" aria-label="Mes siguiente">›</a>
+            </div>
+        </div>
         <div class="metric-row" style="margin-bottom:18px;">
             <div class="metric">
                 <span>% mutual</span>
@@ -570,7 +615,7 @@
     </article>
 
     <article class="card statistics-card--profiles">
-        <p class="pill">Mes actual</p>
+        <p class="pill">{% if is_current_month %}Mes actual{% else %}Mes elegido{% endif %}</p>
         <h2 class="section-title statistics-card-title">Pacientes del mes con PDF procesado</h2>
         <div class="metric-row">
             <div class="metric">

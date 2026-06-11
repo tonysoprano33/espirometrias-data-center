@@ -996,3 +996,45 @@ class CalendarEditingTests(TestCase):
         self.assertIn('name="field_name" value="coverage_type"', html)
         self.assertIn('name="field_name" value="study_type"', html)
         self.assertIn("Editar ficha", html)
+
+
+class StatisticsMonthNavigationTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="stats-months", password="secret123")
+        self.client.force_login(self.user)
+        patient = Patient.objects.create(full_name="MES, PRUEBA", dni="11111111")
+        Encounter.objects.create(
+            patient=patient,
+            encounter_date=date(2026, 5, 20),
+            encounter_time=time(9, 0),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.MUTUAL,
+            status=EncounterStatus.PENDIENTE,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        Encounter.objects.create(
+            patient=patient,
+            encounter_date=date(2026, 6, 10),
+            encounter_time=time(10, 0),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            status=EncounterStatus.PENDIENTE,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+
+    def test_statistics_allows_browsing_previous_month(self):
+        response = self.client.get(f"{reverse('clinic:statistics')}?month=2026-05")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn("mayo 2026", html.lower())
+        self.assertIn("Mes elegido", html)
+
+    def test_statistics_caps_future_month_to_current(self):
+        response = self.client.get(f"{reverse('clinic:statistics')}?month=2099-01")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn("Mes actual", html)

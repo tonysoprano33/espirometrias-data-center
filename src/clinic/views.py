@@ -2472,7 +2472,26 @@ def calendar_view(request):
 def statistics_view(request):
     today = timezone.localdate()
     week_start = today - timedelta(days=today.weekday())
-    month_start = today.replace(day=1)
+    month_param = (request.GET.get("month") or "").strip()
+    current_month_start = today.replace(day=1)
+
+    try:
+        selected_month_start = (
+            datetime.strptime(month_param, "%Y-%m").date().replace(day=1)
+            if month_param
+            else current_month_start
+        )
+    except ValueError:
+        selected_month_start = current_month_start
+
+    if selected_month_start > current_month_start:
+        selected_month_start = current_month_start
+
+    next_month_start = (selected_month_start + timedelta(days=32)).replace(day=1)
+    selected_month_last_day = next_month_start - timedelta(days=1)
+    selected_month_end = min(selected_month_last_day, today)
+    previous_month_start = (selected_month_start - timedelta(days=1)).replace(day=1)
+    can_go_next_month = selected_month_start < current_month_start
 
     periods = [
         {
@@ -2490,7 +2509,7 @@ def statistics_view(request):
         {
             "key": "month",
             "label": "Mes",
-            "start": month_start,
+            "start": current_month_start,
             "end": today,
         },
     ]
@@ -2523,15 +2542,15 @@ def statistics_view(request):
         )
         last_7_days.append(summary)
 
-    current_month_qs = Encounter.objects.filter(encounter_date__range=(month_start, today))
-    current_month_summary = get_period_summary(current_month_qs)
-    current_month_alerts = get_operational_alerts(current_month_qs)
+    selected_month_qs = Encounter.objects.filter(encounter_date__range=(selected_month_start, selected_month_end))
+    current_month_summary = get_period_summary(selected_month_qs)
+    current_month_alerts = get_operational_alerts(selected_month_qs)
     status_rows = []
     for value, label in EncounterStatus.choices:
         status_rows.append(
             {
                 "label": label,
-                "total": current_month_qs.filter(status=value).count(),
+                "total": selected_month_qs.filter(status=value).count(),
             }
         )
 
@@ -2545,7 +2564,7 @@ def statistics_view(request):
             "encounters__spirometry_result"
         ).all()
     )
-    month_patient_ids = list(current_month_qs.values_list("patient_id", flat=True).distinct())
+    month_patient_ids = list(selected_month_qs.values_list("patient_id", flat=True).distinct())
     current_month_profiled_patients = [patient for patient in profiled_patients if patient.id in month_patient_ids]
     profile_summary = build_patient_profile_summary(profiled_patients)
     month_profile_summary = build_patient_profile_summary(current_month_profiled_patients)
@@ -2555,7 +2574,13 @@ def statistics_view(request):
         "today": today,
         "period_cards": period_cards,
         "last_7_days": last_7_days,
-        "month_label": format_month_label(month_start),
+        "month_label": format_month_label(selected_month_start),
+        "selected_month_param": selected_month_start.strftime("%Y-%m"),
+        "previous_month_param": previous_month_start.strftime("%Y-%m"),
+        "next_month_param": next_month_start.strftime("%Y-%m"),
+        "can_go_next_month": can_go_next_month,
+        "selected_month_range_label": f"{selected_month_start:%d/%m/%Y} al {selected_month_end:%d/%m/%Y}",
+        "is_current_month": selected_month_start == current_month_start,
         "current_month_summary": current_month_summary,
         "current_month_alerts": current_month_alerts,
         "status_rows": status_rows,
