@@ -65,7 +65,7 @@ def construir_informe_espirometria(patron: str, grado_obst: str, grado_rest: str
         return f"El paciente presenta déficit respiratorio (obstrucción {grado_obst}) a las pequeñas vías respiratorias aéreas."
     if patron == "Restrictivo":
         return f"El paciente presenta déficit respiratorio (restricción {grado_rest}) a las vías respiratorias aéreas."
-    return f"El paciente presenta déficit respiratorio (restricción {grado_rest} - obstrucción {grado_obst}) a las vías respiratorias aéreas."
+    return f"El paciente presenta déficit respiratorio (restricción {grado_rest} - obstrucción {grado_obst}) a las pequeñas vías respiratorias aéreas."
 
 
 def agregar_borde_parrafo(paragraph):
@@ -806,3 +806,4 @@ def build_reports_for_encounter(encounter) -> list[GeneratedArtifact]:
         )
 
     return artifacts
+

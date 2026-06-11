@@ -14,6 +14,7 @@ from .pdf_intake import (
     extract_patient_snapshot_from_text,
     extract_spirometry_numbers_from_text,
 )
+from .services import construir_informe_espirometria
 from .views import (
     extract_drapp_rows_from_browser_ocr,
     extract_drapp_rows_from_ocr_lines,
@@ -21,6 +22,21 @@ from .views import (
     import_drapp_rows,
     unique_encounters_by_patient_day,
 )
+
+
+class SpirometryReportTextTests(SimpleTestCase):
+    def test_mixed_pattern_mentions_small_airways(self):
+        text = construir_informe_espirometria("Mixto", "leve", "moderada")
+
+        self.assertIn("peque", text.lower())
+        self.assertIn("restric", text.lower())
+        self.assertIn("obstru", text.lower())
+
+    def test_restrictive_pattern_keeps_general_airways_text(self):
+        text = construir_informe_espirometria("Restrictivo", "", "moderada")
+
+        self.assertIn("respiratorias", text.lower())
+        self.assertNotIn("peque", text.lower())
 
 
 class DrappImportParsingTests(SimpleTestCase):
