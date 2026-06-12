@@ -126,6 +126,7 @@
         .spirometry-result {
             max-width: 100%;
             text-align: justify;
+            white-space: pre-line;
         }
         .clinical-note {
             margin-top: 40px;
@@ -388,7 +389,7 @@
             <p><strong><u>PRUEBA DE LOS 6 Y 12 MINUTOS:</u></strong> {{ walk_assessment.label }}</p>
 
             <h2>Resultado Espirometria Computarizada:</h2>
-            <p>{{ report_text }}</p>
+            <p class="spirometry-result">{{ report_text }}</p>
 
             <h2>Capacidad Vital Lenta:</h2>
             <p class="mutual-emphasis">{{ mutual_cvl_result }}</p>
