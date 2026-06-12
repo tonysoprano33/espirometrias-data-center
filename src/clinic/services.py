@@ -68,8 +68,8 @@ def construir_informe_espirometria(patron: str, grado_obst: str, grado_rest: str
     grado_rest_text = str(grado_rest or "").strip().capitalize()
     grado_obst_text = str(grado_obst or "").strip().capitalize()
     return (
-        "El paciente presenta déficit respiratorio con patrón mixto:\n\n"
-        f"Restricción {grado_rest_text}.\n\n"
+        "El paciente presenta déficit respiratorio con patrón mixto:\n"
+        f"Restricción {grado_rest_text}.\n"
         f"Obstrucción {grado_obst_text} a las vías respiratorias aéreas."
     )
 

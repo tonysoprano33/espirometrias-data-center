@@ -33,6 +33,7 @@ class SpirometryReportTextTests(SimpleTestCase):
         self.assertIn("Restricción Moderadamente severa.", text)
         self.assertIn("Obstrucción Severa a las vías respiratorias aéreas.", text)
         self.assertNotIn("pequeñas", text)
+        self.assertNotIn("\n\n", text)
 
     def test_restrictive_pattern_keeps_general_airways_text(self):
         text = construir_informe_espirometria("Restrictivo", "", "moderada")
