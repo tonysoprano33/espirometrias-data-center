@@ -65,7 +65,13 @@ def construir_informe_espirometria(patron: str, grado_obst: str, grado_rest: str
         return f"El paciente presenta déficit respiratorio (obstrucción {grado_obst}) a las pequeñas vías respiratorias aéreas."
     if patron == "Restrictivo":
         return f"El paciente presenta déficit respiratorio (restricción {grado_rest}) a las vías respiratorias aéreas."
-    return f"El paciente presenta déficit respiratorio (restricción {grado_rest} - obstrucción {grado_obst}) a las pequeñas vías respiratorias aéreas."
+    grado_rest_text = str(grado_rest or "").strip().capitalize()
+    grado_obst_text = str(grado_obst or "").strip().capitalize()
+    return (
+        "El paciente presenta déficit respiratorio con patrón mixto:\n\n"
+        f"Restricción {grado_rest_text}.\n\n"
+        f"Obstrucción {grado_obst_text} a las vías respiratorias aéreas."
+    )
 
 
 def agregar_borde_parrafo(paragraph):

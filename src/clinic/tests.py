@@ -26,12 +26,13 @@ from .views import (
 
 
 class SpirometryReportTextTests(SimpleTestCase):
-    def test_mixed_pattern_mentions_small_airways(self):
-        text = construir_informe_espirometria("Mixto", "leve", "moderada")
+    def test_mixed_pattern_uses_split_wording(self):
+        text = construir_informe_espirometria("Mixto", "severa", "moderadamente severa")
 
-        self.assertIn("peque", text.lower())
-        self.assertIn("restric", text.lower())
-        self.assertIn("obstru", text.lower())
+        self.assertIn("patrón mixto", text)
+        self.assertIn("Restricción Moderadamente severa.", text)
+        self.assertIn("Obstrucción Severa a las vías respiratorias aéreas.", text)
+        self.assertNotIn("pequeñas", text)
 
     def test_restrictive_pattern_keeps_general_airways_text(self):
         text = construir_informe_espirometria("Restrictivo", "", "moderada")
