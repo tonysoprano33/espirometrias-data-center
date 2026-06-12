@@ -30,8 +30,8 @@ class SpirometryReportTextTests(SimpleTestCase):
         text = construir_informe_espirometria("Mixto", "severa", "moderadamente severa")
 
         self.assertIn("patrón mixto", text)
-        self.assertIn("Restricción Moderadamente severa.", text)
-        self.assertIn("Obstrucción Severa a las vías respiratorias aéreas.", text)
+        self.assertIn("  Restricción Moderadamente severa.", text)
+        self.assertIn("  Obstrucción Severa a las vías respiratorias aéreas.", text)
         self.assertNotIn("pequeñas", text)
         self.assertNotIn("\n\n", text)
 
