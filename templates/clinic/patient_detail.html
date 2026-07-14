@@ -40,7 +40,12 @@
         flex-wrap: wrap;
         margin-top: 6px;
     }
-    .patient-action-stack a {
+    .patient-action-stack form {
+        display: inline-flex;
+        margin: 0;
+    }
+    .patient-action-stack a,
+    .patient-action-stack button {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -49,8 +54,28 @@
         border-radius: 999px;
         border: 1px solid rgba(23,49,63,.14);
         background: rgba(255,255,255,.96);
+        color: var(--primary);
         text-decoration: none;
         font-weight: 700;
+        font-family: inherit;
+        font-size: .95rem;
+        cursor: pointer;
+    }
+    .patient-action-stack button.primary {
+        background: #0f7c95;
+        border-color: #0f7c95;
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(15, 124, 149, .16);
+    }
+    .patient-action-stack button.mutual {
+        background: #f3fbff;
+        border-color: rgba(30, 139, 178, .28);
+        color: #12627a;
+    }
+    .patient-action-stack button:disabled {
+        cursor: not-allowed;
+        opacity: .55;
+        box-shadow: none;
     }
     .walk-badge {
         display: inline-flex;
@@ -114,8 +139,10 @@
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
             <a class="button alt" href="{% url 'clinic:patient_list' %}">Volver a pacientes</a>
-            <a class="button alt" href="{% url 'clinic:patient_edit' patient.pk %}">Editar paciente</a>
-            <a class="button danger" href="{% url 'clinic:patient_delete' patient.pk %}">Eliminar paciente</a>
+            {% if perms.clinic.manage_agenda %}
+                <a class="button alt" href="{% url 'clinic:patient_edit' patient.pk %}">Editar paciente</a>
+                <a class="button danger" href="{% url 'clinic:patient_delete' patient.pk %}">Eliminar paciente</a>
+            {% endif %}
         </div>
     </div>
 
@@ -252,19 +279,45 @@
                         <td data-label="Asistencia">{{ encounter.attendance_label }}</td>
                         <td class="td-actions" data-label="Archivos">
                             <div class="patient-action-stack">
-                                <a href="{% url 'clinic:encounter_edit' encounter.pk %}?next={% url 'clinic:patient_detail' patient.pk %}">Editar atencion</a>
-                                <a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Revision</a>
-                                <a href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a>
-                                {% if encounter.pdf_attachment %}
-                                    <a href="{{ encounter.pdf_attachment.file.url }}" target="_blank" rel="noopener">Abrir PDF</a>
+                                {% if perms.clinic.manage_agenda %}<a href="{% url 'clinic:encounter_edit' encounter.pk %}?next={% url 'clinic:patient_detail' patient.pk %}">Editar atencion</a>{% endif %}
+                                {% if perms.clinic.review_medically %}<a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Revision</a>{% endif %}
+                                {% if encounter.can_generate_report %}
+                                    <a href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a>
+                                {% else %}
+                                    <span class="muted" title="{{ encounter.report_block_reason }}">Imprimir no disponible</span>
+                                {% endif %}
+                                {% if perms.clinic.manage_agenda or perms.clinic.review_medically %}
+                                <form method="post" data-patient-report-form data-inconsistency-message="{{ encounter.inconsistency_message }}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="generate_patient_report">
+                                    <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                    <input type="hidden" name="report_scope" value="complete">
+                                    <button class="primary" type="submit" {% if not encounter.can_generate_report %}disabled title="{{ encounter.report_block_reason }}"{% endif %}>
+                                        {% if encounter.complete_report_url %}Regenerar completo{% else %}Generar completo{% endif %}
+                                    </button>
+                                </form>
+                                <form method="post" data-patient-report-form data-inconsistency-message="{{ encounter.inconsistency_message }}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="generate_patient_report">
+                                    <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                    <input type="hidden" name="report_scope" value="mutual">
+                                    <button class="mutual" type="submit" {% if not encounter.can_generate_report %}disabled title="{{ encounter.report_block_reason }}"{% endif %}>
+                                        {% if encounter.mutual_report_url %}Regenerar mutual{% else %}Generar mutual{% endif %}
+                                    </button>
+                                </form>
+                                {% endif %}
+                                {% if encounter.pdf_attachment_url %}
+                                    <a href="{{ encounter.pdf_attachment_url }}" target="_blank" rel="noopener">Abrir PDF</a>
+                                {% elif encounter.pdf_attachment %}
+                                    <span class="muted">Resultado original no disponible</span>
                                 {% endif %}
                                 {% if encounter.complete_report_url %}
-                                    <a href="{{ encounter.complete_report_url }}" target="_blank" rel="noopener">Informe completo</a>
+                                    <a href="{{ encounter.complete_report_url }}" target="_blank" rel="noopener">Abrir completo</a>
                                 {% elif encounter.latest_report_url %}
                                     <a href="{{ encounter.latest_report_url }}" target="_blank" rel="noopener">Informe</a>
                                 {% endif %}
                                 {% if encounter.mutual_report_url %}
-                                    <a href="{{ encounter.mutual_report_url }}" target="_blank" rel="noopener">Informe mutual</a>
+                                    <a href="{{ encounter.mutual_report_url }}" target="_blank" rel="noopener">Abrir mutual</a>
                                 {% endif %}
                             </div>
                         </td>
@@ -296,7 +349,13 @@
                 <tbody>
                     {% for attachment in patient_documents %}
                         <tr>
-                            <td data-label="Archivo"><a href="{{ attachment.file.url }}" target="_blank" rel="noopener">{{ attachment.original_name }}</a></td>
+                            <td data-label="Archivo">
+                                {% if attachment.safe_url %}
+                                    <a href="{{ attachment.safe_url }}" target="_blank" rel="noopener">{{ attachment.original_name }}</a>
+                                {% else %}
+                                    <span class="muted">{{ attachment.original_name }} (no disponible)</span>
+                                {% endif %}
+                            </td>
                             <td data-label="Tipo">{{ attachment.get_file_kind_display }}</td>
                             <td data-label="Atencion">{{ attachment.encounter.encounter_date|date:"d/m/Y" }}</td>
                             <td data-label="Fecha">{{ attachment.created_at|date:"d/m/Y H:i" }}</td>
@@ -333,4 +392,21 @@
         </div>
     </article>
 </section>
+<script>
+    document.querySelectorAll("[data-patient-report-form]").forEach(function (form) {
+        form.addEventListener("submit", function (event) {
+            var warning = String(form.getAttribute("data-inconsistency-message") || "").trim();
+            if (!warning || form.querySelector('input[name="confirm_inconsistencies"]')) return;
+            if (!window.confirm(warning + "\n\n¿Generar el informe de todas formas?")) {
+                event.preventDefault();
+                return;
+            }
+            var confirmation = document.createElement("input");
+            confirmation.type = "hidden";
+            confirmation.name = "confirm_inconsistencies";
+            confirmation.value = "1";
+            form.appendChild(confirmation);
+        });
+    });
+</script>
 {% endblock %}

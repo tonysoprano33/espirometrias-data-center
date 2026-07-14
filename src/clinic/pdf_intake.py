@@ -18,7 +18,7 @@ except Exception as error:  # pragma: no cover - fallback defensivo
 
 
 OCR_ROW_TOLERANCE = 18
-SUGGESTION_PROBABILITY_CAP = 99
+SUGGESTION_PROBABILITY_CAP = 90
 
 
 def collapse_spaces(value: str) -> str:
@@ -226,9 +226,9 @@ def is_plausible_ratio(value) -> bool:
 
 def infer_measurement_values_from_numbers(numbers: list[float]) -> dict:
     if not numbers:
-        return {"lln": None, "predicted": None, "best": None, "percent": None}
+        return {"lln": None, "predicted": None, "best": None, "percent": None, "post": None, "post_percent": None, "change_percent": None}
 
-    values = {"lln": None, "predicted": None, "best": None, "percent": None}
+    values = {"lln": None, "predicted": None, "best": None, "percent": None, "post": None, "post_percent": None, "change_percent": None}
     if len(numbers) >= 3 and all(is_plausible_volume(number) for number in numbers[:3]):
         values["lln"], values["predicted"], values["best"] = numbers[:3]
         if len(numbers) >= 4 and 15 <= numbers[3] <= 180:
@@ -244,11 +244,22 @@ def infer_measurement_values_from_numbers(numbers: list[float]) -> dict:
 
     if values["percent"] is None and values["predicted"] and values["best"]:
         values["percent"] = round((values["best"] / values["predicted"]) * 100, 1)
+
+    if len(numbers) >= 7:
+        post_candidate = numbers[-3]
+        post_percent_candidate = numbers[-2]
+        change_candidate = numbers[-1]
+        if is_plausible_volume(post_candidate):
+            values["post"] = post_candidate
+        if 15 <= post_percent_candidate <= 180:
+            values["post_percent"] = post_percent_candidate
+        if -100 <= change_candidate <= 200:
+            values["change_percent"] = change_candidate
     return values
 
 
 def infer_ratio_values_from_numbers(numbers: list[float]) -> dict:
-    values = {"lln": None, "predicted": None, "best": None, "percent": None}
+    values = {"lln": None, "predicted": None, "best": None, "percent": None, "post": None, "post_percent": None, "change_percent": None}
     ratio_candidates = [number for number in numbers if is_plausible_ratio(number)]
     if len(ratio_candidates) >= 1:
         values["lln"] = ratio_candidates[0]
@@ -260,6 +271,16 @@ def infer_ratio_values_from_numbers(numbers: list[float]) -> dict:
         values["best"] = ratio_candidates[1]
     if len(numbers) >= 4 and 20 <= numbers[3] <= 180:
         values["percent"] = numbers[3]
+    if len(numbers) >= 7:
+        post_candidate = numbers[-3]
+        post_percent_candidate = numbers[-2]
+        change_candidate = numbers[-1]
+        if is_plausible_ratio(post_candidate):
+            values["post"] = post_candidate
+        if 20 <= post_percent_candidate <= 180:
+            values["post_percent"] = post_percent_candidate
+        if -100 <= change_candidate <= 200:
+            values["change_percent"] = change_candidate
     return values
 
 
@@ -452,6 +473,9 @@ def extract_spirometry_numbers_from_pdf(pdf_path: str, attachment_id: int | None
     fvc_best = value_near_column(rows["fvc"], 529, 0.3, 8)
     fvc_lln = value_near_column(rows["fvc"], 338, 0.3, 8)
     fvc_percent = value_near_column(rows["fvc"], 634, 20, 160)
+    fvc_post = value_near_column(rows["fvc"], 1138, 0.3, 8)
+    fvc_post_percent = value_near_column(rows["fvc"], 1242, 20, 160)
+    fvc_change_percent = value_near_column(rows["fvc"], 1342, -100, 200)
     if fvc_percent is None and fvc_predicted and fvc_best:
         fvc_percent = round((fvc_best / fvc_predicted) * 100, 1)
 
@@ -459,6 +483,9 @@ def extract_spirometry_numbers_from_pdf(pdf_path: str, attachment_id: int | None
     fev1_best = value_near_column(rows["fev1"], 529, 0.3, 8)
     fev1_lln = value_near_column(rows["fev1"], 338, 0.3, 8)
     fev1_percent = value_near_column(rows["fev1"], 634, 20, 160)
+    fev1_post = value_near_column(rows["fev1"], 1138, 0.3, 8)
+    fev1_post_percent = value_near_column(rows["fev1"], 1242, 20, 160)
+    fev1_change_percent = value_near_column(rows["fev1"], 1342, -100, 200)
     if fev1_percent is None and fev1_predicted and fev1_best:
         fev1_percent = round((fev1_best / fev1_predicted) * 100, 1)
 
@@ -466,19 +493,76 @@ def extract_spirometry_numbers_from_pdf(pdf_path: str, attachment_id: int | None
     ratio_best = value_near_column(rows["fev1_fvc"], 529, 20, 120)
     ratio_lln = value_near_column(rows["fev1_fvc"], 338, 20, 120)
     ratio_percent = value_near_column(rows["fev1_fvc"], 634, 20, 160)
+    ratio_post = value_near_column(rows["fev1_fvc"], 1138, 20, 130)
+    ratio_post_percent = value_near_column(rows["fev1_fvc"], 1242, 20, 160)
+    ratio_change_percent = value_near_column(rows["fev1_fvc"], 1342, -100, 200)
     if ratio_percent is None and ratio_predicted and ratio_best:
         ratio_percent = round((ratio_best / ratio_predicted) * 100, 1)
 
     return {
-        "fvc": {"lln": fvc_lln, "predicted": fvc_predicted, "best": fvc_best, "percent": fvc_percent},
-        "fev1": {"lln": fev1_lln, "predicted": fev1_predicted, "best": fev1_best, "percent": fev1_percent},
+        "fvc": {
+            "lln": fvc_lln,
+            "predicted": fvc_predicted,
+            "best": fvc_best,
+            "percent": fvc_percent,
+            "post": fvc_post,
+            "post_percent": fvc_post_percent,
+            "change_percent": fvc_change_percent,
+        },
+        "fev1": {
+            "lln": fev1_lln,
+            "predicted": fev1_predicted,
+            "best": fev1_best,
+            "percent": fev1_percent,
+            "post": fev1_post,
+            "post_percent": fev1_post_percent,
+            "change_percent": fev1_change_percent,
+        },
         "fev1_fvc": {
             "lln": ratio_lln,
             "predicted": ratio_predicted,
             "best": ratio_best,
             "percent": ratio_percent,
+            "post": ratio_post,
+            "post_percent": ratio_post_percent,
+            "change_percent": ratio_change_percent,
         },
     }
+
+
+def detect_bronchodilator_response(values: dict) -> tuple[bool, str]:
+    metrics = [
+        ("FEV1", values.get("fev1", {})),
+        ("FVC", values.get("fvc", {})),
+    ]
+    for label, metric in metrics:
+        pre_value = metric.get("best")
+        post_value = metric.get("post")
+        change_percent = metric.get("change_percent")
+        if pre_value is None or post_value is None:
+            continue
+        absolute_change = round(float(post_value) - float(pre_value), 2)
+        predicted_value = metric.get("predicted")
+        predicted_change_percent = None
+        if predicted_value not in [None, 0]:
+            predicted_change_percent = round((absolute_change / float(predicted_value)) * 100, 1)
+        computed_change_percent = None
+        if pre_value not in [None, 0]:
+            computed_change_percent = round((absolute_change / float(pre_value)) * 100, 1)
+        effective_change_percent = change_percent if change_percent is not None else computed_change_percent
+        if effective_change_percent is None:
+            continue
+        if predicted_change_percent is not None and predicted_change_percent > 10:
+            return True, (
+                f"Broncodilatador positivo (criterio ERS/ATS 2022): {label} sube de "
+                f"{pre_value} a {post_value} L ({predicted_change_percent}% del valor predicho)."
+            )
+        if absolute_change >= 0.2 and float(effective_change_percent) >= 12:
+            return True, (
+                f"Broncodilatador positivo (criterio clasico): {label} sube de {pre_value} a {post_value} L "
+                f"({absolute_change:.2f} L; {effective_change_percent}% respecto del basal)."
+            )
+    return False, ""
 
 
 def build_suggestion_probability(values: dict, code: str) -> int:
@@ -518,6 +602,22 @@ def suggest_result_code_from_spirometry(values: dict):
     fvc_percent = fvc.get("percent")
     fev1_percent = fev1.get("percent")
 
+    missing_for_pattern = []
+    if ratio_best is None:
+        missing_for_pattern.append("FEV1/FVC medido")
+    if fvc_best is None:
+        missing_for_pattern.append("FVC medida")
+    if ratio_lln is None and ratio.get("predicted") is None:
+        missing_for_pattern.append("LIN o teorico de FEV1/FVC")
+    if fvc_lln is None and fvc_percent is None:
+        missing_for_pattern.append("LIN o porcentaje teorico de FVC")
+    if missing_for_pattern:
+        return (
+            "",
+            "Lectura automatica incompleta: falta " + ", ".join(missing_for_pattern) + ". El medico debe revisar la tabla.",
+            0,
+        )
+
     if not spirometry_values_are_plausible(values):
         return "", "No lei filas validas de la tabla espirometrica para sugerir un resultado confiable.", 0
 
@@ -535,16 +635,25 @@ def suggest_result_code_from_spirometry(values: dict):
     obstruction_grade = spirometry_grade_from_percent(fev1_percent)
     restriction_grade = spirometry_grade_from_percent(fvc_percent)
     if has_obstruction and has_restriction:
+        if not obstruction_grade or not restriction_grade:
+            return "", "Se detectan valores alterados, pero faltan porcentajes para graduar el patron mixto.", 0
         code = "R{}O{}".format(restriction_grade or "L", obstruction_grade or "L")
         reason = "Relacion FEV1/FVC debajo del LIN/LLN y FVC reducida."
         return code, reason, build_suggestion_probability(values, code)
     if has_obstruction:
+        if not obstruction_grade:
+            return "", "Se detecta obstruccion, pero falta FEV1 % teorico para graduarla.", 0
         code = "O{}".format(obstruction_grade or "L")
         reason = "Relacion FEV1/FVC debajo del LIN/LLN."
         return code, reason, build_suggestion_probability(values, code)
     if has_restriction:
+        if not restriction_grade:
+            return "", "La FVC esta reducida, pero falta su porcentaje teorico para graduarla.", 0
         code = "R{}".format(restriction_grade or "L")
-        reason = "FVC debajo del LIN/LLN; si no hay LIN, se usa menor al 80% del teorico como respaldo."
+        reason = (
+            "FVC debajo del LIN/LLN; sugiere un posible patron restrictivo que requiere "
+            "confirmacion clinica y, cuando corresponda, volumenes pulmonares."
+        )
         return code, reason, build_suggestion_probability(values, code)
     code = "N"
     reason = "FEV1/FVC y FVC estan por encima del LIN/LLN segun los valores leidos."
@@ -553,6 +662,7 @@ def suggest_result_code_from_spirometry(values: dict):
 
 def build_spirometry_analysis(values: dict):
     code, reason, probability = suggest_result_code_from_spirometry(values)
+    bronchodilator_positive, bronchodilator_reason = detect_bronchodilator_response(values)
     if not code:
         return {
             "code": "",
@@ -561,15 +671,19 @@ def build_spirometry_analysis(values: dict):
             "probability_phrase": "",
             "summary": reason,
             "values": values,
+            "bronchodilator_positive": bronchodilator_positive,
+            "bronchodilator_reason": bronchodilator_reason,
         }
-    probability_phrase = f"{probability}% probable {code}"
+    probability_phrase = f"Calidad de lectura automatica: {probability}%"
     return {
         "code": code,
         "reason": reason,
         "probability": probability,
         "probability_phrase": probability_phrase,
-        "summary": f"{probability_phrase}. {reason}",
+        "summary": reason,
         "values": values,
+        "bronchodilator_positive": bronchodilator_positive,
+        "bronchodilator_reason": bronchodilator_reason,
     }
 
 
@@ -696,6 +810,13 @@ def extract_profile_values_from_labeled_text(text_lines: list[str]) -> dict:
 def clean_profile_snapshot_values(snapshot: dict) -> dict:
     if not snapshot:
         return snapshot
+    for field_name in ("dni", "patient_code"):
+        if snapshot.get(field_name):
+            digits = re.sub(r"\D+", "", str(snapshot[field_name]))
+            snapshot[field_name] = digits if digits else ""
+    patient_code = snapshot.get("patient_code", "")
+    if not snapshot.get("dni") and 6 <= len(patient_code) <= 9:
+        snapshot["dni"] = patient_code
     if snapshot.get("smoking_status"):
         normalized_smoking = normalize_for_match(snapshot["smoking_status"])
         normalized_names = {
@@ -807,7 +928,7 @@ def extract_patient_snapshot_from_text(raw_text: str):
                         separator_match = re.split(r"[:\-]\s*", line, maxsplit=1)
                         if len(separator_match) == 2:
                             return collapse_spaces(separator_match[1])
-                        label_words = len(re.findall(r"[A-Za-z0-9ÃÃ‰ÃÃ“ÃšÃ‘Ã¡Ã©Ã­Ã³ÃºÃ±]+", label))
+                        label_words = len(re.findall(r"[A-Za-z0-9]+", normalized_label))
                         words = line.split()
                         if len(words) > label_words:
                             return collapse_spaces(" ".join(words[label_words:]))
@@ -827,7 +948,7 @@ def extract_patient_snapshot_from_text(raw_text: str):
                 "line:codigo paciente",
                 "line:cod. paciente",
                 "line:cod paciente",
-                r"C[oÃ³]d(?:igo|\.)?(?:\s+de)?\s*Paciente[:\s]+([A-Z0-9.\-]{6,})",
+                r"C[oó]d(?:igo|\.)?(?:\s+de)?\s*Paciente[:\s]+([A-Z0-9.\-]{6,})",
             ]
         ),
         "dni": find_value(["line:dni", "line:documento", r"\bDNI[:\s]+([0-9.\-]{6,})", r"\bDocumento[:\s]+([0-9.\-]{6,})"]),
@@ -851,8 +972,6 @@ def extract_patient_snapshot_from_text(raw_text: str):
         if value not in [None, ""]:
             snapshot[field_name] = value
     snapshot = fill_snapshot_from_labeled_lines(snapshot, text_lines)
-    if not snapshot.get("dni") and snapshot.get("patient_code"):
-        snapshot["dni"] = snapshot["patient_code"]
     if snapshot.get("patient_group") and snapshot.get("last_name") and snapshot.get("first_name"):
         normalized_group = normalize_for_match(snapshot["patient_group"])
         if normalized_group in {
@@ -896,7 +1015,7 @@ def extract_patient_snapshot_from_pdf(pdf_path: str, attachment_id: int | None =
 
     snapshot = {
         "patient_code": patient_code,
-        "dni": patient_code,
+        "dni": "",
         "last_name": value_to_right(items, ["APELLIDO"], max_x=1050),
         "first_name": value_to_right(items, ["NOM"], max_x=1050),
         "birth_date": parse_date(value_to_right(items, ["FECHADENAC"], max_x=1050)),
@@ -953,7 +1072,8 @@ def apply_snapshot_to_patient(patient, snapshot: dict, *, update_full_name: bool
     extracted_dni = snapshot.get("dni")
     duplicate_dni_exists = False
     if extracted_dni:
-        duplicate_dni_exists = patient.__class__.objects.filter(dni=extracted_dni).exclude(pk=patient.pk).exists()
+        patient_manager = getattr(patient.__class__, "all_objects", patient.__class__.objects)
+        duplicate_dni_exists = patient_manager.filter(dni=extracted_dni).exclude(pk=patient.pk).exists()
     if extracted_dni and not duplicate_dni_exists:
         if patient.dni != extracted_dni:
             patient.dni = extracted_dni
@@ -1038,33 +1158,19 @@ def build_analysis_from_browser_payload(raw_payload):
 def apply_snapshot_to_encounter_patient(encounter, snapshot: dict, *, update_full_name: bool = True):
     snapshot = snapshot_with_computed_age(snapshot, getattr(encounter, "encounter_date", None))
     patient = encounter.patient
-    target_patient = find_existing_patient_for_snapshot(patient, snapshot) or patient
-    changed_fields = []
-
-    if target_patient.pk != patient.pk:
-        encounter.patient = target_patient
-        encounter.save(update_fields=["patient", "updated_at"])
-        changed_fields.append("historia_clinica_unificada")
-
-    changed_fields.extend(apply_snapshot_to_patient(target_patient, snapshot, update_full_name=update_full_name))
-    return target_patient, sorted(set(changed_fields))
+    changed_fields = apply_snapshot_to_patient(patient, snapshot, update_full_name=update_full_name)
+    return patient, sorted(set(changed_fields))
 
 
 def ingest_pdf_attachment_into_patient(attachment):
     if not attachment or not getattr(attachment, "file", None):
         return {}, []
-    snapshot = extract_patient_snapshot_from_pdf(attachment.file.path, attachment_id=attachment.pk)
+    from .file_utils import local_field_file_path
+
+    with local_field_file_path(attachment.file) as attachment_path:
+        snapshot = extract_patient_snapshot_from_pdf(str(attachment_path), attachment_id=attachment.pk)
     encounter = attachment.encounter
     snapshot = snapshot_with_computed_age(snapshot, getattr(encounter, "encounter_date", None))
     patient = encounter.patient
-    target_patient = find_existing_patient_for_snapshot(patient, snapshot) or patient
-    changed_fields = []
-
-    if target_patient.pk != patient.pk:
-        encounter.patient = target_patient
-        encounter.save(update_fields=["patient", "updated_at"])
-        attachment.encounter = encounter
-        changed_fields.append("historia_clinica_unificada")
-
-    changed_fields.extend(apply_snapshot_to_patient(target_patient, snapshot))
+    changed_fields = apply_snapshot_to_patient(patient, snapshot)
     return snapshot, changed_fields

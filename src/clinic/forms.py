@@ -1,5 +1,10 @@
+from pathlib import Path
+import re
+import zipfile
+
 from django import forms
 from django.utils import timezone
+from PIL import Image, UnidentifiedImageError
 
 from .models import (
     Attachment,
@@ -13,6 +18,56 @@ from .models import (
     VitalSigns,
     WalkTest,
 )
+
+
+MAX_CLINICAL_UPLOAD_BYTES = 15 * 1024 * 1024
+MAX_CLINICAL_IMAGE_PIXELS = 40_000_000
+
+
+def validate_clinical_upload(uploaded, *, allow_documents=False):
+    if not uploaded:
+        return uploaded
+    if uploaded.size > MAX_CLINICAL_UPLOAD_BYTES:
+        raise forms.ValidationError("El archivo supera el limite de 15 MB.")
+
+    extension = Path(str(uploaded.name or "")).suffix.lower()
+    uploaded.seek(0)
+    header = uploaded.read(16)
+    uploaded.seek(0)
+    try:
+        if extension == ".pdf":
+            if not header.startswith(b"%PDF-"):
+                raise forms.ValidationError("El archivo no es un PDF valido.")
+        elif extension in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}:
+            try:
+                image = Image.open(uploaded)
+                width, height = image.size
+                if width <= 0 or height <= 0 or width * height > MAX_CLINICAL_IMAGE_PIXELS:
+                    raise forms.ValidationError("La imagen tiene dimensiones demasiado grandes.")
+                image.verify()
+            except (Image.DecompressionBombError, UnidentifiedImageError, OSError, ValueError) as error:
+                raise forms.ValidationError("La imagen esta danada o no es valida.") from error
+        elif allow_documents and extension in {".docx", ".odt"}:
+            try:
+                with zipfile.ZipFile(uploaded) as archive:
+                    names = set(archive.namelist())
+                    if extension == ".docx" and (
+                        "[Content_Types].xml" not in names
+                        or not any(name.startswith("word/") for name in names)
+                    ):
+                        raise forms.ValidationError("El archivo no es un documento DOCX valido.")
+                    if extension == ".odt" and "mimetype" not in names:
+                        raise forms.ValidationError("El archivo no es un documento ODT valido.")
+            except (zipfile.BadZipFile, OSError) as error:
+                raise forms.ValidationError("El documento esta danado o no es valido.") from error
+        elif allow_documents and extension == ".doc":
+            if not header.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
+                raise forms.ValidationError("El archivo no es un documento DOC valido.")
+        else:
+            raise forms.ValidationError("Tipo de archivo no permitido.")
+    finally:
+        uploaded.seek(0)
+    return uploaded
 
 
 class DateInput(forms.DateInput):
@@ -34,6 +89,13 @@ class PatientForm(forms.ModelForm):
         widgets = {
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
+
+    def clean_full_name(self):
+        return " ".join((self.cleaned_data.get("full_name") or "").split()).upper()
+
+    def clean_dni(self):
+        digits = re.sub(r"\D", "", self.cleaned_data.get("dni") or "")
+        return digits or None
 
 
 class ReferringPhysicianForm(forms.ModelForm):
@@ -202,42 +264,37 @@ class QuickEncounterForm(forms.Form):
     encounter_time = forms.TimeField(label="Hora", widget=TimeInput(), required=False)
     study_type = forms.ChoiceField(label="Tipo de estudio", choices=StudyType.choices, initial=StudyType.CICLOMETRIA)
     coverage_type = forms.ChoiceField(label="Cobertura", choices=CoverageType.choices, initial=CoverageType.PARTICULAR)
-    referring_physician = forms.ModelChoiceField(
-        label="Dr. deriva",
-        queryset=ReferringPhysician.objects.none(),
-        required=False,
-        empty_label="Dr. Gustavo Piguillem (por defecto)",
-    )
-    so2_rest = forms.IntegerField(label="SO2 en reposo", required=False, min_value=0, max_value=99)
-    fc_rest = forms.IntegerField(label="FC en reposo", required=False, min_value=0)
-    so2_post = forms.IntegerField(label="SO2 despues de caminata", required=False, min_value=0, max_value=99)
-    fc_post = forms.IntegerField(label="FC despues de caminata", required=False, min_value=0)
+    referring_physician = forms.CharField(label="Dr. deriva", required=False, max_length=150)
+    so2_rest = forms.IntegerField(label="SO2 en reposo", required=False, min_value=0, max_value=100)
+    fc_rest = forms.IntegerField(label="FC en reposo", required=False, min_value=0, max_value=300)
+    so2_post = forms.IntegerField(label="SO2 despues de caminata", required=False, min_value=0, max_value=100)
+    fc_post = forms.IntegerField(label="FC despues de caminata", required=False, min_value=0, max_value=300)
     distance_meters = forms.ChoiceField(label="Distancia caminata", choices=((100, "100"), (200, "200")), initial=200)
     completed = forms.BooleanField(label="Completada con exito", required=False, initial=True)
     stopped = forms.BooleanField(label="Se detuvo durante la marcha", required=False, initial=False)
     symptoms = forms.BooleanField(label="Presento sintomas al final", required=False, initial=False)
     borg_final = forms.ChoiceField(label="Borg final", choices=[(value, str(value)) for value in range(0, 11)], initial=0)
     respiratory_result = forms.CharField(label="Resultado", required=False, max_length=24)
+    bronchodilator_positive = forms.BooleanField(label="Broncodilatador positivo", required=False, initial=False)
     attended = forms.BooleanField(label="Atendido", required=False, initial=False)
-    no_show = forms.BooleanField(label="No llego", required=False, initial=False)
+    no_show = forms.BooleanField(label="No llego", required=False, initial=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         physician_queryset = ReferringPhysician.objects.filter(active=True).order_by("full_name")
-        self.fields["referring_physician"].queryset = physician_queryset
         default_physician = physician_queryset.filter(is_default=True).first() or physician_queryset.first()
         if default_physician and not self.initial.get("referring_physician"):
-            self.initial["referring_physician"] = default_physician.pk
+            self.initial["referring_physician"] = default_physician.full_name
         self.fields["patient_name"].widget.attrs.update({"autocomplete": "off", "data-nav": "1"})
         self.fields["patient_dni"].widget.attrs.update({"autocomplete": "off", "data-nav": "2"})
         self.fields["encounter_time"].widget.attrs.update({"step": "60", "data-nav": "3"})
         self.fields["study_type"].widget.attrs.update({"data-nav": "4"})
         self.fields["coverage_type"].widget.attrs.update({"data-nav": "5"})
-        self.fields["referring_physician"].widget.attrs.update({"data-nav": "6"})
-        self.fields["so2_rest"].widget.attrs.update({"data-nav": "7", "max": "99", "inputmode": "numeric", "data-autoadvance-length": "2"})
-        self.fields["fc_rest"].widget.attrs.update({"data-nav": "8", "max": "999", "inputmode": "numeric", "data-autoadvance-length": "3"})
-        self.fields["so2_post"].widget.attrs.update({"data-nav": "9", "max": "99", "inputmode": "numeric", "data-autoadvance-length": "2"})
-        self.fields["fc_post"].widget.attrs.update({"data-nav": "10", "max": "999", "inputmode": "numeric", "data-autoadvance-length": "3"})
+        self.fields["referring_physician"].widget.attrs.update({"data-nav": "6", "autocomplete": "off"})
+        self.fields["so2_rest"].widget.attrs.update({"data-nav": "7", "max": "100", "inputmode": "numeric", "data-autoadvance-length": "3"})
+        self.fields["fc_rest"].widget.attrs.update({"data-nav": "8", "max": "300", "inputmode": "numeric", "data-autoadvance-length": "3"})
+        self.fields["so2_post"].widget.attrs.update({"data-nav": "9", "max": "100", "inputmode": "numeric", "data-autoadvance-length": "3"})
+        self.fields["fc_post"].widget.attrs.update({"data-nav": "10", "max": "300", "inputmode": "numeric", "data-autoadvance-length": "3"})
         self.fields["distance_meters"].widget.attrs.update({"data-nav": "11"})
         self.fields["completed"].widget.attrs.update({"data-nav": "12"})
         self.fields["stopped"].widget.attrs.update({"data-nav": "13"})
@@ -252,8 +309,9 @@ class QuickEncounterForm(forms.Form):
                 "data-result-code": "1",
             }
         )
-        self.fields["attended"].widget.attrs.update({"data-nav": "17"})
-        self.fields["no_show"].widget.attrs.update({"data-nav": "18"})
+        self.fields["bronchodilator_positive"].widget.attrs.update({"data-nav": "17"})
+        self.fields["attended"].widget.attrs.update({"data-nav": "18"})
+        self.fields["no_show"].widget.attrs.update({"data-nav": "19"})
 
     def clean_respiratory_result(self):
         value = self.cleaned_data.get("respiratory_result", "")
@@ -264,12 +322,15 @@ class QuickEncounterForm(forms.Form):
             )
         return parsed["canonical_code"]
 
+    def clean_patient_dni(self):
+        return re.sub(r"\D", "", self.cleaned_data.get("patient_dni") or "")
+
     def clean(self):
         cleaned_data = super().clean()
         attended = bool(cleaned_data.get("attended"))
         no_show = bool(cleaned_data.get("no_show"))
         if attended and no_show:
-            self.add_error("no_show", "No puede estar atendido y no llego al mismo tiempo.")
+            cleaned_data["no_show"] = False
         return cleaned_data
 
 
@@ -285,6 +346,7 @@ class DoctorReviewForm(forms.Form):
         ),
     )
     respiratory_result = forms.CharField(label="Resultado", required=False, max_length=24)
+    bronchodilator_positive = forms.BooleanField(label="Broncodilatador positivo", required=False, initial=False)
     analysis_payload_json = forms.CharField(required=False, widget=forms.HiddenInput())
 
     def __init__(self, *args, **kwargs):
@@ -312,14 +374,13 @@ class DoctorReviewForm(forms.Form):
         if not uploaded:
             return uploaded
 
-        content_type = str(getattr(uploaded, "content_type", "") or "").lower()
         file_name = str(getattr(uploaded, "name", "") or "").lower()
         allowed_image_exts = (".png", ".jpg", ".jpeg", ".webp")
-        is_pdf = content_type == "application/pdf" or file_name.endswith(".pdf")
-        is_image = content_type.startswith("image/") or file_name.endswith(allowed_image_exts)
+        is_pdf = file_name.endswith(".pdf")
+        is_image = file_name.endswith(allowed_image_exts)
         if not (is_pdf or is_image):
             raise forms.ValidationError("Subi un PDF o una imagen JPG, PNG o WEBP.")
-        return uploaded
+        return validate_clinical_upload(uploaded)
 
 
 class PatientDocumentUploadForm(forms.Form):
@@ -352,7 +413,7 @@ class PatientDocumentUploadForm(forms.Form):
         allowed_exts = (".pdf", ".png", ".jpg", ".jpeg", ".webp", ".doc", ".docx", ".odt")
         if not file_name.endswith(allowed_exts):
             raise forms.ValidationError("Subi un PDF, imagen o documento Word.")
-        return uploaded
+        return validate_clinical_upload(uploaded, allow_documents=True)
 
 
 class DrappImportForm(forms.Form):
@@ -373,6 +434,12 @@ class DrappImportForm(forms.Form):
         if not cleaned_data.get("raw_text") and not cleaned_data.get("ocr_lines_json") and not cleaned_data.get("screenshot"):
             raise forms.ValidationError("Pega texto de Drapp o subi una captura para importar.")
         return cleaned_data
+
+    def clean_screenshot(self):
+        uploaded = self.cleaned_data.get("screenshot")
+        if not uploaded:
+            return uploaded
+        return validate_clinical_upload(uploaded)
 
 
 class VitalSignsForm(forms.ModelForm):

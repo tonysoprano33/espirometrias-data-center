@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Clinica Espiro">
+  <defs>
+    <linearGradient id="bg" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#13a8bf"/>
+      <stop offset="1" stop-color="#07586f"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <path d="M25 12h14v13h13v14H39v13H25V39H12V25h13V12z" fill="#fff"/>
+  <path d="M32 17v13" fill="none" stroke="#07586f" stroke-width="4" stroke-linecap="round"/>
+  <path d="M31 29c-5-8-15-3-14 7 1 8 7 10 13 13 1 .5 1 .2 1-.8V29z" fill="#dffbff" stroke="#07586f" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M33 29c5-8 15-3 14 7-1 8-7 10-13 13-1 .5-1 .2-1-.8V29z" fill="#dffbff" stroke="#07586f" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="50" cy="14" r="6" fill="#f29a24"/>
+</svg>

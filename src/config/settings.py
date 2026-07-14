@@ -46,6 +46,8 @@ def postgres_url_config(database_url):
 
 
 def build_database_config():
+    if env_value("FORCE_LOCAL_QA", "False").lower() == "true":
+        return sqlite_database_config()
     database_url = env_value("DATABASE_URL") or env_value("POSTGRES_URL") or env_value("POSTGRES_URL_NON_POOLING")
     if database_url:
         return postgres_url_config(database_url)
@@ -91,6 +93,9 @@ def build_database_config():
 
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-me")
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
+IS_PRODUCTION = os.getenv("VERCEL", "").lower() in {"1", "true"} or os.getenv(
+    "APP_ENV", ""
+).lower() == "production"
 ALLOWED_HOSTS = [
     host.strip() for host in os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost,testserver").split(",") if host.strip()
 ]
@@ -112,6 +117,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -154,17 +160,18 @@ TIME_ZONE = "America/Argentina/Buenos_Aires"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATICFILES_DIRS = [PROJECT_DIR / "static"] if (PROJECT_DIR / "static").exists() else []
 STATIC_ROOT = RUNTIME_DIR / "staticfiles"
-MEDIA_URL = "media/"
+MEDIA_URL = "/media/"
 MEDIA_ROOT = RUNTIME_DIR / "media"
 SUPABASE_URL = env_value("SUPABASE_URL")
 SUPABASE_STORAGE_API_KEY = env_value("SUPABASE_SECRET_KEY") or env_value("SUPABASE_SERVICE_ROLE_KEY")
 SUPABASE_STORAGE_BUCKET = env_value("SUPABASE_STORAGE_BUCKET", "attachments")
 SUPABASE_STORAGE_SIGNED_URL_TTL = int(env_value("SUPABASE_STORAGE_SIGNED_URL_TTL", "3600") or "3600")
 USE_SUPABASE_STORAGE = (
-    env_value("USE_SUPABASE_STORAGE", "True").lower() == "true"
+    env_value("FORCE_LOCAL_QA", "False").lower() != "true"
+    and env_value("USE_SUPABASE_STORAGE", "True").lower() == "true"
     and bool(SUPABASE_URL)
     and bool(SUPABASE_STORAGE_API_KEY)
 )
@@ -172,14 +179,33 @@ USE_SUPABASE_STORAGE = (
 if USE_SUPABASE_STORAGE:
     STORAGES = {
         "default": {"BACKEND": "config.storage.SupabaseStorage"},
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
     }
+else:
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
+    }
+
+# The Vercel Python function bundles the source tree; finders let WhiteNoise
+# serve project and Django admin assets without relying on an ephemeral build directory.
+WHITENOISE_USE_FINDERS = True
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
-SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "False").lower() == "true"
-SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "False").lower() == "true"
-CSRF_COOKIE_SECURE = os.getenv("CSRF_COOKIE_SECURE", "False").lower() == "true"
+SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", str(IS_PRODUCTION)).lower() == "true"
+SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", str(IS_PRODUCTION)).lower() == "true"
+CSRF_COOKIE_SECURE = os.getenv("CSRF_COOKIE_SECURE", str(IS_PRODUCTION)).lower() == "true"
+SECURE_HSTS_SECONDS = int(env_value("SECURE_HSTS_SECONDS", "3600" if IS_PRODUCTION else "0") or "0")
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+SECURE_HSTS_PRELOAD = False
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+X_FRAME_OPTIONS = "DENY"
+AUTO_PURGE_RECYCLE_BIN = os.getenv("AUTO_PURGE_RECYCLE_BIN", "False").lower() == "true"
+
+if IS_PRODUCTION and (DEBUG or SECRET_KEY == "dev-secret-key-change-me"):
+    raise RuntimeError("Produccion requiere DEBUG=False y un SECRET_KEY seguro.")
 
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "clinic:dashboard"

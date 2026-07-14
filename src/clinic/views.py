@@ -2,6 +2,7 @@ import calendar as month_calendar
 import base64
 from collections import Counter
 from datetime import date, datetime, time as datetime_time, timedelta
+import hashlib
 import json
 import mimetypes
 from pathlib import Path
@@ -13,9 +14,13 @@ import unicodedata
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import permission_required
+from django.core.exceptions import PermissionDenied
+from django.core import signing
 from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
-from django.db.models import Count, Max
+from django.db import transaction
+from django.db.models import Count, Max, Prefetch
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -36,6 +41,7 @@ from .forms import (
     get_result_label_for_code,
     parse_result_code,
 )
+from .file_utils import local_field_file_path
 from .models import (
     Attachment,
     AttachmentKind,
@@ -62,6 +68,7 @@ from .pdf_intake import (
     extract_pdf_text_content,
     get_ocr_engine,
     ensure_pdf_preview_pages,
+    extract_patient_snapshot_from_pdf,
     ingest_pdf_attachment_into_patient,
     looks_like_profile_data,
     normalize_for_match,
@@ -69,10 +76,10 @@ from .pdf_intake import (
 from .services import build_reports_for_encounter
 from .services import (
     DEFAULT_DOCTOR,
+    build_walk_measurement_rows,
     build_walk_test_assessment,
     construir_informe_espirometria,
     formatear_dni,
-    interpolar_valores,
     limpiar_entero,
     normalizar_medico,
     normalizar_patron,
@@ -96,6 +103,12 @@ SPANISH_MONTHS = [
 SPANISH_WEEKDAYS = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"]
 
 
+def require_any_clinic_permission(request, *permissions):
+    if request.user.is_superuser or any(request.user.has_perm(permission) for permission in permissions):
+        return
+    raise PermissionDenied("No tenes permiso para realizar esta accion clinica.")
+
+
 def media_url_prefix() -> str:
     media_url = str(settings.MEDIA_URL or "/media/")
     return media_url if media_url.startswith("/") else f"/{media_url}"
@@ -114,10 +127,10 @@ def build_pdf_preview_images(attachment):
     if not attachment or not getattr(attachment, "file", None):
         return []
 
-    attachment_path = Path(attachment.file.path)
-    if not attachment_path.exists():
-        return []
-    existing = ensure_pdf_preview_pages(str(attachment_path), attachment_id=attachment.pk)
+    with local_field_file_path(attachment.file) as attachment_path:
+        if not attachment_path.exists():
+            return []
+        existing = ensure_pdf_preview_pages(str(attachment_path), attachment_id=attachment.pk)
 
     if settings.USE_SUPABASE_STORAGE:
         return [
@@ -138,12 +151,25 @@ def build_pdf_preview_images(attachment):
     ]
 
 
+def safe_attachment_url(attachment) -> str:
+    if not attachment or not getattr(attachment, "file", None):
+        return ""
+    file_field = attachment.file
+    if not getattr(file_field, "name", ""):
+        return ""
+    try:
+        return file_field.url
+    except Exception:
+        return ""
+
+
 def build_result_preview_images(attachment):
     if not attachment or not getattr(attachment, "file", None):
         return []
 
     if is_result_image_attachment(attachment):
-        return [{"index": 1, "url": attachment.file.url}]
+        url = safe_attachment_url(attachment)
+        return [{"index": 1, "url": url}] if url else []
     return build_pdf_preview_images(attachment)
 
 
@@ -160,8 +186,8 @@ def has_complete_identity_document(value: str) -> bool:
 
 
 def can_autofill_missing_identity(patient, snapshot: dict) -> bool:
-    snapshot_dni = normalize_identity_value(snapshot.get("dni") or snapshot.get("patient_code") or "")
-    patient_dni = normalize_identity_value(getattr(patient, "dni", "") or getattr(patient, "patient_code", "") or "")
+    snapshot_dni = normalize_identity_value(snapshot.get("dni") or "")
+    patient_dni = normalize_identity_value(getattr(patient, "dni", "") or "")
     return bool(snapshot_dni) and not has_complete_identity_document(patient_dni)
 
 
@@ -169,12 +195,17 @@ def snapshot_matches_patient(patient, snapshot: dict) -> bool:
     if not patient or not snapshot:
         return True
 
-    snapshot_dni = normalize_identity_value(snapshot.get("dni") or snapshot.get("patient_code") or "")
-    patient_dni = normalize_identity_value(getattr(patient, "dni", "") or getattr(patient, "patient_code", "") or "")
+    snapshot_dni = normalize_identity_value(snapshot.get("dni") or "")
+    patient_dni = normalize_identity_value(getattr(patient, "dni", "") or "")
     if snapshot_dni and patient_dni and has_complete_identity_document(patient_dni):
         return snapshot_dni == patient_dni
     if snapshot_dni and not has_complete_identity_document(patient_dni):
         return True
+
+    snapshot_code = normalize_identity_value(snapshot.get("patient_code") or "")
+    patient_code = normalize_identity_value(getattr(patient, "patient_code", "") or "")
+    if snapshot_code and patient_code:
+        return snapshot_code == patient_code
 
     snapshot_full_name = normalize_identity_value(
         snapshot.get("full_name")
@@ -223,9 +254,25 @@ def build_analysis_for_uploaded_result(attachment, analysis_payload_json: str = 
         return {}
 
     if attachment.file_kind == AttachmentKind.PDF_RESULTADO:
-        extracted_text = extract_pdf_text_content(attachment.file.path)
-        if extracted_text:
-            return build_analysis_from_text(extracted_text, source="server-pdf-text")
+        with local_field_file_path(attachment.file) as attachment_path:
+            extracted_text = extract_pdf_text_content(str(attachment_path))
+            analysis = (
+                build_analysis_from_text(extracted_text, source="server-pdf-text")
+                if extracted_text
+                else {"source": "server-pdf-ocr"}
+            )
+            snapshot = extract_patient_snapshot_from_pdf(str(attachment_path), attachment_id=attachment.pk)
+            if snapshot:
+                analysis["snapshot"] = snapshot
+            if not analysis.get("code"):
+                suggestion = build_spirometry_suggestion_from_pdf(
+                    str(attachment_path),
+                    attachment_id=attachment.pk,
+                )
+                if suggestion:
+                    analysis.update(suggestion)
+                    analysis["source"] = "server-pdf-ocr"
+            return analysis
     return {}
 
 
@@ -244,7 +291,6 @@ def apply_result_code_to_spirometry(encounter, result_code: str):
     result.respiratory_pattern = pattern
     result.obstruction_grade = obstruction_grade
     result.restriction_grade = restriction_grade
-    result.bronchodilator_positive = False
     result.save()
     return result
 
@@ -254,11 +300,19 @@ def store_spirometry_analysis(encounter, analysis: dict):
         return None
 
     result, _ = SpirometryResult.objects.get_or_create(encounter=encounter)
-    result.measured_values = analysis.get("values") or {}
+    stored_values = dict(analysis.get("values") or {})
+    bronchodilator_reason = analysis.get("bronchodilator_reason", "") or ""
+    if bronchodilator_reason:
+        stored_values["_bronchodilator_reason"] = bronchodilator_reason
+    result.measured_values = stored_values
     result.suggested_code = analysis.get("code", "") or ""
     result.suggested_probability = analysis.get("probability")
     result.suggested_summary = analysis.get("summary", "") or ""
     result.extracted_source = analysis.get("source", "") or ""
+    result.suggested_bronchodilator_positive = (
+        bool(analysis.get("bronchodilator_positive")) if "bronchodilator_positive" in analysis else None
+    )
+    result.suggested_bronchodilator_reason = bronchodilator_reason
     result.save(
         update_fields=[
             "measured_values",
@@ -266,6 +320,8 @@ def store_spirometry_analysis(encounter, analysis: dict):
             "suggested_probability",
             "suggested_summary",
             "extracted_source",
+            "suggested_bronchodilator_positive",
+            "suggested_bronchodilator_reason",
             "updated_at",
         ]
     )
@@ -284,7 +340,12 @@ def apply_profile_analysis_to_encounter(encounter, analysis: dict):
     patient_full_name = normalize_identity_value(getattr(encounter.patient, "full_name", "") or "")
     name_mismatch = bool(snapshot_full_name and patient_full_name and snapshot_full_name != patient_full_name)
     should_update_full_name = not name_mismatch or can_autofill_missing_identity(encounter.patient, snapshot)
-    patient_identity_mismatch = not snapshot_matches_patient(encounter.patient, snapshot)
+    extracted_dni = identity_digits(snapshot.get("dni") or "")
+    duplicate_dni_conflict = bool(
+        extracted_dni
+        and Patient.all_objects.filter(dni=extracted_dni).exclude(pk=encounter.patient_id).exists()
+    )
+    patient_identity_mismatch = duplicate_dni_conflict or not snapshot_matches_patient(encounter.patient, snapshot)
     changed_fields = []
     if not patient_identity_mismatch:
         _, changed_fields = apply_snapshot_to_encounter_patient(
@@ -301,21 +362,32 @@ def build_stored_suggestion_context(spirometry_result):
         return None
     stored_summary = spirometry_result.suggested_summary or ""
     probability_phrase = (
-        f"{spirometry_result.suggested_probability}% probable {spirometry_result.suggested_code}"
+        f"Calidad de lectura automatica: {spirometry_result.suggested_probability}%"
         if spirometry_result.suggested_probability is not None
         else ""
     )
     reason = stored_summary
-    if probability_phrase and stored_summary.startswith(probability_phrase):
-        reason = stored_summary[len(probability_phrase):].lstrip(". ").strip()
+    legacy_probability_phrase = (
+        f"{spirometry_result.suggested_probability}% probable {spirometry_result.suggested_code}"
+        if spirometry_result.suggested_probability is not None
+        else ""
+    )
+    if legacy_probability_phrase and stored_summary.startswith(legacy_probability_phrase):
+        reason = stored_summary[len(legacy_probability_phrase):].lstrip(". ").strip()
+    stored_values = spirometry_result.measured_values or {}
     return {
         "code": spirometry_result.suggested_code,
         "reason": reason,
         "summary": stored_summary,
         "probability": spirometry_result.suggested_probability,
         "probability_phrase": probability_phrase,
-        "values": spirometry_result.measured_values or {},
+        "values": stored_values,
         "source": spirometry_result.extracted_source or "",
+        "bronchodilator_positive": bool(spirometry_result.suggested_bronchodilator_positive),
+        "bronchodilator_reason": (
+            spirometry_result.suggested_bronchodilator_reason
+            or stored_values.get("_bronchodilator_reason", "")
+        ),
     }
 
 
@@ -350,10 +422,79 @@ def get_attendance_label(encounter) -> str:
     return "Esperado"
 
 
+def get_status_badge_class(status: str) -> str:
+    status = (status or "").strip()
+    if status == EncounterStatus.PENDIENTE:
+        return "pending"
+    if status == EncounterStatus.CARGADA:
+        return "waiting"
+    if status == EncounterStatus.REVISADA:
+        return "reviewed"
+    if status == EncounterStatus.INFORME_GENERADO:
+        return "generated"
+    if status == EncounterStatus.ENTREGADA:
+        return "done"
+    if status == EncounterStatus.NO_LLEGO:
+        return "missed"
+    return "neutral"
+
+
 def get_default_physician():
     return ReferringPhysician.objects.filter(is_default=True, active=True).first() or ReferringPhysician.objects.filter(
         active=True
     ).first()
+
+
+def format_physician_display_name(raw_name: str) -> str:
+    value = " ".join(str(raw_name or "").replace(".", " ").split()).strip(" ,")
+    if not value:
+        return ""
+    upper_value = value.upper()
+    if upper_value.startswith("DRA "):
+        value = value[4:].strip()
+    elif upper_value.startswith("DR "):
+        value = value[3:].strip()
+    lower_particles = {"de", "del", "la", "las", "los", "y"}
+
+    def titlecase_piece(piece: str) -> str:
+        return "-".join(part.capitalize() for part in piece.lower().split("-"))
+
+    words = []
+    for word in value.split():
+        lowered = word.lower()
+        if lowered in lower_particles:
+            words.append(lowered)
+        else:
+            words.append(titlecase_piece(word))
+    return f"DR. {' '.join(words)}"
+
+
+def resolve_or_create_physician(raw_value: str):
+    raw_text = collapse_spaces(raw_value)
+    default_physician = get_default_physician()
+    if not raw_text:
+        return default_physician
+
+    if raw_text.isdigit():
+        physician = ReferringPhysician.objects.filter(pk=raw_text, active=True).first()
+        if physician:
+            return physician
+
+    physician = ReferringPhysician.objects.filter(full_name__iexact=raw_text).first()
+    if physician:
+        if not physician.active:
+            physician.active = True
+            physician.save(update_fields=["active", "updated_at"])
+        return physician
+
+    formatted_name = format_physician_display_name(raw_text) or raw_text
+    physician = ReferringPhysician.objects.filter(full_name__iexact=formatted_name).first()
+    if physician:
+        if not physician.active:
+            physician.active = True
+            physician.save(update_fields=["active", "updated_at"])
+        return physician
+    return ReferringPhysician.objects.create(full_name=formatted_name, active=True)
 
 
 def record_encounter_event(encounter, event_type: str, title: str, actor=None, details: str = "", metadata=None):
@@ -368,6 +509,155 @@ def record_encounter_event(encounter, event_type: str, title: str, actor=None, d
         details=details,
         metadata=metadata or {},
     )
+
+
+RECYCLE_BIN_RETENTION_DAYS = 30
+
+
+def purge_expired_recycle_bin():
+    if not getattr(settings, "AUTO_PURGE_RECYCLE_BIN", False):
+        return {"encounters": 0, "patients": 0}
+    cutoff = timezone.now() - timedelta(days=RECYCLE_BIN_RETENTION_DAYS)
+    deleted_encounters = Encounter.all_objects.filter(deleted_at__isnull=False, deleted_at__lt=cutoff)
+    deleted_patients = Patient.all_objects.filter(deleted_at__isnull=False, deleted_at__lt=cutoff)
+    deleted_counts = {"encounters": deleted_encounters.count(), "patients": deleted_patients.count()}
+    if deleted_encounters.exists():
+        deleted_encounters.delete()
+    if deleted_patients.exists():
+        deleted_patients.delete()
+    return deleted_counts
+
+
+def soft_delete_encounter(encounter, *, actor=None, reason: str = "") -> bool:
+    if not encounter or getattr(encounter, "deleted_at", None):
+        return False
+    record_encounter_event(
+        encounter,
+        EncounterEventType.UPDATED,
+        "Atencion enviada a papelera",
+        actor=actor,
+        details=reason or "Se movio la atencion a la papelera.",
+    )
+    encounter.soft_delete(deleted_by=actor)
+    return True
+
+
+def soft_delete_patient(patient, *, actor=None, reason: str = "") -> bool:
+    if not patient or getattr(patient, "deleted_at", None):
+        return False
+    for encounter in Encounter.all_objects.filter(patient=patient, deleted_at__isnull=True):
+        record_encounter_event(
+            encounter,
+            EncounterEventType.UPDATED,
+            "Atencion enviada a papelera",
+            actor=actor,
+            details=reason or f"Se movio a papelera junto con el paciente {patient.full_name}.",
+        )
+    patient.soft_delete(deleted_by=actor)
+    return True
+
+
+def restore_deleted_patient(patient) -> bool:
+    if not patient or not getattr(patient, "deleted_at", None):
+        return False
+    patient.restore()
+    return True
+
+
+def restore_deleted_encounter(encounter) -> bool:
+    if not encounter or not getattr(encounter, "deleted_at", None):
+        return False
+    if getattr(encounter.patient, "deleted_at", None):
+        encounter.patient.restore(restore_batch=False)
+    encounter.restore()
+    return True
+
+
+def sort_dashboard_encounters(encounters):
+    attended_encounters = []
+    pending_encounters = []
+
+    for encounter in encounters:
+        if encounter.attended and encounter.attended_at:
+            attended_encounters.append(encounter)
+        else:
+            pending_encounters.append(encounter)
+
+    attended_encounters.sort(
+        key=lambda encounter: (
+            encounter.attended_at,
+            encounter.encounter_time or datetime_time(23, 59),
+            encounter.created_at,
+            encounter.pk,
+        )
+    )
+    pending_encounters.sort(
+        key=lambda encounter: (
+            encounter.encounter_time or datetime_time(23, 59),
+            encounter.created_at,
+            encounter.pk,
+        )
+    )
+    return attended_encounters + pending_encounters
+
+
+def get_doctor_review_done_statuses():
+    return {
+        EncounterStatus.REVISADA,
+        EncounterStatus.INFORME_GENERADO,
+        EncounterStatus.ENTREGADA,
+    }
+
+
+def encounter_has_review_pdf(encounter) -> bool:
+    return bool(get_latest_result_attachment(encounter))
+
+
+def encounter_is_pending_doctor_review(encounter) -> bool:
+    return encounter.attended and encounter_has_review_pdf(encounter) and encounter.status not in get_doctor_review_done_statuses()
+
+
+def build_doctor_review_queue(reference_date, current_encounter=None):
+    pending_encounters = []
+    queue_qs = (
+        Encounter.objects.select_related("patient")
+        .prefetch_related("attachments")
+        .filter(encounter_date=reference_date)
+        .order_by("attended_at", "encounter_time", "created_at")
+    )
+
+    for encounter in queue_qs:
+        if encounter_is_pending_doctor_review(encounter):
+            pending_encounters.append(encounter)
+
+    current_index = None
+    if current_encounter is not None:
+        for index, item in enumerate(pending_encounters):
+            if item.pk == current_encounter.pk:
+                current_index = index
+                break
+
+    next_encounter = None
+    if current_index is not None and current_index + 1 < len(pending_encounters):
+        next_encounter = pending_encounters[current_index + 1]
+    elif current_index is None and pending_encounters:
+        next_encounter = pending_encounters[0]
+
+    previous_encounter = None
+    if current_index is not None and current_index > 0:
+        previous_encounter = pending_encounters[current_index - 1]
+
+    remaining_after_current = len(pending_encounters)
+
+    return {
+        "pending_encounters": pending_encounters,
+        "pending_total": len(pending_encounters),
+        "current_index": current_index,
+        "current_is_pending": current_index is not None,
+        "remaining_after_current": remaining_after_current,
+        "previous_encounter": previous_encounter,
+        "next_encounter": next_encounter,
+    }
 
 
 def build_mutual_cvl_result(pattern: str, obstruction_grade: str, restriction_grade: str) -> str:
@@ -410,8 +700,56 @@ def sync_attendance_status(encounter):
             encounter.status = EncounterStatus.PENDIENTE
 
 
+def vital_signs_have_data(vital_signs) -> bool:
+    return any(
+        getattr(vital_signs, field_name, None) is not None
+        for field_name in ("so2_rest", "fc_rest", "so2_post", "fc_post")
+    )
+
+
+def rest_vital_signs_are_complete(vital_signs) -> bool:
+    return getattr(vital_signs, "so2_rest", None) is not None and getattr(vital_signs, "fc_rest", None) is not None
+
+
+def quick_form_has_clinical_data(cleaned_data) -> bool:
+    has_complete_rest_vitals = cleaned_data.get("so2_rest") is not None and cleaned_data.get("fc_rest") is not None
+    return has_complete_rest_vitals or bool(cleaned_data.get("respiratory_result"))
+
+
+def mark_encounter_attended(encounter, request_user=None, details: str = "") -> bool:
+    if encounter.attended and not encounter.no_show and encounter.status not in [
+        EncounterStatus.PENDIENTE,
+        EncounterStatus.NO_LLEGO,
+    ]:
+        return False
+    previous_label = get_attendance_label(encounter)
+    became_attended = not encounter.attended or encounter.no_show or encounter.attended_at is None
+    encounter.attended = True
+    encounter.no_show = False
+    if became_attended:
+        encounter.attended_at = timezone.now()
+    sync_attendance_status(encounter)
+    if request_user is not None:
+        encounter.updated_by = request_user
+    update_fields = ["attended", "attended_at", "no_show", "status", "updated_at"]
+    if request_user is not None:
+        update_fields.append("updated_by")
+    encounter.save(update_fields=update_fields)
+
+    if previous_label != get_attendance_label(encounter):
+        record_encounter_event(
+            encounter,
+            EncounterEventType.ATTENDANCE,
+            "Asistencia actualizada automaticamente",
+            actor=request_user,
+            details=details or f"Antes: {previous_label} | Ahora: {get_attendance_label(encounter)}",
+        )
+        return True
+    return False
+
+
 def assign_encounter_patient_by_dni(encounter, dni_value: str):
-    dni = (dni_value or "").strip()
+    dni = re.sub(r"\D", "", dni_value or "")
     patient = encounter.patient
 
     if not dni:
@@ -420,11 +758,12 @@ def assign_encounter_patient_by_dni(encounter, dni_value: str):
             patient.save(update_fields=["dni", "updated_at"])
         return patient, False
 
-    existing_patient = Patient.objects.filter(dni=dni).exclude(pk=patient.pk).first()
+    existing_patient = Patient.all_objects.filter(dni=dni).exclude(pk=patient.pk).first()
     if existing_patient:
-        encounter.patient = existing_patient
-        encounter.save(update_fields=["patient", "updated_at"])
-        return existing_patient, True
+        raise ValueError(
+            f"El DNI {formatear_dni(dni)} ya pertenece a {existing_patient.full_name}. "
+            "No se modifico ni se movio esta atencion."
+        )
 
     if patient.dni != dni:
         patient.dni = dni
@@ -441,6 +780,16 @@ def encounter_has_cycle_data(encounter) -> bool:
             bool(getattr(encounter, "walk_test", None)),
         ]
     )
+
+
+def encounter_has_protected_history(encounter) -> bool:
+    if encounter.status in {
+        EncounterStatus.REVISADA,
+        EncounterStatus.INFORME_GENERADO,
+        EncounterStatus.ENTREGADA,
+    }:
+        return True
+    return encounter.attachments.exists() or encounter.generated_reports.exists()
 
 
 def get_latest_report_info(encounter):
@@ -462,11 +811,11 @@ def get_latest_report_info(encounter):
     latest_attachment = getattr(latest_report, "attachment", None)
     complete_attachment = getattr(complete_report, "attachment", None)
     mutual_attachment = getattr(mutual_report, "attachment", None)
-    latest_url = latest_attachment.file.url if latest_attachment and getattr(latest_attachment, "file", None) else ""
+    latest_url = safe_attachment_url(latest_attachment)
     latest_name = latest_attachment.original_name if latest_attachment else latest_report.report_type
-    complete_url = complete_attachment.file.url if complete_attachment and getattr(complete_attachment, "file", None) else ""
+    complete_url = safe_attachment_url(complete_attachment)
     complete_name = complete_attachment.original_name if complete_attachment else ""
-    mutual_url = mutual_attachment.file.url if mutual_attachment and getattr(mutual_attachment, "file", None) else ""
+    mutual_url = safe_attachment_url(mutual_attachment)
     mutual_name = mutual_attachment.original_name if mutual_attachment else ""
     return {
         "latest_report_url": latest_url,
@@ -479,19 +828,164 @@ def get_latest_report_info(encounter):
     }
 
 
-def parse_optional_int(raw_value, max_value=None):
+def build_report_source_snapshot(encounter) -> dict:
+    patient = encounter.patient
+    vital = getattr(encounter, "vital_signs", None)
+    walk = getattr(encounter, "walk_test", None)
+    result = getattr(encounter, "spirometry_result", None)
+    return {
+        "patient": {
+            "id": patient.pk,
+            "full_name": patient.full_name,
+            "dni": patient.dni or "",
+            "birth_date": patient.birth_date.isoformat() if patient.birth_date else None,
+            "gender": patient.gender,
+        },
+        "encounter": {
+            "id": encounter.pk,
+            "date": encounter.encounter_date.isoformat(),
+            "time": encounter.encounter_time.isoformat() if encounter.encounter_time else None,
+            "study_type": encounter.study_type,
+            "coverage_type": encounter.coverage_type,
+            "coverage_name": encounter.coverage_name,
+            "referring_physician": getattr(encounter.referring_physician, "full_name", ""),
+        },
+        "vital_signs": {
+            "so2_rest": getattr(vital, "so2_rest", None),
+            "fc_rest": getattr(vital, "fc_rest", None),
+            "so2_post": getattr(vital, "so2_post", None),
+            "fc_post": getattr(vital, "fc_post", None),
+        },
+        "walk_test": {
+            "distance_meters": getattr(walk, "distance_meters", None),
+            "completed": getattr(walk, "completed", None),
+            "stopped": getattr(walk, "stopped", None),
+            "symptoms": getattr(walk, "symptoms", None),
+            "borg_final": getattr(walk, "borg_final", None),
+            "minute_readings": getattr(walk, "minute_readings", []) or [],
+        },
+        "spirometry": {
+            "final_code": get_result_code_from_encounter(encounter),
+            "pattern": getattr(result, "respiratory_pattern", ""),
+            "obstruction_grade": getattr(result, "obstruction_grade", ""),
+            "restriction_grade": getattr(result, "restriction_grade", ""),
+            "bronchodilator_positive": bool(getattr(result, "bronchodilator_positive", False)),
+            "suggested_code": getattr(result, "suggested_code", ""),
+            "suggested_reading_quality": getattr(result, "suggested_probability", None),
+            "measured_values": getattr(result, "measured_values", {}) or {},
+        },
+    }
+
+
+def save_generated_report_artifacts(encounter, artifacts, user) -> int:
+    generated_count = 0
+    saved_attachments = []
+    source_snapshot = build_report_source_snapshot(encounter)
+    try:
+        with transaction.atomic():
+            for artifact in artifacts:
+                attachment = Attachment(
+                    encounter=encounter,
+                    file_kind=artifact.file_kind,
+                    original_name=artifact.filename,
+                    mime_type=artifact.mime_type,
+                    uploaded_by=user,
+                )
+                attachment.file.save(artifact.filename, ContentFile(artifact.bytes_content), save=False)
+                saved_attachments.append(attachment)
+                attachment.save()
+                report_type = artifact.report_type
+                if report_type not in [choice.value for choice in ReportType]:
+                    report_type = ReportType.ESPIROMETRIA
+                previous_report = (
+                    GeneratedReport.objects.filter(encounter=encounter, report_type=report_type)
+                    .order_by("-created_at")
+                    .first()
+                )
+                GeneratedReport.objects.create(
+                    encounter=encounter,
+                    report_type=report_type,
+                    attachment=attachment,
+                    generated_by=user,
+                    generator_version="web-v2-integrity",
+                    source_snapshot=source_snapshot,
+                    content_sha256=hashlib.sha256(artifact.bytes_content).hexdigest(),
+                    supersedes=previous_report,
+                )
+                generated_count += 1
+    except Exception:
+        for attachment in saved_attachments:
+            try:
+                attachment.file.delete(save=False)
+            except Exception:
+                pass
+        raise
+    return generated_count
+
+
+def build_report_artifacts_for_scope(encounter, scope: str):
+    artifacts = build_reports_for_encounter(encounter, include_mutual=True if scope == "mutual" else None)
+    if scope == "mutual":
+        return [artifact for artifact in artifacts if artifact.report_type == ReportType.MUTUAL]
+    return artifacts
+
+
+def parse_optional_int(raw_value, *, min_value=0, max_value=None, label="Valor"):
     text = str(raw_value or "").strip()
     if not text:
         return None
-    try:
-        value = int(text)
-    except (TypeError, ValueError):
-        return None
-    if value < 0:
-        value = 0
-    if max_value is not None and value > max_value:
-        value = max_value
+    if not re.fullmatch(r"\d+", text):
+        raise ValueError(f"{label}: ingresa solo numeros enteros.")
+    value = int(text)
+    if value < min_value or (max_value is not None and value > max_value):
+        upper = f" y {max_value}" if max_value is not None else ""
+        raise ValueError(f"{label}: el valor debe estar entre {min_value}{upper}.")
     return value
+
+
+def save_vitals_group_values(*, encounter_id, group_name, so2_raw, fc_raw, request_user):
+    if group_name not in {"rest", "post"}:
+        raise ValueError("Grupo de signos vitales invalido.")
+
+    group_label = "reposo" if group_name == "rest" else "post caminata"
+    so2_value = parse_optional_int(so2_raw, max_value=100, label=f"SO2 {group_label}")
+    fc_value = parse_optional_int(fc_raw, max_value=300, label=f"FC {group_label}")
+
+    with transaction.atomic():
+        encounter = Encounter.objects.select_for_update().select_related("patient").get(pk=encounter_id)
+        vital, _ = VitalSigns.objects.select_for_update().get_or_create(encounter=encounter)
+        so2_field = f"so2_{group_name}"
+        fc_field = f"fc_{group_name}"
+        old_so2 = getattr(vital, so2_field)
+        old_fc = getattr(vital, fc_field)
+        setattr(vital, so2_field, so2_value)
+        setattr(vital, fc_field, fc_value)
+        vital.save(update_fields=[so2_field, fc_field, "updated_at"])
+
+        encounter.updated_by = request_user
+        encounter.save(update_fields=["updated_by", "updated_at"])
+        if (old_so2, old_fc) != (so2_value, fc_value):
+            record_encounter_event(
+                encounter,
+                EncounterEventType.UPDATED,
+                f"SO2 y FC en {group_label} actualizados",
+                actor=request_user,
+                details=(
+                    f"Antes: {old_so2 if old_so2 is not None else '-'} / "
+                    f"{old_fc if old_fc is not None else '-'} | Ahora: "
+                    f"{so2_value if so2_value is not None else '-'} / "
+                    f"{fc_value if fc_value is not None else '-'}"
+                ),
+                metadata={"group": group_name, "so2": so2_value, "fc": fc_value},
+            )
+
+        if group_name == "rest" and rest_vital_signs_are_complete(vital):
+            mark_encounter_attended(
+                encounter,
+                request_user,
+                details="Se marco como atendido al guardar SO2 y FC completos en reposo.",
+            )
+    return encounter
 
 
 def parse_optional_time(raw_value):
@@ -523,9 +1017,11 @@ def get_row_state_payload(encounter):
     payload = {
         "encounter_id": encounter.pk,
         "status": encounter.status,
+        "status_css_class": get_status_badge_class(encounter.status),
         "attended": encounter.attended,
         "no_show": encounter.no_show,
         "attendance_label": get_attendance_label(encounter),
+        "attended_at": encounter.attended_at.isoformat() if encounter.attended_at else "",
         "result_label": get_result_label_from_encounter(encounter),
         "result_code": get_result_code_from_encounter(encounter),
         "study_type": encounter.study_type,
@@ -581,10 +1077,12 @@ def get_operational_alerts(queryset):
     }
 
 
-def update_inline_field(encounter, field_name: str, raw_value: str, request_user):
+def update_inline_field(encounter, field_name: str, raw_value: str, request_user, manual_save: bool = False):
     patient = encounter.patient
     vital, _ = VitalSigns.objects.get_or_create(encounter=encounter)
     raw_text = (raw_value or "").strip()
+    if field_name in {"so2_rest", "fc_rest", "so2_post", "fc_post"}:
+        raise ValueError("SO2 y FC se guardan juntos con el boton Guardar.")
 
     if field_name == "patient_name":
         old_value = patient.full_name
@@ -631,9 +1129,7 @@ def update_inline_field(encounter, field_name: str, raw_value: str, request_user
         new_label = encounter.coverage_type
     elif field_name == "referring_physician":
         old_label = encounter.referring_physician.full_name if encounter.referring_physician else DEFAULT_DOCTOR
-        encounter.referring_physician = (
-            ReferringPhysician.objects.filter(pk=raw_value, active=True).first() if raw_value else get_default_physician()
-        )
+        encounter.referring_physician = resolve_or_create_physician(raw_value) if raw_value else get_default_physician()
         new_label = encounter.referring_physician.full_name if encounter.referring_physician else DEFAULT_DOCTOR
     elif field_name == "so2_rest":
         encounter.updated_by = request_user
@@ -647,6 +1143,12 @@ def update_inline_field(encounter, field_name: str, raw_value: str, request_user
                 "SO2 en reposo actualizado",
                 actor=request_user,
                 details=f"Antes: {old_value if old_value is not None else '-'} | Ahora: {vital.so2_rest if vital.so2_rest is not None else '-'}",
+            )
+        if manual_save and rest_vital_signs_are_complete(vital):
+            mark_encounter_attended(
+                encounter,
+                request_user,
+                details="Se marco como atendido al completar SO2 y FC en reposo.",
             )
         return
     elif field_name == "fc_rest":
@@ -662,6 +1164,12 @@ def update_inline_field(encounter, field_name: str, raw_value: str, request_user
                 actor=request_user,
                 details=f"Antes: {old_value if old_value is not None else '-'} | Ahora: {vital.fc_rest if vital.fc_rest is not None else '-'}",
             )
+        if manual_save and rest_vital_signs_are_complete(vital):
+            mark_encounter_attended(
+                encounter,
+                request_user,
+                details="Se marco como atendido al completar SO2 y FC en reposo.",
+            )
         return
     elif field_name == "so2_post":
         encounter.updated_by = request_user
@@ -675,6 +1183,12 @@ def update_inline_field(encounter, field_name: str, raw_value: str, request_user
                 "SO2 post caminata actualizada",
                 actor=request_user,
                 details=f"Antes: {old_value if old_value is not None else '-'} | Ahora: {vital.so2_post if vital.so2_post is not None else '-'}",
+            )
+        if manual_save and rest_vital_signs_are_complete(vital):
+            mark_encounter_attended(
+                encounter,
+                request_user,
+                details="Se marco como atendido al completar SO2 y FC en reposo.",
             )
         return
     elif field_name == "fc_post":
@@ -690,6 +1204,12 @@ def update_inline_field(encounter, field_name: str, raw_value: str, request_user
                 actor=request_user,
                 details=f"Antes: {old_value if old_value is not None else '-'} | Ahora: {vital.fc_post if vital.fc_post is not None else '-'}",
             )
+        if manual_save and rest_vital_signs_are_complete(vital):
+            mark_encounter_attended(
+                encounter,
+                request_user,
+                details="Se marco como atendido al completar SO2 y FC en reposo.",
+            )
         return
     elif field_name == "respiratory_result":
         old_label = get_result_code_from_encounter(encounter) or "-"
@@ -704,6 +1224,12 @@ def update_inline_field(encounter, field_name: str, raw_value: str, request_user
                 "Resultado respiratorio actualizado",
                 actor=request_user,
                 details=f"Antes: {old_label} | Ahora: {new_label}",
+            )
+        if get_result_code_from_encounter(encounter):
+            mark_encounter_attended(
+                encounter,
+                request_user,
+                details="Se marco como atendido al cargar resultado respiratorio.",
             )
         return
     else:
@@ -734,16 +1260,19 @@ def cycle_attendance(encounter, request_user):
     if not encounter.attended and not encounter.no_show:
         encounter.attended = True
         encounter.no_show = False
+        encounter.attended_at = timezone.now()
     elif encounter.attended:
         encounter.attended = False
         encounter.no_show = True
+        encounter.attended_at = None
     else:
         encounter.attended = False
         encounter.no_show = False
+        encounter.attended_at = None
 
     sync_attendance_status(encounter)
     encounter.updated_by = request_user
-    encounter.save(update_fields=["attended", "no_show", "status", "updated_by", "updated_at"])
+    encounter.save(update_fields=["attended", "attended_at", "no_show", "status", "updated_by", "updated_at"])
     new_label = get_attendance_label(encounter)
     if previous_label != new_label:
         record_encounter_event(
@@ -755,23 +1284,34 @@ def cycle_attendance(encounter, request_user):
         )
 
 
+@transaction.atomic
 def save_quick_encounter(form: QuickEncounterForm, request_user, encounter=None):
     default_physician = get_default_physician()
     full_name = form.cleaned_data["patient_name"].strip().upper()
     patient_dni = (form.cleaned_data.get("patient_dni") or "").strip()
-    selected_physician = form.cleaned_data.get("referring_physician") or default_physician
+    selected_physician = resolve_or_create_physician(form.cleaned_data.get("referring_physician")) or default_physician
 
-    patient = None
-    if patient_dni:
-        patient = Patient.objects.filter(dni=patient_dni).first()
-    if patient is None and encounter is not None:
-        patient = encounter.patient
+    patient = encounter.patient if encounter is not None else None
+    matched_existing_by_dni = False
+    if encounter is not None and patient_dni:
+        conflicting_patient = Patient.all_objects.filter(dni=patient_dni).exclude(pk=patient.pk).first()
+        if conflicting_patient:
+            raise ValueError(
+                f"El DNI {formatear_dni(patient_dni)} ya pertenece a {conflicting_patient.full_name}. "
+                "No se modifico esta atencion."
+            )
+    if patient is None and patient_dni:
+        patient = Patient.all_objects.filter(dni=patient_dni).first()
+        if patient is not None and patient.deleted_at:
+            patient.restore(restore_batch=False)
+        matched_existing_by_dni = patient is not None
     if patient is None and full_name:
         patient = Patient.objects.filter(full_name=full_name).order_by("-updated_at").first()
     if patient is None:
         patient = Patient.objects.create(full_name=full_name, dni=patient_dni or None)
     else:
-        patient.full_name = full_name
+        if not matched_existing_by_dni or normalize_patient_identity_name(patient.full_name) == normalize_patient_identity_name(full_name):
+            patient.full_name = full_name
         if patient_dni:
             patient.dni = patient_dni
         patient.save()
@@ -782,17 +1322,31 @@ def save_quick_encounter(form: QuickEncounterForm, request_user, encounter=None)
             created_by=request_user,
         )
 
-    attended = bool(form.cleaned_data.get("attended"))
+    has_clinical_data = quick_form_has_clinical_data(form.cleaned_data)
+    attended = bool(form.cleaned_data.get("attended")) or has_clinical_data
     no_show = bool(form.cleaned_data.get("no_show"))
+    if is_new and not attended:
+        no_show = True
+    if attended:
+        no_show = False
+    encounter_time = form.cleaned_data.get("encounter_time")
+    if is_new and encounter_time is None:
+        encounter_time = timezone.localtime().time().replace(second=0, microsecond=0)
     encounter.patient = patient
-    encounter.encounter_date = timezone.localdate()
-    encounter.encounter_time = form.cleaned_data.get("encounter_time")
+    if is_new:
+        encounter.encounter_date = timezone.localdate()
+    encounter.encounter_time = encounter_time
     encounter.study_type = form.cleaned_data["study_type"]
-    encounter.status = EncounterStatus.PENDIENTE
+    if is_new:
+        encounter.status = EncounterStatus.PENDIENTE
     encounter.coverage_type = form.cleaned_data["coverage_type"]
     encounter.referring_physician = selected_physician
     encounter.attended = attended
     encounter.no_show = no_show
+    if attended and encounter.attended_at is None:
+        encounter.attended_at = timezone.now()
+    elif not attended:
+        encounter.attended_at = None
     encounter.updated_by = request_user
     if encounter.pk is None:
         encounter.created_by = request_user
@@ -821,7 +1375,9 @@ def save_quick_encounter(form: QuickEncounterForm, request_user, encounter=None)
     )
 
     result_code = form.cleaned_data.get("respiratory_result") or ""
-    apply_result_code_to_spirometry(encounter, result_code)
+    result = apply_result_code_to_spirometry(encounter, result_code)
+    result.bronchodilator_positive = bool(form.cleaned_data.get("bronchodilator_positive"))
+    result.save(update_fields=["bronchodilator_positive", "updated_at"])
     record_encounter_event(
         encounter,
         EncounterEventType.CREATED if is_new else EncounterEventType.UPDATED,
@@ -916,6 +1472,14 @@ DRAPP_NAME_CUTOFF_TOKENS = (
     "OSECAC",
     "IOSFA",
 )
+DRAPP_INVALID_NAME_MARKERS = (
+    "ESPIROMETRIA",
+    "CICLOMETRIA",
+    "CICLOESPIROMETRIA",
+    "CENTRORESPIRATORIO",
+    "PIGUILLEM",
+    "LINKDEPAGO",
+)
 
 
 def normalize_document_number(raw_value: str) -> str:
@@ -927,15 +1491,25 @@ def normalize_patient_identity_name(raw_name: str) -> str:
     return normalize_for_match(normalize_imported_name(raw_name))
 
 
+def is_plausible_imported_patient_name(raw_name: str) -> bool:
+    name = normalize_imported_name(raw_name)
+    normalized = normalize_for_match(name)
+    if len(name) < 3 or len(re.findall(r"[A-Z]", normalized)) < 3:
+        return False
+    if any(marker in normalized for marker in DRAPP_INVALID_NAME_MARKERS):
+        return False
+    return len([part for part in re.split(r"[ ,]+", name) if len(part) >= 2]) >= 1
+
+
 def encounter_matches_import_identity(encounter, parsed_dni: str, patient_name_key: str) -> bool:
     patient = getattr(encounter, "patient", None)
     if not patient:
         return False
     existing_dni = normalize_document_number(getattr(patient, "dni", "") or "")
-    if parsed_dni and existing_dni and parsed_dni == existing_dni:
-        return True
     existing_name_key = normalize_patient_identity_name(getattr(patient, "full_name", "") or "")
-    return bool(patient_name_key and existing_name_key and patient_name_key == existing_name_key)
+    same_dni = bool(parsed_dni and existing_dni and parsed_dni == existing_dni)
+    same_name = bool(patient_name_key and existing_name_key and patient_name_key == existing_name_key)
+    return same_dni or same_name
 
 
 def import_identity_exists_for_date(encounter_date, parsed_dni: str, patient_name: str) -> bool:
@@ -953,8 +1527,7 @@ def import_identity_exists_for_date(encounter_date, parsed_dni: str, patient_nam
 
 def unique_encounters_by_patient_day(encounters):
     unique = []
-    seen_dni_keys = set()
-    seen_name_keys = set()
+    seen_identity_keys = set()
     for encounter in encounters:
         patient = getattr(encounter, "patient", None)
         if not patient:
@@ -963,16 +1536,11 @@ def unique_encounters_by_patient_day(encounters):
         day_key = encounter.encounter_date.isoformat() if encounter.encounter_date else ""
         dni = normalize_document_number(getattr(patient, "dni", "") or "")
         name_key = normalize_patient_identity_name(getattr(patient, "full_name", "") or "")
-        dni_key = (day_key, dni) if dni else None
-        name_identity_key = (day_key, name_key) if name_key else None
-        if (dni_key and dni_key in seen_dni_keys) or (
-            name_identity_key and name_identity_key in seen_name_keys
-        ):
+        identity_key = (day_key, "dni", dni) if dni else ((day_key, "name", name_key) if name_key else None)
+        if identity_key and identity_key in seen_identity_keys:
             continue
-        if dni_key:
-            seen_dni_keys.add(dni_key)
-        if name_identity_key:
-            seen_name_keys.add(name_identity_key)
+        if identity_key:
+            seen_identity_keys.add(identity_key)
         unique.append(encounter)
     return unique
 
@@ -1483,12 +2051,11 @@ def import_drapp_rows(rows, request_user):
     created = 0
     skipped = 0
     default_physician = get_default_physician()
-    seen_dni_keys = set()
-    seen_name_keys = set()
+    seen_identity_keys = set()
 
     for row in rows:
         patient_name = normalize_imported_name(row.get("patient_name", ""))
-        if not patient_name:
+        if not is_plausible_imported_patient_name(patient_name):
             skipped += 1
             continue
 
@@ -1508,23 +2075,26 @@ def import_drapp_rows(rows, request_user):
         parsed_dni = normalize_document_number(row.get("dni", ""))
         patient_name_key = normalize_patient_identity_name(patient_name)
         day_key = encounter_date.isoformat()
-        dni_key = (day_key, parsed_dni) if parsed_dni else None
-        name_key = (day_key, patient_name_key) if patient_name_key else None
+        identity_key = (
+            (day_key, "dni", parsed_dni)
+            if parsed_dni
+            else ((day_key, "name", patient_name_key) if patient_name_key else None)
+        )
 
-        if (dni_key and dni_key in seen_dni_keys) or (name_key and name_key in seen_name_keys):
+        if identity_key and identity_key in seen_identity_keys:
             skipped += 1
             continue
 
         if import_identity_exists_for_date(encounter_date, parsed_dni, patient_name):
             skipped += 1
-            if dni_key:
-                seen_dni_keys.add(dni_key)
-            if name_key:
-                seen_name_keys.add(name_key)
+            if identity_key:
+                seen_identity_keys.add(identity_key)
             continue
 
-        patient = Patient.objects.filter(dni=parsed_dni).first() if parsed_dni else None
-        if patient is None:
+        patient = Patient.all_objects.filter(dni=parsed_dni).first() if parsed_dni else None
+        if patient is not None and patient.deleted_at:
+            patient.restore(restore_batch=False)
+        if patient is None and not parsed_dni:
             patient = Patient.objects.filter(full_name=patient_name).order_by("-updated_at").first()
         if patient is None:
             patient = Patient.objects.create(
@@ -1545,21 +2115,19 @@ def import_drapp_rows(rows, request_user):
                 updated_fields.append("updated_at")
                 patient.save(update_fields=updated_fields)
 
-        if dni_key:
-            seen_dni_keys.add(dni_key)
-        if name_key:
-            seen_name_keys.add(name_key)
+        if identity_key:
+            seen_identity_keys.add(identity_key)
 
         created_encounter = Encounter.objects.create(
             patient=patient,
             encounter_date=encounter_date,
             encounter_time=when.time(),
             study_type=study_type,
-            status=EncounterStatus.PENDIENTE,
+            status=EncounterStatus.NO_LLEGO,
             coverage_type=infer_coverage_type(row.get("coverage_raw", "")),
             referring_physician=default_physician,
             attended=False,
-            no_show=False,
+            no_show=True,
             created_by=request_user,
             updated_by=request_user,
         )
@@ -1582,6 +2150,107 @@ def import_drapp_rows(rows, request_user):
         created += 1
 
     return created, skipped
+
+
+DRAPP_IMPORT_SIGNING_SALT = "clinic.drapp-import-preview.v1"
+
+
+def serialize_drapp_rows_for_preview(rows):
+    serialized = []
+    for row in rows[:100]:
+        agenda_date = row.get("agenda_date")
+        if isinstance(agenda_date, date):
+            agenda_date = agenda_date.isoformat()
+        serialized.append(
+            {
+                "patient_name": normalize_imported_name(row.get("patient_name", "")),
+                "dni": normalize_document_number(row.get("dni", "")),
+                "phone": normalize_phone_number(row.get("phone", "")),
+                "coverage_raw": collapse_spaces(row.get("coverage_raw", "")),
+                "practice_raw": collapse_spaces(row.get("practice_raw", "")),
+                "datetime_raw": collapse_spaces(row.get("datetime_raw", "")),
+                "agenda_date": str(agenda_date or ""),
+            }
+        )
+    return serialized
+
+
+def build_drapp_import_preview(rows):
+    serialized = serialize_drapp_rows_for_preview(rows)
+    preview = []
+    for index, row in enumerate(serialized):
+        patient_name = row["patient_name"]
+        parsed_dni = row["dni"]
+        date_detected = bool(row["agenda_date"])
+        try:
+            agenda_date = date.fromisoformat(row["agenda_date"]) if row["agenda_date"] else timezone.localdate()
+        except ValueError:
+            agenda_date = timezone.localdate()
+            date_detected = False
+        duplicate = (
+            import_identity_exists_for_date(agenda_date, parsed_dni, patient_name)
+            if patient_name and date_detected
+            else False
+        )
+        valid_name = is_plausible_imported_patient_name(patient_name)
+        preview.append(
+            {
+                "index": index,
+                "patient_name": patient_name,
+                "dni": parsed_dni,
+                "phone": row["phone"],
+                "coverage_raw": row["coverage_raw"],
+                "coverage_type": infer_coverage_type(row["coverage_raw"]),
+                "practice_raw": row["practice_raw"],
+                "study_type": infer_study_type(row["practice_raw"]),
+                "datetime_raw": row["datetime_raw"],
+                "agenda_date": agenda_date,
+                "date_detected": date_detected,
+                "duplicate": duplicate,
+                "valid": valid_name and date_detected and not duplicate,
+                "warning": (
+                    "Ya existe en esa fecha"
+                    if duplicate
+                    else (
+                        "Fecha no detectada: completala y marca la fila"
+                        if not date_detected
+                        else ("Nombre invalido: revisalo antes de importar" if not valid_name else "")
+                    )
+                ),
+            }
+        )
+    token = signing.dumps(serialized, salt=DRAPP_IMPORT_SIGNING_SALT, compress=True)
+    return preview, token
+
+
+def confirmed_drapp_rows_from_request(request):
+    token = request.POST.get("import_preview_token", "")
+    try:
+        original_rows = signing.loads(token, salt=DRAPP_IMPORT_SIGNING_SALT, max_age=30 * 60)
+    except signing.BadSignature as error:
+        raise ValueError("La vista previa vencio o fue modificada. Volve a leer la captura.") from error
+
+    confirmed = []
+    for index, original in enumerate(original_rows[:100]):
+        if request.POST.get(f"row_{index}_selected") != "1":
+            continue
+        raw_agenda_date = request.POST.get(f"row_{index}_date", original.get("agenda_date", ""))
+        try:
+            agenda_date = date.fromisoformat(str(raw_agenda_date or ""))
+        except ValueError as error:
+            raise ValueError(f"Fila {index + 1}: completa una fecha valida antes de importar.") from error
+        confirmed.append(
+            {
+                **original,
+                "patient_name": request.POST.get(f"row_{index}_patient_name", original.get("patient_name", "")),
+                "dni": request.POST.get(f"row_{index}_dni", original.get("dni", "")),
+                "coverage_raw": request.POST.get(f"row_{index}_coverage", original.get("coverage_raw", "")),
+                "practice_raw": request.POST.get(f"row_{index}_study", original.get("practice_raw", "")),
+                "datetime_raw": request.POST.get(f"row_{index}_time", original.get("datetime_raw", "")),
+                "agenda_date": agenda_date,
+            }
+        )
+    return confirmed
 
 
 def format_month_label(value: date) -> str:
@@ -1784,13 +2453,13 @@ def describe_progression(previous_encounter, current_encounter):
 
 
 def get_patient_age_value(patient) -> int | None:
-    if patient.age_reported is not None:
-        return int(patient.age_reported)
     if patient.birth_date:
         today = timezone.localdate()
         return today.year - patient.birth_date.year - (
             (today.month, today.day) < (patient.birth_date.month, patient.birth_date.day)
         )
+    if patient.age_reported is not None:
+        return int(patient.age_reported)
     return None
 
 
@@ -1882,13 +2551,13 @@ def get_encounter_inconsistencies(encounter):
 
     if vital:
         impossible_values = []
-        if vital.so2_rest is not None and (vital.so2_rest < 50 or vital.so2_rest > 99):
+        if vital.so2_rest is not None and (vital.so2_rest < 50 or vital.so2_rest > 100):
             impossible_values.append("SO2 reposo")
-        if vital.so2_post is not None and (vital.so2_post < 50 or vital.so2_post > 99):
+        if vital.so2_post is not None and (vital.so2_post < 50 or vital.so2_post > 100):
             impossible_values.append("SO2 post")
-        if vital.fc_rest is not None and (vital.fc_rest < 20 or vital.fc_rest > 250):
+        if vital.fc_rest is not None and (vital.fc_rest < 20 or vital.fc_rest > 300):
             impossible_values.append("FC reposo")
-        if vital.fc_post is not None and (vital.fc_post < 20 or vital.fc_post > 250):
+        if vital.fc_post is not None and (vital.fc_post < 20 or vital.fc_post > 300):
             impossible_values.append("FC post")
         if impossible_values:
             flags.append("Valores imposibles: " + ", ".join(impossible_values))
@@ -1903,8 +2572,8 @@ def build_inconsistency_message(encounter):
     return "Advertencias: " + " | ".join(flags)
 
 
-def get_report_readiness(encounter):
-    if encounter.no_show:
+def get_report_readiness(encounter, *, ignore_attendance=False):
+    if encounter.no_show and not ignore_attendance:
         return False, "No llego"
 
     patient = encounter.patient
@@ -1938,6 +2607,8 @@ def build_print_context_for_encounter(encounter):
     vital = getattr(encounter, "vital_signs", None)
     walk = getattr(encounter, "walk_test", None)
     result = getattr(encounter, "spirometry_result", None)
+    if not get_result_code_from_encounter(encounter):
+        raise ValueError("Falta el resultado final del medico.")
 
     patron = normalizar_patron(getattr(result, "respiratory_pattern", "Normal"))
     grado_obst = (getattr(result, "obstruction_grade", "") or "Leve").strip().lower()
@@ -1950,26 +2621,13 @@ def build_print_context_for_encounter(encounter):
     include_walk = encounter.study_type == "Ciclometria"
     walk_rows = []
     if include_walk:
-        so2_reposo = int(so2)
-        so2_regreso = int(limpiar_entero(getattr(vital, "so2_post", "100"), "100"))
-        fc_reposo = int(fc)
-        fc_maximo = int(limpiar_entero(getattr(vital, "fc_post", "120"), "120"))
-        borg_final = int(getattr(walk, "borg_final", 0) or 0)
-        so2_vals = interpolar_valores(so2_reposo, so2_regreso, 7)
-        fc_vals = interpolar_valores(fc_reposo, fc_maximo, 7)
-        borg_vals = interpolar_valores(0, borg_final, 7) if borg_final > 0 else [0, 0, 0, 0, 0, 0, 1]
-        walk_rows = [
-            {
-                "minute": minute,
-                "so2": so2_vals[minute],
-                "fc": fc_vals[minute],
-                "borg": borg_vals[minute],
-            }
-            for minute in range(7)
-        ]
+        walk_rows = build_walk_measurement_rows(vital, walk)
 
     pdf_attachment = get_latest_result_attachment(encounter)
-    pdf_preview_pages = build_result_preview_images(pdf_attachment) if pdf_attachment else []
+    try:
+        pdf_preview_pages = build_result_preview_images(pdf_attachment) if pdf_attachment else []
+    except Exception:
+        pdf_preview_pages = []
     include_mutual_packet = encounter.coverage_type == CoverageType.MUTUAL and include_walk
     walk_assessment = (
         build_walk_test_assessment(
@@ -2006,6 +2664,7 @@ def build_print_context_for_encounter(encounter):
         "mutual_cvl_result": build_mutual_cvl_result(patron, grado_obst, grado_rest),
         "pdf_preview_pages": pdf_preview_pages,
         "pdf_attachment": pdf_attachment,
+        "pdf_attachment_url": safe_attachment_url(pdf_attachment),
     }
 
 
@@ -2019,6 +2678,8 @@ def render_dashboard_response(
     today_encounters,
     status_cards,
     operation_alerts,
+    import_preview=None,
+    import_preview_token="",
 ):
     context = {
         "today": today,
@@ -2032,12 +2693,17 @@ def render_dashboard_response(
         "physician_choices": ReferringPhysician.objects.filter(active=True).order_by("full_name"),
         "result_code_suggestions": RESULT_CODE_SUGGESTIONS,
         "operation_alerts": operation_alerts,
+        "import_preview": import_preview or [],
+        "import_preview_token": import_preview_token,
     }
     return render(request, "clinic/dashboard.html", context)
 
 
 @login_required
 def dashboard(request):
+    purge_expired_recycle_bin()
+    if request.method == "POST":
+        require_any_clinic_permission(request, "clinic.manage_agenda")
     today = timezone.localdate()
     quick_initial = {
         "study_type": "Ciclometria",
@@ -2045,18 +2711,21 @@ def dashboard(request):
         "distance_meters": 200,
         "completed": True,
         "borg_final": 0,
+        "bronchodilator_positive": False,
         "attended": False,
-        "no_show": False,
+        "no_show": True,
     }
     today_encounters = (
         Encounter.objects.select_related("patient", "referring_physician", "vital_signs", "spirometry_result")
         .prefetch_related("generated_reports__attachment")
         .filter(encounter_date=today)
-        .order_by("created_at")
+        .order_by("encounter_time", "created_at")
     )
     today_encounters = unique_encounters_by_patient_day(today_encounters)
+    today_encounters = sort_dashboard_encounters(today_encounters)
     for encounter in today_encounters:
         encounter.result_code = get_result_code_from_encounter(encounter)
+        encounter.status_css_class = get_status_badge_class(encounter.status)
         encounter.can_generate_report, encounter.report_block_reason = get_report_readiness(encounter)
         encounter.has_generated_reports = len(encounter.generated_reports.all()) > 0
         encounter.has_cycle_data = encounter_has_cycle_data(encounter)
@@ -2068,7 +2737,7 @@ def dashboard(request):
         encounter.detail_url = latest_report_info["detail_url"]
     stats_map = Counter(encounter.status for encounter in today_encounters)
     status_cards = [
-        {"value": value, "label": label, "total": stats_map.get(value, 0)}
+        {"value": value, "label": label, "total": stats_map.get(value, 0), "css_class": get_status_badge_class(value)}
         for value, label in EncounterStatus.choices
     ]
     operation_alerts = get_operational_alerts(Encounter.objects.filter(encounter_date=today))
@@ -2149,12 +2818,35 @@ def dashboard(request):
                         status_cards=status_cards,
                         operation_alerts=operation_alerts,
                     )
-                created, skipped = import_drapp_rows(imported_rows, request.user)
-                messages.success(
+                import_preview, import_preview_token = build_drapp_import_preview(imported_rows)
+                messages.info(request, "Revisa las filas detectadas antes de agregarlas a la agenda.")
+                return render_dashboard_response(
                     request,
-                    f"Drapp importado: {created} paciente(s) agregados, {skipped} fila(s) omitidas.",
+                    today=today,
+                    quick_form=quick_form,
+                    import_form=import_form,
+                    physician_form=physician_form,
+                    today_encounters=today_encounters,
+                    status_cards=status_cards,
+                    operation_alerts=operation_alerts,
+                    import_preview=import_preview,
+                    import_preview_token=import_preview_token,
                 )
+        elif action == "confirm_drapp_import":
+            try:
+                confirmed_rows = confirmed_drapp_rows_from_request(request)
+            except ValueError as error:
+                messages.error(request, str(error))
                 return redirect("clinic:dashboard")
+            if not confirmed_rows:
+                messages.warning(request, "No seleccionaste ninguna fila valida para importar.")
+                return redirect("clinic:dashboard")
+            created, skipped = import_drapp_rows(confirmed_rows, request.user)
+            messages.success(
+                request,
+                f"Drapp confirmado: {created} paciente(s) agregados, {skipped} fila(s) omitidas.",
+            )
+            return redirect("clinic:dashboard")
         elif action == "add_physician":
             physician_form = ReferringPhysicianForm(request.POST)
             quick_form = QuickEncounterForm(initial=quick_initial)
@@ -2162,6 +2854,7 @@ def dashboard(request):
             if physician_form.is_valid():
                 physician = physician_form.save(commit=False)
                 physician.full_name = collapse_spaces(physician.full_name)
+                physician.active = True
                 if physician.is_default:
                     ReferringPhysician.objects.filter(is_default=True).update(is_default=False)
                 physician.save()
@@ -2176,7 +2869,13 @@ def dashboard(request):
                 .prefetch_related("generated_reports"),
                 pk=encounter_id,
             )
-            patient, reassigned = assign_encounter_patient_by_dni(encounter, new_dni)
+            try:
+                patient, reassigned = assign_encounter_patient_by_dni(encounter, new_dni)
+            except ValueError as error:
+                if is_ajax_request(request):
+                    return JsonResponse({"ok": False, "message": str(error)}, status=409)
+                messages.error(request, str(error))
+                return redirect("clinic:dashboard")
             encounter.refresh_from_db()
             if is_ajax_request(request):
                 return JsonResponse(
@@ -2193,6 +2892,38 @@ def dashboard(request):
             else:
                 messages.success(request, f"DNI actualizado para {patient.full_name}.")
             return redirect("clinic:dashboard")
+        elif action == "save_vitals_group":
+            physician_form = ReferringPhysicianForm(initial={"active": True})
+            try:
+                save_vitals_group_values(
+                    encounter_id=request.POST.get("encounter_id"),
+                    group_name=request.POST.get("vitals_group", ""),
+                    so2_raw=request.POST.get("so2", ""),
+                    fc_raw=request.POST.get("fc", ""),
+                    request_user=request.user,
+                )
+            except (Encounter.DoesNotExist, ValueError) as error:
+                message = str(error) or "No se pudieron guardar los signos vitales."
+                if is_ajax_request(request):
+                    return JsonResponse({"ok": False, "message": message}, status=400)
+                messages.error(request, message)
+                return redirect("clinic:dashboard")
+
+            encounter = get_object_or_404(
+                Encounter.objects.select_related("patient", "spirometry_result", "vital_signs", "walk_test")
+                .prefetch_related("generated_reports__attachment"),
+                pk=request.POST.get("encounter_id"),
+            )
+            payload = {
+                "ok": True,
+                "field_name": f"vitals_{request.POST.get('vitals_group', '')}",
+                "message": "Signos vitales guardados.",
+            }
+            payload.update(get_row_state_payload(encounter))
+            if is_ajax_request(request):
+                return JsonResponse(payload)
+            messages.success(request, payload["message"])
+            return redirect("clinic:dashboard")
         elif action == "inline_update":
             physician_form = ReferringPhysicianForm(initial={"active": True})
             encounter = get_object_or_404(
@@ -2200,12 +2931,19 @@ def dashboard(request):
                 .prefetch_related("generated_reports"),
                 pk=request.POST.get("encounter_id"),
             )
-            update_inline_field(
-                encounter=encounter,
-                field_name=request.POST.get("field_name", ""),
-                raw_value=request.POST.get("value", ""),
-                request_user=request.user,
-            )
+            try:
+                update_inline_field(
+                    encounter=encounter,
+                    field_name=request.POST.get("field_name", ""),
+                    raw_value=request.POST.get("value", ""),
+                    request_user=request.user,
+                    manual_save=request.POST.get("manual_save") == "1",
+                )
+            except ValueError as error:
+                if is_ajax_request(request):
+                    return JsonResponse({"ok": False, "message": str(error)}, status=400)
+                messages.error(request, str(error))
+                return redirect("clinic:dashboard")
             encounter.refresh_from_db()
             if is_ajax_request(request):
                 payload = {
@@ -2248,38 +2986,39 @@ def dashboard(request):
         elif action == "delete_encounter":
             physician_form = ReferringPhysicianForm(initial={"active": True})
             encounter = get_object_or_404(
-                Encounter.objects.select_related("patient"),
+                Encounter.objects.select_related("patient").prefetch_related("attachments", "generated_reports"),
                 pk=request.POST.get("encounter_id"),
             )
             encounter_id = encounter.pk
             patient_name = encounter.patient.full_name
-            record_encounter_event(
+            soft_delete_encounter(
                 encounter,
-                EncounterEventType.UPDATED,
-                "Atencion eliminada de la agenda",
                 actor=request.user,
-                details=f"Se elimino la atencion del dia para {patient_name}.",
+                reason=f"Se elimino la atencion del dia para {patient_name}.",
             )
-            encounter.delete()
             if is_ajax_request(request):
                 return JsonResponse(
                     {
                         "ok": True,
                         "deleted": True,
                         "encounter_id": encounter_id,
-                        "message": f"Se elimino {patient_name} de la agenda.",
+                        "message": f"Se envio a papelera {patient_name}.",
                     }
                 )
-            messages.success(request, f"Se elimino {patient_name} de la agenda.")
+            messages.success(request, f"Se envio a papelera {patient_name}.")
             return redirect("clinic:dashboard")
         else:
             quick_form = QuickEncounterForm(request.POST)
             import_form = DrappImportForm()
             physician_form = ReferringPhysicianForm(initial={"active": True})
             if quick_form.is_valid():
-                encounter = save_quick_encounter(quick_form, request.user)
-                messages.success(request, f"Paciente agendado: {encounter.patient.full_name}")
-                return redirect("clinic:dashboard")
+                try:
+                    encounter = save_quick_encounter(quick_form, request.user)
+                except ValueError as error:
+                    quick_form.add_error("patient_dni", str(error))
+                else:
+                    messages.success(request, f"Paciente agendado: {encounter.patient.full_name}")
+                    return redirect("clinic:dashboard")
     else:
         quick_form = QuickEncounterForm(initial=quick_initial)
         import_form = DrappImportForm()
@@ -2320,6 +3059,9 @@ def dashboard_rows_state(request):
 
 @login_required
 def calendar_view(request):
+    purge_expired_recycle_bin()
+    if request.method == "POST":
+        require_any_clinic_permission(request, "clinic.manage_agenda")
     today = timezone.localdate()
     default_off_weekdays = {0, 2, 5, 6}
     month_param = (request.GET.get("month") or "").strip()
@@ -2344,12 +3086,12 @@ def calendar_view(request):
         redirect_date = request.POST.get("date") or selected_date.isoformat()
         if action == "delete_encounter":
             encounter = get_object_or_404(
-                Encounter.objects.select_related("patient"),
+                Encounter.objects.select_related("patient").prefetch_related("attachments", "generated_reports"),
                 pk=request.POST.get("encounter_id"),
             )
             patient_name = encounter.patient.full_name
-            encounter.delete()
-            messages.success(request, f"Se elimino {patient_name} de la agenda.")
+            soft_delete_encounter(encounter, actor=request.user, reason=f"Se elimino la atencion de {patient_name}.")
+            messages.success(request, f"Se envio a papelera {patient_name}.")
             return redirect(f"{reverse('clinic:calendar')}?month={redirect_month}&date={redirect_date}")
         if action == "update_encounter_field":
             encounter = get_object_or_404(
@@ -2469,7 +3211,9 @@ def calendar_view(request):
 
 
 @login_required
+@permission_required("clinic.view_clinical_statistics", raise_exception=True)
 def statistics_view(request):
+    purge_expired_recycle_bin()
     today = timezone.localdate()
     week_start = today - timedelta(days=today.weekday())
     month_param = (request.GET.get("month") or "").strip()
@@ -2561,10 +3305,15 @@ def statistics_view(request):
     ]
     cohort_patients = list(
         Patient.objects.prefetch_related(
-            "encounters__spirometry_result"
-        ).all()
+            Prefetch(
+                "encounters",
+                queryset=Encounter.objects.select_related("spirometry_result").order_by(
+                    "-encounter_date", "-encounter_time", "-created_at"
+                ),
+            )
+        )
     )
-    month_patient_ids = list(selected_month_qs.values_list("patient_id", flat=True).distinct())
+    month_patient_ids = set(selected_month_qs.values_list("patient_id", flat=True).distinct())
     current_month_profiled_patients = [patient for patient in profiled_patients if patient.id in month_patient_ids]
     profile_summary = build_patient_profile_summary(profiled_patients)
     month_profile_summary = build_patient_profile_summary(current_month_profiled_patients)
@@ -2595,6 +3344,7 @@ def statistics_view(request):
 
 @login_required
 def patient_list(request):
+    purge_expired_recycle_bin()
     query = request.GET.get("q", "").strip()
     date_filter = (request.GET.get("date") or "").strip()
     coverage_filter = (request.GET.get("coverage") or "").strip()
@@ -2602,8 +3352,15 @@ def patient_list(request):
     status_filter = (request.GET.get("status") or "").strip()
     physician_filter = (request.GET.get("physician") or "").strip()
     patients = Patient.objects.annotate(
-        encounter_count=Count("encounters"),
-        last_encounter_date=Max("encounters__encounter_date"),
+        encounter_count=Count(
+            "encounters",
+            filter=Q(encounters__deleted_at__isnull=True),
+            distinct=True,
+        ),
+        last_encounter_date=Max(
+            "encounters__encounter_date",
+            filter=Q(encounters__deleted_at__isnull=True),
+        ),
     )
     if query:
         patients = patients.filter(
@@ -2612,31 +3369,55 @@ def patient_list(request):
     if date_filter:
         try:
             parsed_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
-            patients = patients.filter(encounters__encounter_date=parsed_date)
+            patients = patients.filter(
+                encounters__encounter_date=parsed_date,
+                encounters__deleted_at__isnull=True,
+            )
         except ValueError:
             pass
     if coverage_filter:
-        patients = patients.filter(encounters__coverage_type=coverage_filter)
+        patients = patients.filter(
+            encounters__coverage_type=coverage_filter,
+            encounters__deleted_at__isnull=True,
+        )
     if status_filter:
-        patients = patients.filter(encounters__status=status_filter)
+        patients = patients.filter(
+            encounters__status=status_filter,
+            encounters__deleted_at__isnull=True,
+        )
     if physician_filter:
-        patients = patients.filter(encounters__referring_physician_id=physician_filter)
+        patients = patients.filter(
+            encounters__referring_physician_id=physician_filter,
+            encounters__deleted_at__isnull=True,
+        )
     if diagnosis_filter:
         parsed = parse_result_code(diagnosis_filter)
         if parsed:
             pattern = parsed["pattern"]
-            patients = patients.filter(encounters__spirometry_result__respiratory_pattern=pattern)
+            patients = patients.filter(
+                encounters__deleted_at__isnull=True,
+                encounters__spirometry_result__respiratory_pattern=pattern,
+            )
             if parsed["obstruction_grade"]:
-                patients = patients.filter(encounters__spirometry_result__obstruction_grade=parsed["obstruction_grade"])
+                patients = patients.filter(
+                    encounters__deleted_at__isnull=True,
+                    encounters__spirometry_result__obstruction_grade=parsed["obstruction_grade"],
+                )
             if parsed["restriction_grade"]:
-                patients = patients.filter(encounters__spirometry_result__restriction_grade=parsed["restriction_grade"])
+                patients = patients.filter(
+                    encounters__deleted_at__isnull=True,
+                    encounters__spirometry_result__restriction_grade=parsed["restriction_grade"],
+                )
         else:
             normalized = normalize_for_match(diagnosis_filter)
             if normalized:
                 patients = patients.filter(
-                    Q(encounters__spirometry_result__respiratory_pattern__icontains=diagnosis_filter)
-                    | Q(encounters__spirometry_result__obstruction_grade__icontains=diagnosis_filter)
-                    | Q(encounters__spirometry_result__restriction_grade__icontains=diagnosis_filter)
+                    Q(encounters__deleted_at__isnull=True)
+                    & (
+                        Q(encounters__spirometry_result__respiratory_pattern__icontains=diagnosis_filter)
+                        | Q(encounters__spirometry_result__obstruction_grade__icontains=diagnosis_filter)
+                        | Q(encounters__spirometry_result__restriction_grade__icontains=diagnosis_filter)
+                    )
                 )
     patients = patients.distinct().order_by("full_name")
     return render(
@@ -2661,8 +3442,86 @@ def patient_list(request):
 
 @login_required
 def patient_detail(request, pk):
+    purge_expired_recycle_bin()
+    if request.method == "POST":
+        require_any_clinic_permission(request, "clinic.manage_agenda", "clinic.review_medically")
     patient = get_object_or_404(Patient, pk=pk)
     document_form = PatientDocumentUploadForm(request.POST or None, request.FILES or None, patient=patient)
+
+    if request.method == "POST" and request.POST.get("action") == "generate_patient_report":
+        scope = request.POST.get("report_scope", "complete")
+        encounter_id = request.POST.get("encounter_id")
+        encounter = get_object_or_404(
+            patient.encounters.select_related(
+                "patient",
+                "referring_physician",
+                "vital_signs",
+                "walk_test",
+                "spirometry_result",
+            ),
+            pk=encounter_id,
+        )
+        if scope not in {"complete", "mutual"}:
+            messages.error(request, "Tipo de informe no valido.")
+            return redirect("clinic:patient_detail", pk=patient.pk)
+
+        can_generate_report, report_block_reason = get_report_readiness(encounter, ignore_attendance=True)
+        if not can_generate_report:
+            messages.error(request, f"No se puede generar el informe. {report_block_reason}.")
+            return redirect("clinic:patient_detail", pk=patient.pk)
+
+        inconsistency_flags = get_encounter_inconsistencies(encounter)
+        if inconsistency_flags and request.POST.get("confirm_inconsistencies") != "1":
+            messages.warning(
+                request,
+                "Revisa estas inconsistencias antes de generar: " + " | ".join(inconsistency_flags),
+            )
+            return redirect("clinic:patient_detail", pk=patient.pk)
+
+        try:
+            artifacts = build_report_artifacts_for_scope(encounter, scope)
+        except Exception as error:
+            messages.error(request, f"No se pudo generar el informe: {error}")
+            return redirect("clinic:patient_detail", pk=patient.pk)
+
+        if not artifacts:
+            messages.error(request, "No hay informe de mutual para esta atencion. Revisar cobertura y datos de caminata.")
+            return redirect("clinic:patient_detail", pk=patient.pk)
+
+        try:
+            generated_count = save_generated_report_artifacts(encounter, artifacts, request.user)
+        except Exception as error:
+            messages.error(request, f"No se pudo guardar el informe: {error}")
+            return redirect("clinic:patient_detail", pk=patient.pk)
+
+        if not encounter.attended:
+            encounter.attended = True
+            encounter.no_show = False
+            sync_attendance_status(encounter)
+            encounter.updated_by = request.user
+            encounter.save(update_fields=["attended", "no_show", "status", "updated_by", "updated_at"])
+            record_encounter_event(
+                encounter,
+                EncounterEventType.ATTENDANCE,
+                "Asistencia actualizada automaticamente",
+                actor=request.user,
+                details="Se marco como atendido despues de guardar el informe desde historia clinica.",
+            )
+
+        encounter.status = EncounterStatus.INFORME_GENERADO
+        encounter.updated_by = request.user
+        encounter.save(update_fields=["status", "updated_by", "updated_at"])
+        report_label = "Informe mutual" if scope == "mutual" else "Informe completo"
+        record_encounter_event(
+            encounter,
+            EncounterEventType.REPORT,
+            f"{report_label} generado",
+            actor=request.user,
+            details=f"Se generaron {generated_count} archivo(s) desde historia clinica.",
+            metadata={"generated_count": generated_count, "scope": scope},
+        )
+        messages.success(request, f"{report_label} generado correctamente.")
+        return redirect("clinic:patient_detail", pk=patient.pk)
 
     if request.method == "POST" and request.POST.get("action") == "upload_patient_document":
         if document_form.is_valid():
@@ -2708,6 +3567,7 @@ def patient_detail(request, pk):
         encounter.result_label = get_result_label_from_encounter(encounter)
         encounter.attendance_label = get_attendance_label(encounter)
         encounter.pdf_attachment = get_latest_result_attachment(encounter)
+        encounter.pdf_attachment_url = safe_attachment_url(encounter.pdf_attachment)
         encounter.progression = progression_map.get(encounter.pk, {"label": "Sin base", "tone": "muted", "detail": ""})
         encounter.suggestion = build_stored_suggestion_context(getattr(encounter, "spirometry_result", None))
         encounter.walk_assessment = build_walk_test_assessment(
@@ -2720,21 +3580,32 @@ def patient_detail(request, pk):
         latest_report_info = get_latest_report_info(encounter)
         encounter.latest_report_url = latest_report_info["latest_report_url"]
         encounter.latest_report_name = latest_report_info["latest_report_name"]
+        encounter.complete_report_url = latest_report_info["complete_report_url"]
+        encounter.complete_report_name = latest_report_info["complete_report_name"]
+        encounter.mutual_report_url = latest_report_info["mutual_report_url"]
+        encounter.mutual_report_name = latest_report_info["mutual_report_name"]
         encounter.detail_url = latest_report_info["detail_url"]
+        encounter.can_generate_report, encounter.report_block_reason = get_report_readiness(
+            encounter,
+            ignore_attendance=True,
+        )
+        encounter.inconsistency_message = build_inconsistency_message(encounter)
         encounter.timeline_preview = list(encounter.events.all()[:3])
 
-    patient_documents = (
+    patient_documents = list(
         Attachment.objects.filter(encounter__patient=patient)
         .select_related("encounter", "uploaded_by")
         .order_by("-created_at")
     )
+    for attachment in patient_documents:
+        attachment.safe_url = safe_attachment_url(attachment)
     patient_events = (
         EncounterEvent.objects.filter(patient=patient)
         .select_related("actor", "encounter")
         .order_by("-created_at")[:25]
     )
     operational_summary = {
-        "total_documents": patient_documents.count(),
+        "total_documents": len(patient_documents),
         "reports_generated": GeneratedReport.objects.filter(encounter__patient=patient).count(),
         "pending_encounters": patient.encounters.filter(status=EncounterStatus.PENDIENTE).count(),
         "reviewed_encounters": patient.encounters.filter(status=EncounterStatus.REVISADA).count(),
@@ -2771,6 +3642,7 @@ def patient_detail(request, pk):
 
 
 @login_required
+@permission_required("clinic.manage_agenda", raise_exception=True)
 def patient_create(request):
     if request.method == "POST":
         form = PatientForm(request.POST)
@@ -2793,6 +3665,7 @@ def patient_create(request):
 
 
 @login_required
+@permission_required("clinic.manage_agenda", raise_exception=True)
 def patient_edit(request, pk):
     patient = get_object_or_404(Patient, pk=pk)
     if request.method == "POST":
@@ -2818,36 +3691,99 @@ def patient_edit(request, pk):
 
 
 @login_required
+@permission_required("clinic.manage_agenda", raise_exception=True)
 def patient_delete(request, pk):
-    patient = get_object_or_404(
-        Patient.objects.annotate(encounter_count=Count("encounters")),
-        pk=pk,
-    )
+    patient = get_object_or_404(Patient, pk=pk)
 
     if request.method == "POST":
         patient_name = patient.full_name
-        encounter_count = patient.encounter_count
-        patient.delete()
-        if encounter_count:
-            messages.success(
-                request,
-                f"Se elimino {patient_name} junto con {encounter_count} atencion(es) de su historia clinica.",
-            )
-        else:
-            messages.success(request, f"Se elimino {patient_name}.")
+        soft_delete_patient(patient, actor=request.user, reason=f"Se envio a papelera el paciente {patient_name}.")
+        messages.success(request, f"Se envio a papelera {patient_name}.")
         return redirect("clinic:patient_list")
 
     return render(request, "clinic/patient_confirm_delete.html", {"patient": patient})
 
 
 @login_required
+@permission_required("clinic.manage_agenda", raise_exception=True)
+def recycle_bin_view(request):
+    purge_expired_recycle_bin()
+
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip()
+        patient_id = request.POST.get("patient_id")
+        encounter_id = request.POST.get("encounter_id")
+
+        if action == "restore_patient" and patient_id:
+            patient = get_object_or_404(Patient.all_objects, pk=patient_id, deleted_at__isnull=False)
+            restore_deleted_patient(patient)
+            messages.success(request, f"Se restauró {patient.full_name}.")
+        elif action == "restore_encounter" and encounter_id:
+            encounter = get_object_or_404(
+                Encounter.all_objects.select_related("patient"),
+                pk=encounter_id,
+                deleted_at__isnull=False,
+            )
+            restore_deleted_encounter(encounter)
+            messages.success(request, f"Se restauró la atención de {encounter.patient.full_name}.")
+        elif action == "purge_patient" and patient_id:
+            if not request.user.has_perm("clinic.purge_clinical_data"):
+                raise PermissionDenied("No tenes permiso para eliminar datos clinicos definitivamente.")
+            patient = get_object_or_404(Patient.all_objects, pk=patient_id, deleted_at__isnull=False)
+            patient_name = patient.full_name
+            patient.delete()
+            messages.success(request, f"Se eliminó definitivamente a {patient_name}.")
+        elif action == "purge_encounter" and encounter_id:
+            if not request.user.has_perm("clinic.purge_clinical_data"):
+                raise PermissionDenied("No tenes permiso para eliminar datos clinicos definitivamente.")
+            encounter = get_object_or_404(
+                Encounter.all_objects.select_related("patient"),
+                pk=encounter_id,
+                deleted_at__isnull=False,
+            )
+            patient_name = encounter.patient.full_name
+            encounter.delete()
+            messages.success(request, f"Se eliminó definitivamente la atención de {patient_name}.")
+        elif action == "empty_trash":
+            if not request.user.has_perm("clinic.purge_clinical_data"):
+                raise PermissionDenied("No tenes permiso para vaciar la papelera.")
+            Encounter.all_objects.filter(deleted_at__isnull=False).delete()
+            Patient.all_objects.filter(deleted_at__isnull=False).delete()
+            messages.success(request, "Se vació la papelera.")
+        else:
+            messages.error(request, "No entendí la acción de papelera.")
+        return redirect("clinic:recycle_bin")
+
+    deleted_patients = Patient.all_objects.filter(deleted_at__isnull=False).order_by("-deleted_at")
+    deleted_encounters = Encounter.all_objects.select_related("patient").filter(deleted_at__isnull=False).order_by("-deleted_at")
+
+    return render(
+        request,
+        "clinic/recycle_bin.html",
+        {
+            "deleted_patients": deleted_patients,
+            "deleted_encounters": deleted_encounters,
+            "deleted_patients_count": deleted_patients.count(),
+            "deleted_encounters_count": deleted_encounters.count(),
+            "trash_is_empty": not deleted_patients.exists() and not deleted_encounters.exists(),
+            "retention_days": RECYCLE_BIN_RETENTION_DAYS,
+        },
+    )
+
+
+@login_required
+@permission_required("clinic.manage_agenda", raise_exception=True)
 def encounter_create(request):
     if request.method == "POST":
         form = QuickEncounterForm(request.POST, request.FILES)
         if form.is_valid():
-            encounter = save_quick_encounter(form, request.user)
-            messages.success(request, "Atencion creada correctamente.")
-            return redirect("clinic:encounter_detail", pk=encounter.pk)
+            try:
+                encounter = save_quick_encounter(form, request.user)
+            except ValueError as error:
+                form.add_error("patient_dni", str(error))
+            else:
+                messages.success(request, "Atencion creada correctamente.")
+                return redirect("clinic:encounter_detail", pk=encounter.pk)
     else:
         form = QuickEncounterForm(
             initial={
@@ -2859,6 +3795,8 @@ def encounter_create(request):
                 "stopped": False,
                 "symptoms": False,
                 "borg_final": 0,
+                "attended": False,
+                "no_show": True,
             }
         )
 
@@ -2870,6 +3808,7 @@ def encounter_create(request):
 
 
 @login_required
+@permission_required("clinic.manage_agenda", raise_exception=True)
 def encounter_edit(request, pk):
     encounter = get_object_or_404(
         Encounter.objects.select_related("patient", "vital_signs", "walk_test", "spirometry_result"),
@@ -2885,12 +3824,16 @@ def encounter_edit(request, pk):
     if request.method == "POST":
         form = QuickEncounterForm(request.POST)
         if form.is_valid():
-            save_quick_encounter(form, request.user, encounter=encounter)
-            messages.success(request, "Atencion actualizada correctamente.")
-            return_to = request.POST.get("return_to", "").strip()
-            if return_to and url_has_allowed_host_and_scheme(return_to, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
-                return redirect(return_to)
-            return redirect("clinic:dashboard")
+            try:
+                save_quick_encounter(form, request.user, encounter=encounter)
+            except ValueError as error:
+                form.add_error("patient_dni", str(error))
+            else:
+                messages.success(request, "Atencion actualizada correctamente.")
+                return_to = request.POST.get("return_to", "").strip()
+                if return_to and url_has_allowed_host_and_scheme(return_to, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+                    return redirect(return_to)
+                return redirect("clinic:dashboard")
     else:
         form = QuickEncounterForm(
             initial={
@@ -2909,6 +3852,7 @@ def encounter_edit(request, pk):
                 "symptoms": getattr(walk, "symptoms", False),
                 "borg_final": getattr(walk, "borg_final", 0),
                 "respiratory_result": current_result,
+                "bronchodilator_positive": bool(getattr(spirometry, "bronchodilator_positive", False)),
                 "attended": encounter.attended,
                 "no_show": encounter.no_show,
             }
@@ -2928,10 +3872,13 @@ def encounter_edit(request, pk):
 
 
 @login_required
+@permission_required("clinic.review_medically", raise_exception=True)
 def doctor_review_list(request):
+    purge_expired_recycle_bin()
     search_query = request.GET.get("q", "").strip()
     date_str = request.GET.get("date", "").strip()
-    today = timezone.now().date()
+    # Keep the doctor's queue on the same local calendar day as Inicio/Calendario.
+    today = timezone.localdate()
 
     selected_date = today
     if date_str:
@@ -2956,11 +3903,7 @@ def doctor_review_list(request):
 
     review_cards = []
     counters = {"pending": 0, "missing_pdf": 0, "done": 0}
-    done_statuses = {
-        EncounterStatus.REVISADA,
-        EncounterStatus.INFORME_GENERADO,
-        EncounterStatus.ENTREGADA,
-    }
+    done_statuses = get_doctor_review_done_statuses()
 
     # System-wide counters for the selected date (or all if searching)
     counter_qs = Encounter.objects.prefetch_related("attachments")
@@ -2968,7 +3911,7 @@ def doctor_review_list(request):
         counter_qs = counter_qs.filter(encounter_date=selected_date)
 
     for enc in counter_qs:
-        has_pdf = enc.attachments.filter(file_kind=AttachmentKind.PDF_RESULTADO).exists()
+        has_pdf = encounter_has_review_pdf(enc)
         is_done = enc.status in done_statuses
         if is_done:
             counters["done"] += 1
@@ -3043,6 +3986,7 @@ def doctor_review_list(request):
 
 
 @login_required
+@permission_required("clinic.review_medically", raise_exception=True)
 def doctor_review_detail(request, pk):
     encounter = get_object_or_404(
         Encounter.objects.select_related(
@@ -3093,6 +4037,11 @@ def doctor_review_detail(request, pk):
                         "suggested_code": analysis.get("code", "") if analysis else "",
                     },
                 )
+                mark_encounter_attended(
+                    encounter,
+                    request.user,
+                    details="Se marco como atendido al cargar el resultado de espirometria.",
+                )
                 if snapshot and patient_identity_mismatch:
                     extracted_name = snapshot.get("full_name") or "-"
                     extracted_code = snapshot.get("patient_code") or snapshot.get("dni") or "-"
@@ -3136,12 +4085,38 @@ def doctor_review_detail(request, pk):
                     "Archivo cargado y sugerencia preparada. Elegi el resultado medico o usa el boton sugerido y guarda la revision.",
                 )
                 return redirect("clinic:doctor_review_detail", pk=encounter.pk)
-            apply_result_code_to_spirometry(encounter, result_code)
+            spirometry_result = apply_result_code_to_spirometry(encounter, result_code)
+            spirometry_result.bronchodilator_positive = bool(form.cleaned_data.get("bronchodilator_positive"))
+            spirometry_result.save(update_fields=["bronchodilator_positive", "updated_at"])
+            previous_attendance_label = get_attendance_label(encounter)
+            encounter.attended = True
+            if encounter.attended_at is None:
+                encounter.attended_at = timezone.now()
+            encounter.no_show = False
             encounter.status = EncounterStatus.REVISADA
             encounter.updated_by = request.user
             encounter.validated_by = request.user
             encounter.validated_at = timezone.now()
-            encounter.save(update_fields=["status", "updated_by", "validated_by", "validated_at", "updated_at"])
+            encounter.save(
+                update_fields=[
+                    "attended",
+                    "attended_at",
+                    "no_show",
+                    "status",
+                    "updated_by",
+                    "validated_by",
+                    "validated_at",
+                    "updated_at",
+                ]
+            )
+            if previous_attendance_label != get_attendance_label(encounter):
+                record_encounter_event(
+                    encounter,
+                    EncounterEventType.ATTENDANCE,
+                    "Asistencia actualizada automaticamente",
+                    actor=request.user,
+                    details="Se marco como atendido al guardar la revision medica.",
+                )
             record_encounter_event(
                 encounter,
                 EncounterEventType.REVIEW,
@@ -3153,12 +4128,22 @@ def doctor_review_detail(request, pk):
             messages.success(request, "Revision medica guardada correctamente." + extraction_message)
             return redirect("clinic:doctor_review_detail", pk=encounter.pk)
     else:
-        form = DoctorReviewForm(initial={"respiratory_result": current_result})
+        form = DoctorReviewForm(
+            initial={
+                "respiratory_result": current_result,
+                "bronchodilator_positive": bool(
+                    getattr(getattr(encounter, "spirometry_result", None), "bronchodilator_positive", False)
+                ),
+            }
+        )
 
     pdf_attachment = get_latest_result_attachment(encounter)
+    pdf_attachment_url = safe_attachment_url(pdf_attachment)
     pdf_preview_pages = []
     preview_error = ""
     spirometry_suggestion = build_stored_suggestion_context(getattr(encounter, "spirometry_result", None))
+    review_queue = build_doctor_review_queue(encounter.encounter_date, encounter)
+    next_review_encounter = review_queue["next_encounter"]
     if pdf_attachment:
         try:
             pdf_preview_pages = build_result_preview_images(pdf_attachment)
@@ -3166,10 +4151,11 @@ def doctor_review_detail(request, pk):
             preview_error = str(error)
         if pdf_attachment.file_kind == AttachmentKind.PDF_RESULTADO and not spirometry_suggestion:
             try:
-                generated_suggestion = build_spirometry_suggestion_from_pdf(
-                    pdf_attachment.file.path,
-                    attachment_id=pdf_attachment.pk,
-                )
+                with local_field_file_path(pdf_attachment.file) as attachment_path:
+                    generated_suggestion = build_spirometry_suggestion_from_pdf(
+                        str(attachment_path),
+                        attachment_id=pdf_attachment.pk,
+                    )
                 if generated_suggestion.get("code"):
                     spirometry_suggestion = generated_suggestion
                     store_spirometry_analysis(encounter, {**spirometry_suggestion, "source": "server-pdf-text"})
@@ -3185,6 +4171,7 @@ def doctor_review_detail(request, pk):
             "form": form,
             "current_result": current_result,
             "pdf_attachment": pdf_attachment,
+            "pdf_attachment_url": pdf_attachment_url,
             "pdf_preview_pages": pdf_preview_pages,
             "preview_error": preview_error,
             "result_attachment_is_image": bool(pdf_attachment and is_result_image_attachment(pdf_attachment)),
@@ -3192,7 +4179,48 @@ def doctor_review_detail(request, pk):
             "patient_profile_available": looks_like_profile_data(encounter.patient),
             "spirometry_suggestion": spirometry_suggestion,
             "inconsistency_flags": inconsistency_flags,
+            "review_queue": review_queue,
+            "previous_review_encounter": review_queue["previous_encounter"],
+            "next_review_encounter": next_review_encounter,
         },
+    )
+
+
+@login_required
+@permission_required("clinic.review_medically", raise_exception=True)
+def doctor_review_queue_state(request, pk):
+    encounter = get_object_or_404(Encounter, pk=pk)
+    queue_info = build_doctor_review_queue(encounter.encounter_date, encounter)
+    previous_encounter = queue_info["previous_encounter"]
+    next_encounter = queue_info["next_encounter"]
+    previous_label = ""
+    next_label = ""
+    if previous_encounter:
+        previous_label = previous_encounter.patient.full_name
+        if previous_encounter.encounter_time:
+            previous_label = f"{previous_encounter.encounter_time.strftime('%H:%M')} - {previous_label}"
+    if next_encounter:
+        next_label = next_encounter.patient.full_name
+        if next_encounter.encounter_time:
+            next_label = f"{next_encounter.encounter_time.strftime('%H:%M')} - {next_label}"
+    return JsonResponse(
+        {
+            "ok": True,
+            "pending_total": queue_info["pending_total"],
+            "current_is_pending": queue_info["current_is_pending"],
+            "remaining_after_current": queue_info["remaining_after_current"],
+            "current_index": queue_info["current_index"] + 1 if queue_info["current_index"] is not None else None,
+            "previous_encounter_id": previous_encounter.pk if previous_encounter else None,
+            "previous_encounter_name": previous_encounter.patient.full_name if previous_encounter else "",
+            "previous_encounter_label": previous_label,
+            "previous_encounter_url": reverse("clinic:doctor_review_detail", args=[previous_encounter.pk]) if previous_encounter else "",
+            "next_encounter_id": next_encounter.pk if next_encounter else None,
+            "next_encounter_name": next_encounter.patient.full_name if next_encounter else "",
+            "next_encounter_label": next_label,
+            "next_encounter_url": reverse("clinic:doctor_review_detail", args=[next_encounter.pk]) if next_encounter else "",
+            "queue_date_label": encounter.encounter_date.strftime("%d/%m/%Y"),
+            "pending_ids": [item.pk for item in queue_info["pending_encounters"]],
+        }
     )
 
 
@@ -3205,15 +4233,22 @@ def encounter_detail(request, pk):
             "vital_signs",
             "walk_test",
             "spirometry_result",
-        ).prefetch_related("attachments", "generated_reports", "events__actor"),
+        ).prefetch_related("attachments", "generated_reports__attachment", "events__actor"),
         pk=pk,
     )
+    for attachment in encounter.attachments.all():
+        attachment.safe_url = safe_attachment_url(attachment)
+    for report in encounter.generated_reports.all():
+        report.attachment_url = safe_attachment_url(report.attachment)
+    can_generate_report, report_block_reason = get_report_readiness(encounter, ignore_attendance=True)
     return render(
         request,
         "clinic/encounter_detail.html",
         {
             "encounter": encounter,
             "inconsistency_flags": get_encounter_inconsistencies(encounter),
+            "can_generate_report": can_generate_report,
+            "report_block_reason": report_block_reason,
         },
     )
 
@@ -3230,6 +4265,10 @@ def encounter_print_view(request, pk):
         ).prefetch_related("attachments"),
         pk=pk,
     )
+    can_print, block_reason = get_report_readiness(encounter, ignore_attendance=True)
+    if not can_print:
+        messages.error(request, f"No se puede imprimir esta atencion. {block_reason}.")
+        return redirect("clinic:encounter_detail", pk=encounter.pk)
     context = build_print_context_for_encounter(encounter)
     return render(request, "clinic/encounter_print.html", context)
 
@@ -3255,7 +4294,10 @@ def daily_print_view(request):
     for encounter in encounters:
         can_print, reason = get_report_readiness(encounter)
         if can_print:
-            printable.append(build_print_context_for_encounter(encounter))
+            try:
+                printable.append(build_print_context_for_encounter(encounter))
+            except Exception as error:
+                blocked.append({"encounter": encounter, "reason": f"No se pudo preparar: {error}"})
         else:
             blocked.append({"encounter": encounter, "reason": reason})
 
@@ -3282,21 +4324,9 @@ def encounter_generate_report(request, pk):
     if request.method != "POST":
         return redirect("clinic:encounter_detail", pk=encounter.pk)
 
-    if not encounter.attended:
-        encounter.attended = True
-        encounter.no_show = False
-        sync_attendance_status(encounter)
-        encounter.updated_by = request.user
-        encounter.save(update_fields=["attended", "no_show", "status", "updated_by", "updated_at"])
-        record_encounter_event(
-            encounter,
-            EncounterEventType.ATTENDANCE,
-            "Asistencia actualizada automaticamente",
-            actor=request.user,
-            details="Se marco como atendido al generar el informe.",
-        )
+    require_any_clinic_permission(request, "clinic.manage_agenda", "clinic.review_medically")
 
-    can_generate_report, report_block_reason = get_report_readiness(encounter)
+    can_generate_report, report_block_reason = get_report_readiness(encounter, ignore_attendance=True)
     inconsistency_flags = get_encounter_inconsistencies(encounter)
     confirm_inconsistencies = request.POST.get("confirm_inconsistencies") == "1"
     if not can_generate_report:
@@ -3309,6 +4339,7 @@ def encounter_generate_report(request, pk):
         if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
             return redirect(next_url)
         return redirect("clinic:encounter_detail", pk=encounter.pk)
+
     if inconsistency_flags and not confirm_inconsistencies:
         warning_message = "Hay inconsistencias para revisar antes de generar: " + " | ".join(inconsistency_flags)
         if is_ajax_request(request):
@@ -3324,6 +4355,7 @@ def encounter_generate_report(request, pk):
 
     try:
         artifacts = build_reports_for_encounter(encounter)
+        generated_count = save_generated_report_artifacts(encounter, artifacts, request.user)
     except Exception as error:
         if is_ajax_request(request):
             payload = {"ok": False, "message": f"No se pudo generar el informe: {error}"}
@@ -3332,27 +4364,19 @@ def encounter_generate_report(request, pk):
         messages.error(request, f"No se pudo generar el informe: {error}")
         return redirect("clinic:encounter_detail", pk=encounter.pk)
 
-    generated_count = 0
-    for artifact in artifacts:
-        attachment = Attachment(
-            encounter=encounter,
-            file_kind=artifact.file_kind,
-            original_name=artifact.filename,
-            mime_type=artifact.mime_type,
-            uploaded_by=request.user,
+    if not encounter.attended:
+        encounter.attended = True
+        encounter.no_show = False
+        sync_attendance_status(encounter)
+        encounter.updated_by = request.user
+        encounter.save(update_fields=["attended", "no_show", "status", "updated_by", "updated_at"])
+        record_encounter_event(
+            encounter,
+            EncounterEventType.ATTENDANCE,
+            "Asistencia actualizada automaticamente",
+            actor=request.user,
+            details="Se marco como atendido despues de generar el informe correctamente.",
         )
-        attachment.file.save(artifact.filename, ContentFile(artifact.bytes_content), save=True)
-        report_type = artifact.report_type
-        if report_type not in [choice.value for choice in ReportType]:
-            report_type = ReportType.ESPIROMETRIA
-        GeneratedReport.objects.create(
-            encounter=encounter,
-            report_type=report_type,
-            attachment=attachment,
-            generated_by=request.user,
-            generator_version="web-v1-espiro",
-        )
-        generated_count += 1
 
     encounter.status = EncounterStatus.INFORME_GENERADO
     encounter.updated_by = request.user

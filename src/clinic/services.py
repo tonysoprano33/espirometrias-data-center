@@ -70,7 +70,7 @@ def construir_informe_espirometria(patron: str, grado_obst: str, grado_rest: str
     return (
         "El paciente presenta déficit respiratorio con patrón mixto:\n"
         f" Restricción {grado_rest_text}.\n"
-        f" Obstrucción {grado_obst_text} a las vías respiratorias aéreas."
+        f" Obstrucción {grado_obst_text} a las pequeñas vías respiratorias aéreas."
     )
 
 
@@ -88,13 +88,44 @@ def agregar_borde_parrafo(paragraph):
     p_pr.append(p_bdr)
 
 
-def interpolar_valores(minimo, maximo, cantidad: int = 7) -> list[int]:
-    minimo = int(minimo or 0)
-    maximo = int(maximo or 0)
-    if cantidad <= 2:
-        return [minimo, maximo]
-    paso = (maximo - minimo) / (cantidad - 1)
-    return [round(minimo + (paso * i)) for i in range(cantidad)]
+def _validated_walk_value(value, *, minimum: int, maximum: int):
+    if value in (None, ""):
+        return ""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return ""
+    if parsed < minimum or parsed > maximum:
+        return ""
+    return parsed
+
+
+def build_walk_measurement_rows(vital, walk) -> list[dict]:
+    """Return only values that were actually saved, never interpolated measurements."""
+    rows = [{"minute": minute, "so2": "", "fc": "", "borg": ""} for minute in range(7)]
+
+    for reading in list(getattr(walk, "minute_readings", None) or []):
+        if not isinstance(reading, dict):
+            continue
+        try:
+            minute = int(reading.get("minute"))
+        except (TypeError, ValueError):
+            continue
+        if minute < 0 or minute > 6:
+            continue
+        rows[minute]["so2"] = _validated_walk_value(reading.get("so2"), minimum=0, maximum=100)
+        rows[minute]["fc"] = _validated_walk_value(reading.get("fc"), minimum=0, maximum=300)
+        rows[minute]["borg"] = _validated_walk_value(reading.get("borg"), minimum=0, maximum=10)
+
+    if vital:
+        rows[0]["so2"] = _validated_walk_value(getattr(vital, "so2_rest", None), minimum=0, maximum=100)
+        rows[0]["fc"] = _validated_walk_value(getattr(vital, "fc_rest", None), minimum=0, maximum=300)
+        rows[6]["so2"] = _validated_walk_value(getattr(vital, "so2_post", None), minimum=0, maximum=100)
+        rows[6]["fc"] = _validated_walk_value(getattr(vital, "fc_post", None), minimum=0, maximum=300)
+
+    if walk and getattr(walk, "borg_final", None) is not None:
+        rows[6]["borg"] = _validated_walk_value(getattr(walk, "borg_final", None), minimum=0, maximum=10)
+    return rows
 
 
 def build_walk_test_assessment(
@@ -241,24 +272,23 @@ def agregar_seccion_espirometria(doc: Document, so2: str, fc: str, informe: str,
     p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     p.paragraph_format.line_spacing = 1.5
 
+    val = doc.add_paragraph()
+    val.paragraph_format.space_before = Pt(24)
+    val.paragraph_format.space_after = Pt(12)
+    val_run = val.add_run(f"SO2: {so2}%          FC: {fc}")
+    val_run.bold = True
+    val_run.font.name = "Times New Roman"
+    val_run.font.size = Pt(15)
+
     if broncodilatador_positivo:
-        doc.add_paragraph()
         bronco_p = doc.add_paragraph()
-        bronco_p.paragraph_format.space_before = Pt(12)
+        bronco_p.paragraph_format.space_before = Pt(6)
         bronco_p.paragraph_format.space_after = Pt(12)
-        bronco_run = bronco_p.add_run("Test de Broncodilatador: POSITIVO")
+        bronco_run = bronco_p.add_run("Broncodilatador Positivo")
         bronco_run.font.name = "Times New Roman"
         bronco_run.font.size = Pt(15)
         bronco_run.bold = True
         bronco_run.font.color.rgb = RGBColor(200, 50, 50)
-
-    val = doc.add_paragraph()
-    val.paragraph_format.space_before = Pt(24)
-    val.paragraph_format.space_after = Pt(12)
-    val_run = val.add_run(f"SO2: {so2}%          FC: {fc}%")
-    val_run.bold = True
-    val_run.font.name = "Times New Roman"
-    val_run.font.size = Pt(15)
 
     if not es_normal:
         rec = doc.add_paragraph()
@@ -590,8 +620,8 @@ def _pdf_artifact_from_original(encounter, nombre_archivo_seguro: str, fecha_arc
     if not attachment or not getattr(attachment, "file", None):
         raise ValueError("Para imprimir una espirometria sola, primero subi el PDF o una foto original del equipo.")
 
-    with open(attachment.file.path, "rb") as pdf_file:
-        bytes_content = pdf_file.read()
+    with attachment.file.open("rb") as source_file:
+        bytes_content = source_file.read()
 
     if attachment.file_kind == AttachmentKind.FOTO_RESULTADO:
         mime_type = str(getattr(attachment, "mime_type", "") or "image/jpeg")
@@ -670,7 +700,7 @@ def _encounter_has_walk_data(encounter) -> bool:
     )
 
 
-def build_reports_for_encounter(encounter) -> list[GeneratedArtifact]:
+def build_reports_for_encounter(encounter, *, include_mutual=None) -> list[GeneratedArtifact]:
     patient = encounter.patient
     vital = getattr(encounter, "vital_signs", None)
     walk = getattr(encounter, "walk_test", None)
@@ -742,17 +772,10 @@ def build_reports_for_encounter(encounter) -> list[GeneratedArtifact]:
     agregar_datos_paciente(doc_normal, nombre, dni, deriva)
     agregar_seccion_espirometria(doc_normal, so2, fc, informe, es_normal, broncodilatador_positivo)
 
-    so2_reposo = int(so2)
-    so2_regreso = int(limpiar_entero(getattr(vital, "so2_post", "100"), "100"))
-    fc_reposo = int(fc)
-    fc_maximo = int(limpiar_entero(getattr(vital, "fc_post", "120"), "120"))
-    borg_final = int(getattr(walk, "borg_final", 0) or 0)
-
-    so2_vals = interpolar_valores(so2_reposo, so2_regreso, 7)
-    fc_vals = interpolar_valores(fc_reposo, fc_maximo, 7)
-    # Match the manual .exe path in E:\espiro\main.py (App.crear_documento_logica):
-    # when Borg final is 0, the table still ends with 1 at minute 6.
-    borg_vals = interpolar_valores(0, borg_final, 7) if borg_final > 0 else [0, 0, 0, 0, 0, 0, 1]
+    walk_rows = build_walk_measurement_rows(vital, walk)
+    so2_vals = [row["so2"] for row in walk_rows]
+    fc_vals = [row["fc"] for row in walk_rows]
+    borg_vals = [row["borg"] for row in walk_rows]
 
     agregar_salto_pagina(doc_normal)
     crear_encabezado(doc_normal)
@@ -780,7 +803,7 @@ def build_reports_for_encounter(encounter) -> list[GeneratedArtifact]:
         )
     )
 
-    incluir_mutual = encounter.coverage_type == "Mutual"
+    incluir_mutual = encounter.coverage_type == "Mutual" if include_mutual is None else bool(include_mutual)
     if incluir_mutual and incluir_caminata:
         doc_mutual = crear_informe_mutual(
             nombre,

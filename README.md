@@ -1,111 +1,77 @@
-# Clinica automatizador espiro
+# Clinica Automatizador Espiro
 
-MVP web para agenda, carga de estudios respiratorios, clasificacion medica y futura integracion con el motor de informes de `E:\espiro`.
+![Django](https://img.shields.io/badge/Django-6.0-092e20?style=for-the-badge&logo=django&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.12-3776ab?style=for-the-badge&logo=python&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-336791?style=for-the-badge&logo=postgresql&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-Deploy-000000?style=for-the-badge&logo=vercel&logoColor=white)
 
-## Stack
+**Clinica Automatizador Espiro** es una plataforma integral diseñada para modernizar y automatizar el flujo de trabajo en clínicas de neumonología. Resuelve la transición de agendas en papel y procesos manuales hacia un ecosistema digital centralizado que automatiza la extracción de datos médicos y la generación de informes clínicos.
 
-- Python
-- Django
-- SQLite en desarrollo
-- PostgreSQL / Supabase en nube
+## 🚀 Problemas que Resuelve
 
-## Como correr
+### 1. Centralización de la Información Clinica
+- Elimina la dispersión de datos entre papeles y archivos locales.
+- Base de datos unificada de pacientes con historial completo de estudios (Espirometrías, Ciclometrías, Caminatas de 6 minutos).
 
-1. Instalar dependencias:
+### 2. Automatización de Ingreso de Datos (OCR)
+- Integra un motor de **OCR (RapidOCR)** que procesa automáticamente los PDFs generados por los equipos de estudio (ej. espirómetros).
+- Extrae valores biométricos y demográficos directamente del documento, minimizando errores de carga manual y acelerando el proceso de recepción.
+
+### 3. Generación Inteligente de Informes
+- Automatiza la creación de informes médicos en formato `.docx` y `.pdf`.
+- Traduce clasificaciones médicas (Patrón Obstructivo, Restrictivo, Mixto) y grados de severidad en texto clínico redactado profesionalmente.
+- Maneja diferentes formatos: Informe Médico Completo, Informe para Mutual e Informes de Ciclometría.
+
+### 4. Flujo de Trabajo Colaborativo (Roles)
+- **Recepción/Secretaría**: Gestión de turnos (agenda diaria), carga de signos vitales (SO2, FC, TA) y subida de estudios.
+- **Médico**: Bandeja de revisión para validar estudios, clasificar resultados y autorizar informes.
+- **Administración**: Gestión de usuarios, catálogos de médicos derivantes y auditoría.
+
+### 5. Trazabilidad y Auditoría
+- Registro detallado de eventos por cada atención: quién creó el turno, quién subió el archivo, cuándo lo validó el médico y cuándo se generó el informe.
+
+## 🛠️ Stack Tecnológico
+
+- **Backend**: Python 3.12 + Django 6.0
+- **Base de Datos**: PostgreSQL (vía Supabase) con fallback a SQLite para desarrollo.
+- **Procesamiento de Documentos**:
+    - `python-docx`: Generación de informes Word.
+    - `pypdfium2`: Renderizado y manipulación de PDFs.
+    - `rapidocr_onnxruntime`: Motor de OCR para extracción de datos.
+- **Frontend**: Django Templates con integración de componentes modernos para visualización de PDFs.
+- **Despliegue**: Optimizado para Vercel.
+
+## 📋 Características Técnicas Destacadas
+
+- **Gestión de Signos Vitales**: Seguimiento pre y post prueba (Saturación O2, Frecuencia Cardíaca).
+- **Prueba de Caminata (6MWT)**: Registro de distancia, escala de Borg y síntomas.
+- **Previsualización de Documentos**: Generación automática de miniaturas de los estudios cargados para una revisión rápida.
+- **Arquitectura de Servicios**: Lógica de negocio desacoplada en `services.py` y procesamiento de archivos en `pdf_intake.py`.
+
+## ⚙️ Configuración y Uso
+
+### Instalación
+
+1. Clonar el repositorio.
+2. Crear y activar un entorno virtual: `python -m venv .venv`
+3. Instalar dependencias: `pip install -r requirements.txt`
+4. Configurar variables de entorno en `.env` (ver `.env.example`).
+
+### Ejecución Local
 
 ```powershell
-python -m pip install -r requirements.txt
-```
-
-2. Ejecutar migraciones:
-
-```powershell
+# Migraciones
 python src/manage.py migrate
-```
 
-3. Crear usuario administrador:
-
-```powershell
-python src/manage.py createsuperuser
-```
-
-4. Levantar servidor:
-
-```powershell
+# Iniciar servidor
 python src/manage.py runserver
 ```
 
-## Variables de entorno
+## 📈 Próximos Pasos
 
-La app acepta dos formas de conectar la base:
+- Integración directa con el sistema de archivos de equipos médicos antiguos (Legacy Bridge).
+- Análisis estadístico avanzado de tendencias por paciente.
+- Firma digital de informes médicos.
 
-1. `DATABASE_URL` o `POSTGRES_URL`:
-
-```env
-DATABASE_URL=postgresql://postgres.[TU_PROYECTO]:[TU_PASSWORD]@[POOLER_HOST]:5432/postgres?sslmode=require
-```
-
-La integracion de Supabase en Vercel suele inyectar `POSTGRES_URL`, por lo que la app acepta ambos nombres.
-
-Importante: el host directo de Supabase (`db.[TU_PROYECTO].supabase.co`) usa IPv6 por defecto. Si tu red o plataforma no soporta IPv6, usa la URL de `Session Pooler` de Supabase como `DATABASE_URL`.
-
-2. Variables separadas:
-
-- `DB_NAME`
-- `DB_USER`
-- `DB_PASSWORD`
-- `DB_HOST`
-- `DB_PORT`
-- `DB_SSLMODE`
-
-Tambien reconoce las variables que suele crear Vercel al conectar Supabase:
-
-- `POSTGRES_DATABASE`
-- `POSTGRES_USER`
-- `POSTGRES_PASSWORD`
-- `POSTGRES_HOST`
-
-Si esas variables vienen incompletas, por ejemplo `POSTGRES_PASSWORD=""`, en desarrollo la app vuelve a SQLite. Para exigir PostgreSQL y fallar con un error claro, define:
-
-```env
-REQUIRE_DATABASE=True
-```
-
-Si no existen, usa `SQLite`.
-
-Para desarrollo local con Vercel, tambien podes traer secretos a `.env.local`:
-
-```powershell
-vercel env pull .env.local --yes
-```
-
-La configuracion de Django carga `.env` y luego `.env.local`, asi que si ahi definis `DATABASE_URL` la app usara Supabase automaticamente.
-
-Para deploy tambien conviene definir:
-
-- `ALLOWED_HOSTS`
-- `CSRF_TRUSTED_ORIGINS`
-- `SECURE_SSL_REDIRECT=True`
-- `SESSION_COOKIE_SECURE=True`
-- `CSRF_COOKIE_SECURE=True`
-
-En desarrollo, la base y los archivos subidos se guardan por defecto en:
-
-`C:\Users\Tony\AppData\Local\ClinicaEspiro`
-
-## Alcance actual
-
-- login
-- agenda operativa diaria
-- pacientes
-- trazabilidad por eventos
-- repositorio documental por paciente
-- alertas operativas y estadisticas clinicas
-- signos vitales
-- datos de caminata
-- clasificacion respiratoria
-- upload simple de PDF
-
-## Proximo paso
-
-Conectar el backend con la logica real de generacion de informes que hoy existe en `E:\espiro`.
+---
+*Desarrollado para optimizar la atención médica y reducir la carga administrativa.*

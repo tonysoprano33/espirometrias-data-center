@@ -1,5 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.db import models
+from django.utils import timezone
+import uuid
 
 
 User = get_user_model()
@@ -11,6 +13,11 @@ class TimeStampedModel(models.Model):
 
     class Meta:
         abstract = True
+
+
+class ActiveManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=True)
 
 
 class StudyType(models.TextChoices):
@@ -71,6 +78,9 @@ class EncounterEventType(models.TextChoices):
 
 
 class Patient(TimeStampedModel):
+    objects = ActiveManager()
+    all_objects = models.Manager()
+
     full_name = models.CharField("Apellido y nombre", max_length=150)
     patient_code = models.CharField("Codigo de paciente", max_length=40, blank=True, db_index=True)
     last_name = models.CharField("Apellido", max_length=150, blank=True)
@@ -88,6 +98,15 @@ class Patient(TimeStampedModel):
     pack_years = models.DecimalField("Paquete anio", max_digits=6, decimal_places=2, blank=True, null=True)
     phone = models.CharField("Telefono", max_length=50, blank=True)
     notes = models.TextField("Observaciones", blank=True)
+    deleted_at = models.DateTimeField("Eliminado el", blank=True, null=True, db_index=True)
+    deleted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="patients_deleted",
+    )
+    deletion_batch = models.UUIDField("Lote de eliminacion", blank=True, null=True, db_index=True)
 
     class Meta:
         ordering = ["full_name"]
@@ -96,6 +115,36 @@ class Patient(TimeStampedModel):
 
     def __str__(self):
         return f"{self.full_name} ({self.dni or 'sin DNI'})"
+
+    def soft_delete(self, *, deleted_by=None, deletion_batch=None):
+        if self.deleted_at:
+            return False
+        now = timezone.now()
+        deletion_batch = deletion_batch or uuid.uuid4()
+        self.deleted_at = now
+        self.deleted_by = deleted_by
+        self.deletion_batch = deletion_batch
+        self.save(update_fields=["deleted_at", "deleted_by", "deletion_batch", "updated_at"])
+        for encounter in Encounter.all_objects.filter(patient=self, deleted_at__isnull=True):
+            encounter.soft_delete(deleted_by=deleted_by, deletion_batch=deletion_batch)
+        return True
+
+    def restore(self, *, restore_batch=True):
+        if not self.deleted_at:
+            return False
+        deletion_batch = self.deletion_batch
+        self.deleted_at = None
+        self.deleted_by = None
+        self.deletion_batch = None
+        self.save(update_fields=["deleted_at", "deleted_by", "deletion_batch", "updated_at"])
+        if restore_batch and deletion_batch:
+            for encounter in Encounter.all_objects.filter(
+                patient=self,
+                deleted_at__isnull=False,
+                deletion_batch=deletion_batch,
+            ):
+                encounter.restore()
+        return True
 
 
 class ReferringPhysician(TimeStampedModel):
@@ -113,6 +162,9 @@ class ReferringPhysician(TimeStampedModel):
 
 
 class Encounter(TimeStampedModel):
+    objects = ActiveManager()
+    all_objects = models.Manager()
+
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="encounters")
     encounter_date = models.DateField("Fecha de atencion")
     encounter_time = models.TimeField("Hora de atencion", blank=True, null=True)
@@ -145,6 +197,7 @@ class Encounter(TimeStampedModel):
         verbose_name="Medico derivante",
     )
     attended = models.BooleanField("Atendido", default=False)
+    attended_at = models.DateTimeField("Atendido el", blank=True, null=True)
     no_show = models.BooleanField("No llego", default=False)
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, blank=True, null=True, related_name="encounters_created"
@@ -156,14 +209,48 @@ class Encounter(TimeStampedModel):
         User, on_delete=models.SET_NULL, blank=True, null=True, related_name="encounters_validated"
     )
     validated_at = models.DateTimeField("Validado el", blank=True, null=True)
+    deleted_at = models.DateTimeField("Eliminado el", blank=True, null=True, db_index=True)
+    deleted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="encounters_deleted",
+    )
+    deletion_batch = models.UUIDField("Lote de eliminacion", blank=True, null=True, db_index=True)
 
     class Meta:
         ordering = ["-encounter_date", "-encounter_time", "-created_at"]
         verbose_name = "Atencion"
         verbose_name_plural = "Atenciones"
+        permissions = [
+            ("manage_agenda", "Puede gestionar la agenda clinica"),
+            ("review_medically", "Puede realizar revisiones medicas"),
+            ("purge_clinical_data", "Puede eliminar datos clinicos definitivamente"),
+            ("view_clinical_statistics", "Puede ver estadisticas clinicas"),
+        ]
 
     def __str__(self):
         return f"{self.patient.full_name} - {self.encounter_date:%d/%m/%Y}"
+
+    def soft_delete(self, *, deleted_by=None, deletion_batch=None):
+        if self.deleted_at:
+            return False
+        now = timezone.now()
+        self.deleted_at = now
+        self.deleted_by = deleted_by
+        self.deletion_batch = deletion_batch or uuid.uuid4()
+        self.save(update_fields=["deleted_at", "deleted_by", "deletion_batch", "updated_at"])
+        return True
+
+    def restore(self):
+        if not self.deleted_at:
+            return False
+        self.deleted_at = None
+        self.deleted_by = None
+        self.deletion_batch = None
+        self.save(update_fields=["deleted_at", "deleted_by", "deletion_batch", "updated_at"])
+        return True
 
 
 class VitalSigns(TimeStampedModel):
@@ -193,6 +280,7 @@ class WalkTest(TimeStampedModel):
     stopped = models.BooleanField("Se detuvo", default=False)
     symptoms = models.BooleanField("Presento sintomas", default=False)
     borg_final = models.PositiveSmallIntegerField("Borg final", default=0)
+    minute_readings = models.JSONField("Mediciones reales por minuto", blank=True, default=list)
 
     class Meta:
         verbose_name = "Prueba de caminata"
@@ -223,6 +311,12 @@ class SpirometryResult(TimeStampedModel):
         blank=True,
     )
     bronchodilator_positive = models.BooleanField("Broncodilatador positivo", default=False)
+    suggested_bronchodilator_positive = models.BooleanField(
+        "Broncodilatador positivo sugerido",
+        blank=True,
+        null=True,
+    )
+    suggested_bronchodilator_reason = models.TextField("Motivo de sugerencia broncodilatadora", blank=True)
     physician_comment = models.TextField("Comentario medico", blank=True)
     measured_values = models.JSONField("Valores extraidos", blank=True, default=dict)
     suggested_code = models.CharField("Codigo sugerido", max_length=24, blank=True)
@@ -268,6 +362,16 @@ class GeneratedReport(TimeStampedModel):
     )
     generated_by = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, null=True)
     generator_version = models.CharField("Version del generador", max_length=50, blank=True)
+    source_snapshot = models.JSONField("Datos fuente", blank=True, default=dict)
+    content_sha256 = models.CharField("SHA-256", max_length=64, blank=True, db_index=True)
+    supersedes = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="superseded_by",
+        verbose_name="Reemplaza a",
+    )
 
     class Meta:
         ordering = ["-created_at"]

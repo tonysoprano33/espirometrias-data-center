@@ -1,7 +1,5 @@
 import json
 import mimetypes
-import tempfile
-from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import quote, urljoin
 from urllib.request import Request, urlopen
@@ -100,8 +98,4 @@ class SupabaseStorage(Storage):
         return int(payload.get("metadata", {}).get("size") or payload.get("size") or 0)
 
     def path(self, name):
-        content = self._open(name)
-        suffix = Path(str(name)).suffix or ".bin"
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
-            temp_file.write(content.read())
-            return temp_file.name
+        raise NotImplementedError("Supabase no expone rutas locales; use local_field_file_path().")

@@ -3,6 +3,23 @@
 {% block title %}Detalle de atencion | Clinica Espiro{% endblock %}
 
 {% block content %}
+<style>
+    .encounter-pill-soft {
+        display:inline-flex;
+        align-items:center;
+        padding:6px 10px;
+        border-radius:999px;
+        border:1px solid rgba(23,49,63,.12);
+        background:rgba(246,248,249,.96);
+        color:#23495d;
+        font-weight:800;
+    }
+    .encounter-pill-soft.ok {
+        background: rgba(223,246,233,.95);
+        color: #126f44;
+        border-color: rgba(18,111,68,.2);
+    }
+</style>
 <section class="card">
     <div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;">
         <div>
@@ -12,11 +29,15 @@
         </div>
         <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;">
             <div class="pill">{{ encounter.status }}</div>
-            <a class="button alt" href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a>
-            <form method="post" action="{% url 'clinic:encounter_generate_report' encounter.pk %}">
+            {% if can_generate_report %}
+                <a class="button alt" href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a>
+            {% else %}
+                <span class="encounter-pill-soft" title="{{ report_block_reason }}">Impresion no disponible</span>
+            {% endif %}
+            {% if perms.clinic.manage_agenda or perms.clinic.review_medically %}<form method="post" action="{% url 'clinic:encounter_generate_report' encounter.pk %}">
                 {% csrf_token %}
-                <button class="button" type="submit">Generar informe</button>
-            </form>
+                <button class="button" type="submit" {% if not can_generate_report %}disabled title="{{ report_block_reason }}"{% endif %}>Generar informe</button>
+            </form>{% endif %}
         </div>
     </div>
 
@@ -64,7 +85,7 @@
             <div><strong>Patron</strong>{{ encounter.spirometry_result.respiratory_pattern|default:"-" }}</div>
             <div><strong>Obstruccion</strong>{{ encounter.spirometry_result.obstruction_grade|default:"-" }}</div>
             <div><strong>Restriccion</strong>{{ encounter.spirometry_result.restriction_grade|default:"-" }}</div>
-            <div><strong>Broncodilatador</strong>{% if encounter.spirometry_result.bronchodilator_positive %}Positivo{% else %}No{% endif %}</div>
+            <div><strong>Broncodilatador</strong><span class="encounter-pill-soft {% if encounter.spirometry_result.bronchodilator_positive %}ok{% endif %}">{% if encounter.spirometry_result.bronchodilator_positive %}Positivo{% else %}No{% endif %}</span></div>
             <div style="grid-column:1/-1;"><strong>Comentario</strong>{{ encounter.spirometry_result.physician_comment|default:"-" }}</div>
         </div>
     </article>
@@ -88,7 +109,13 @@
                         <td data-label="Nombre">{{ attachment.original_name }}</td>
                         <td data-label="Tipo">{{ attachment.get_file_kind_display }}</td>
                         <td data-label="Fecha">{{ attachment.created_at|date:"d/m/Y H:i" }}</td>
-                        <td class="td-actions" data-label="Acciones"><a href="{{ attachment.file.url }}">Descargar</a></td>
+                        <td class="td-actions" data-label="Acciones">
+                            {% if attachment.safe_url %}
+                                <a href="{{ attachment.safe_url }}">Descargar</a>
+                            {% else %}
+                                <span class="muted">Archivo no disponible</span>
+                            {% endif %}
+                        </td>
                     </tr>
                 {% empty %}
                     <tr>
@@ -117,8 +144,10 @@
                     <tr>
                         <td data-label="Tipo">{{ report.report_type }}</td>
                         <td data-label="Archivo">
-                            {% if report.attachment %}
-                                <a href="{{ report.attachment.file.url }}">{{ report.attachment.original_name }}</a>
+                            {% if report.attachment_url %}
+                                <a href="{{ report.attachment_url }}">{{ report.attachment.original_name }}</a>
+                            {% elif report.attachment %}
+                                <span class="muted">{{ report.attachment.original_name }} (no disponible)</span>
                             {% else %}
                                 -
                             {% endif %}

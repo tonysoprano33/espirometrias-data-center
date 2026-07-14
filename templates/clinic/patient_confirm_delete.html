@@ -4,10 +4,10 @@
 
 {% block content %}
 <section class="card" style="max-width:760px;">
-    <p class="pill">Confirmacion de borrado</p>
-    <h1 class="section-title">Eliminar paciente</h1>
+    <p class="pill">Confirmacion de papelera</p>
+    <h1 class="section-title">Enviar paciente a papelera</h1>
     <p class="muted">
-        Si confirmas este borrado, tambien se elimina toda la historia clinica asociada a este paciente, incluidas sus atenciones y archivos.
+        El paciente y sus atenciones se moveran a la papelera por 30 dias. Desde alli vas a poder restaurarlos o vaciarlos definitivamente cuando quieras.
     </p>
 
     <div class="detail-list" style="margin:18px 0;">
@@ -31,7 +31,7 @@
 
     <form method="post" style="display:flex;gap:12px;flex-wrap:wrap;">
         {% csrf_token %}
-        <button class="button danger" type="submit">Si, eliminar paciente</button>
+        <button class="button danger" type="submit">Si, enviar a papelera</button>
         <a class="button alt" href="{% url 'clinic:patient_detail' patient.pk %}">Cancelar</a>
     </form>
 </section>

@@ -695,6 +695,7 @@
                                         </span>
                                     </td>
                                     <td class="td-actions" data-label="Acciones">
+                                        {% if perms.clinic.manage_agenda %}
                                         <div class="calendar-actions-stack">
                                             <a href="{% url 'clinic:encounter_edit' encounter.pk %}?next=/calendario/?month={{ current_month_param }}%26date={{ selected_date|date:'Y-m-d' }}" class="calendar-edit-link">Editar ficha</a>
                                             <form method="post" onsubmit="return confirm('¿Eliminar este paciente agendado?');">
@@ -706,6 +707,9 @@
                                                 <button type="submit" class="calendar-link-button">Eliminar</button>
                                             </form>
                                         </div>
+                                        {% else %}
+                                            <a href="{% url 'clinic:patient_detail' encounter.patient.pk %}">Abrir historia</a>
+                                        {% endif %}
                                     </td>
                                 </tr>
                             {% endfor %}

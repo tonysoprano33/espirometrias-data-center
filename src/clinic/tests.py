@@ -1,12 +1,19 @@
-from datetime import date, time
+from datetime import date, datetime, time
+from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
+from django.utils import timezone
+from docx import Document
+from PIL import Image
 
-from .models import Attachment, AttachmentKind, CoverageType, Encounter, EncounterStatus, Patient, SpirometryResult, StudyType, VitalSigns, WalkTest
+from .forms import DrappImportForm, validate_clinical_upload
+from .models import Attachment, AttachmentKind, CoverageType, Encounter, EncounterStatus, GeneratedReport, Patient, ReferringPhysician, ReportType, SpirometryResult, StudyType, VitalSigns, WalkTest
 from .pdf_intake import (
     build_analysis_from_text,
     build_spirometry_analysis,
@@ -14,25 +21,109 @@ from .pdf_intake import (
     extract_patient_snapshot_from_text,
     extract_spirometry_numbers_from_text,
 )
-from .services import construir_informe_espirometria
+from .services import build_reports_for_encounter, construir_informe_espirometria
 from .views import (
     extract_drapp_rows_from_browser_ocr,
     extract_drapp_rows_from_ocr_lines,
     extract_drapp_rows_from_text,
     infer_coverage_type,
     import_drapp_rows,
+    get_patient_age_value,
+    save_generated_report_artifacts,
+    sort_dashboard_encounters,
     unique_encounters_by_patient_day,
 )
 
 
+def grant_clinic_permissions(user, *codenames):
+    user.user_permissions.add(*Permission.objects.filter(codename__in=codenames, content_type__app_label="clinic"))
+
+
+def make_png_upload(name="capture.png"):
+    stream = BytesIO()
+    Image.new("RGB", (8, 8), color=(245, 250, 252)).save(stream, format="PNG")
+    return SimpleUploadedFile(name, stream.getvalue(), content_type="image/png")
+
+
+class ClinicalUploadValidationTests(SimpleTestCase):
+    def test_rejects_pdf_extension_with_non_pdf_content(self):
+        uploaded = SimpleUploadedFile("resultado.pdf", b"not a pdf", content_type="application/pdf")
+
+        with self.assertRaisesMessage(ValidationError, "no es un PDF valido"):
+            validate_clinical_upload(uploaded)
+
+    def test_rejects_clinical_file_over_fifteen_megabytes(self):
+        uploaded = SimpleUploadedFile(
+            "resultado.pdf",
+            b"%PDF-1.4\n" + (b"0" * (15 * 1024 * 1024)),
+            content_type="application/pdf",
+        )
+
+        with self.assertRaisesMessage(ValidationError, "supera el limite de 15 MB"):
+            validate_clinical_upload(uploaded)
+
+    def test_drapp_screenshot_is_verified_as_a_real_image(self):
+        invalid_form = DrappImportForm(files={"screenshot": SimpleUploadedFile("drapp.png", b"fake")})
+        valid_form = DrappImportForm(files={"screenshot": make_png_upload()})
+
+        self.assertFalse(invalid_form.is_valid())
+        self.assertIn("imagen esta danada", invalid_form.errors["screenshot"][0])
+        self.assertTrue(valid_form.is_valid(), valid_form.errors)
+
+    def test_rejects_image_with_excessive_pixel_dimensions(self):
+        uploaded = SimpleUploadedFile("drapp.png", b"fake", content_type="image/png")
+        with patch("clinic.forms.Image.open") as image_open:
+            image_open.return_value.size = (50_000, 50_000)
+            with self.assertRaisesMessage(ValidationError, "dimensiones demasiado grandes"):
+                validate_clinical_upload(uploaded)
+
+
+class PatientAgeSourceTests(SimpleTestCase):
+    def test_birth_date_takes_priority_over_inconsistent_reported_age(self):
+        patient = Patient(birth_date=date(1970, 11, 23), age_reported=23)
+
+        with patch("clinic.views.timezone.localdate", return_value=date(2026, 7, 13)):
+            self.assertEqual(get_patient_age_value(patient), 55)
+
+
+class DashboardOrderingTests(SimpleTestCase):
+    def test_attended_order_precedes_pending_schedule_order(self):
+        attended_first = Encounter(
+            attended=True,
+            attended_at=timezone.make_aware(datetime(2026, 7, 13, 15, 5)),
+            encounter_time=time(15, 20),
+        )
+        attended_second = Encounter(
+            attended=True,
+            attended_at=timezone.make_aware(datetime(2026, 7, 13, 15, 10)),
+            encounter_time=time(15, 0),
+        )
+        pending_early = Encounter(attended=False, encounter_time=time(14, 30))
+        pending_late = Encounter(attended=False, encounter_time=time(16, 0))
+
+        ordered = sort_dashboard_encounters(
+            [pending_late, attended_second, pending_early, attended_first]
+        )
+
+        self.assertEqual(
+            ordered,
+            [attended_first, attended_second, pending_early, pending_late],
+        )
+
+
 class SpirometryReportTextTests(SimpleTestCase):
+    def test_obstructive_pattern_uses_small_airways_text(self):
+        text = construir_informe_espirometria("Obstructivo", "leve", "")
+
+        self.assertIn("obstrucción leve", text)
+        self.assertIn("pequeñas vías respiratorias aéreas", text)
+
     def test_mixed_pattern_uses_split_wording(self):
         text = construir_informe_espirometria("Mixto", "severa", "moderadamente severa")
 
         self.assertIn("patrón mixto", text)
         self.assertIn(" Restricción Moderadamente severa.", text)
-        self.assertIn(" Obstrucción Severa a las vías respiratorias aéreas.", text)
-        self.assertNotIn("pequeñas", text)
+        self.assertIn(" Obstrucción Severa a las pequeñas vías respiratorias aéreas.", text)
         self.assertNotIn("\n\n", text)
 
     def test_restrictive_pattern_keeps_general_airways_text(self):
@@ -40,6 +131,45 @@ class SpirometryReportTextTests(SimpleTestCase):
 
         self.assertIn("respiratorias", text.lower())
         self.assertNotIn("peque", text.lower())
+
+
+class BronchodilatorAnalysisTests(SimpleTestCase):
+    def test_uses_ers_ats_change_over_ten_percent_of_predicted(self):
+        analysis = build_spirometry_analysis(
+            {
+                "fvc": {"lln": 0.4, "predicted": 1.0, "best": 0.5, "percent": 50, "post": 0.61, "post_percent": 61},
+                "fev1": {"lln": 0.4, "predicted": 1.0, "best": 0.5, "percent": 50, "post": 0.55, "post_percent": 55},
+                "fev1_fvc": {"lln": 70.0, "predicted": 80.0, "best": 100.0, "percent": 125},
+            }
+        )
+
+        self.assertTrue(analysis["bronchodilator_positive"])
+        self.assertIn("criterio ERS/ATS 2022", analysis["bronchodilator_reason"])
+        self.assertIn("valor predicho", analysis["bronchodilator_reason"])
+
+    def test_detects_positive_bronchodilator_response_from_post_values(self):
+        analysis = build_spirometry_analysis(
+            {
+                "fvc": {"lln": 2.0, "predicted": 3.0, "best": 2.1, "percent": 70, "post": 2.45, "post_percent": 82, "change_percent": 17},
+                "fev1": {"lln": 1.8, "predicted": 2.5, "best": 1.9, "percent": 76, "post": 2.16, "post_percent": 86, "change_percent": 14},
+                "fev1_fvc": {"lln": 70.0, "predicted": 80.0, "best": 90.0, "percent": 112, "post": 92.0, "post_percent": 115, "change_percent": 2},
+            }
+        )
+
+        self.assertTrue(analysis["bronchodilator_positive"])
+        self.assertIn("Broncodilatador positivo", analysis["bronchodilator_reason"])
+
+    def test_does_not_mark_positive_without_required_change(self):
+        analysis = build_spirometry_analysis(
+            {
+                "fvc": {"lln": 2.0, "predicted": 3.0, "best": 2.1, "percent": 70, "post": 2.2, "post_percent": 73, "change_percent": 5},
+                "fev1": {"lln": 1.8, "predicted": 2.5, "best": 1.9, "percent": 76, "post": 2.02, "post_percent": 80, "change_percent": 6},
+                "fev1_fvc": {"lln": 70.0, "predicted": 80.0, "best": 90.0, "percent": 112, "post": 91.0, "post_percent": 114, "change_percent": 1},
+            }
+        )
+
+        self.assertFalse(analysis["bronchodilator_positive"])
+        self.assertEqual(analysis["bronchodilator_reason"], "")
 
 
 class CoverageInferenceTests(SimpleTestCase):
@@ -245,10 +375,11 @@ class DrappImportParsingTests(SimpleTestCase):
 class DrappImportViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="drapp-test", password="secret123")
+        grant_clinic_permissions(self.user, "manage_agenda")
 
     def test_falls_back_to_uploaded_screenshot_when_browser_ocr_returns_no_rows(self):
         self.client.force_login(self.user)
-        screenshot = SimpleUploadedFile("drapp.png", b"fake image bytes", content_type="image/png")
+        screenshot = make_png_upload("drapp.png")
         screenshot_rows = [
             {
                 "patient_name": "PERALTA, MARCELA",
@@ -265,7 +396,6 @@ class DrappImportViewTests(TestCase):
             patch("clinic.views.extract_drapp_rows_from_text", return_value=[]),
             patch("clinic.views.extract_drapp_rows_from_browser_ocr", return_value=[]),
             patch("clinic.views.extract_drapp_rows_from_screenshot", return_value=screenshot_rows) as screenshot_mock,
-            patch("clinic.views.import_drapp_rows", return_value=(1, 0)) as import_mock,
         ):
             response = self.client.post(
                 reverse("clinic:dashboard"),
@@ -277,10 +407,11 @@ class DrappImportViewTests(TestCase):
                 },
             )
 
-        self.assertRedirects(response, reverse("clinic:dashboard"))
+        self.assertEqual(response.status_code, 200)
         screenshot_mock.assert_called_once()
-        self.assertEqual(import_mock.call_args[0][0], screenshot_rows)
-        self.assertEqual(import_mock.call_args[0][1], self.user)
+        self.assertContains(response, "Revisar antes de agregar")
+        self.assertContains(response, "PERALTA, MARCELA")
+        self.assertEqual(Encounter.objects.count(), 0)
 
     def test_prefers_browser_ocr_rows_over_plain_raw_text_from_same_capture(self):
         self.client.force_login(self.user)
@@ -321,7 +452,6 @@ class DrappImportViewTests(TestCase):
                 ],
             ) as text_mock,
             patch("clinic.views.extract_drapp_rows_from_browser_ocr", return_value=browser_rows),
-            patch("clinic.views.import_drapp_rows", return_value=(2, 0)) as import_mock,
         ):
             response = self.client.post(
                 reverse("clinic:dashboard"),
@@ -332,14 +462,99 @@ class DrappImportViewTests(TestCase):
                 },
             )
 
-        self.assertRedirects(response, reverse("clinic:dashboard"))
+        self.assertEqual(response.status_code, 200)
         text_mock.assert_not_called()
-        self.assertEqual(import_mock.call_args[0][0], browser_rows)
+        self.assertContains(response, "ORTIZ, MARTA LILIANA")
+        self.assertContains(response, "SUAREZ, RODRIGO")
+        self.assertNotContains(response, "ESPIROMETRIA, DINOS")
+        self.assertEqual(Encounter.objects.count(), 0)
+
+    def test_confirm_preview_is_the_only_step_that_creates_encounters(self):
+        self.client.force_login(self.user)
+        browser_rows = [
+            {
+                "patient_name": "ORTIZ, MARTA LILIANA",
+                "coverage_raw": "PAMI",
+                "practice_raw": "Cicloespirometria",
+                "datetime_raw": "15:55",
+                "phone": "+542657123456",
+                "dni": "16484284",
+                "agenda_date": date(2026, 6, 11),
+            }
+        ]
+        with patch("clinic.views.extract_drapp_rows_from_browser_ocr", return_value=browser_rows):
+            preview_response = self.client.post(
+                reverse("clinic:dashboard"),
+                {"action": "import_drapp", "ocr_lines_json": '[{"text":"fila","y":1}]'},
+            )
+
+        self.assertEqual(preview_response.status_code, 200)
+        self.assertEqual(Encounter.objects.count(), 0)
+        token = preview_response.context["import_preview_token"]
+        confirm_response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "action": "confirm_drapp_import",
+                "import_preview_token": token,
+                "row_0_selected": "1",
+                "row_0_patient_name": "ORTIZ, MARTA LILIANA",
+                "row_0_dni": "16.484.284",
+                "row_0_coverage": "Mutual",
+                "row_0_study": "Ciclometria",
+                "row_0_date": "2026-06-12",
+                "row_0_time": "15:55",
+            },
+        )
+
+        self.assertRedirects(confirm_response, reverse("clinic:dashboard"))
+        encounter = Encounter.objects.get()
+        self.assertEqual(encounter.patient.dni, "16484284")
+        self.assertEqual(encounter.coverage_type, CoverageType.MUTUAL)
+        self.assertEqual(encounter.encounter_date, date(2026, 6, 12))
+        self.assertEqual(encounter.encounter_time, time(15, 55))
+
+    def test_confirm_preview_rejects_missing_date_instead_of_using_today(self):
+        self.client.force_login(self.user)
+        browser_rows = [
+            {
+                "patient_name": "ORTIZ, MARTA LILIANA",
+                "coverage_raw": "Particular",
+                "practice_raw": "Espirometria",
+                "datetime_raw": "15:55",
+                "phone": "",
+                "dni": "16484284",
+                "agenda_date": None,
+            }
+        ]
+        with patch("clinic.views.extract_drapp_rows_from_browser_ocr", return_value=browser_rows):
+            preview_response = self.client.post(
+                reverse("clinic:dashboard"),
+                {"action": "import_drapp", "ocr_lines_json": '[{"text":"fila","y":1}]'},
+            )
+
+        token = preview_response.context["import_preview_token"]
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "action": "confirm_drapp_import",
+                "import_preview_token": token,
+                "row_0_selected": "1",
+                "row_0_patient_name": "ORTIZ, MARTA LILIANA",
+                "row_0_dni": "16484284",
+                "row_0_coverage": "Particular",
+                "row_0_study": "Espirometria",
+                "row_0_time": "15:55",
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:dashboard"))
+        self.assertEqual(Encounter.objects.count(), 0)
 
 
 class DashboardInlineUpdateTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="agenda-test", password="secret123")
+        grant_clinic_permissions(self.user, "manage_agenda")
         self.client.force_login(self.user)
         self.patient = Patient.objects.create(full_name="SUAREZ, MARIA JESUS", dni="10731742")
         self.encounter = Encounter.objects.create(
@@ -371,6 +586,26 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertEqual(payload["value"], "15:30")
         self.assertEqual(payload["encounter_time"], "15:30")
 
+    def test_dni_owned_by_another_patient_never_reassigns_encounter(self):
+        other_patient = Patient.objects.create(full_name="OTRO, PACIENTE", dni="99888777")
+
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "action": "update_dni",
+                "encounter_id": self.encounter.pk,
+                "patient_dni": "99.888.777",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.encounter.refresh_from_db()
+        self.patient.refresh_from_db()
+        self.assertEqual(self.encounter.patient_id, self.patient.pk)
+        self.assertEqual(self.patient.dni, "10731742")
+        self.assertEqual(other_patient.encounters.count(), 0)
+
     def test_inline_time_update_accepts_compact_manual_value(self):
         response = self.client.post(
             reverse("clinic:dashboard"),
@@ -388,10 +623,302 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertEqual(self.encounter.encounter_time, time(15, 30))
         self.assertEqual(response.json()["value"], "15:30")
 
+    def test_rest_vitals_are_saved_together_and_mark_encounter_attended(self):
+        self.encounter.no_show = True
+        self.encounter.status = EncounterStatus.NO_LLEGO
+        self.encounter.save(update_fields=["no_show", "status", "updated_at"])
+
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "action": "save_vitals_group",
+                "encounter_id": self.encounter.pk,
+                "vitals_group": "rest",
+                "so2": "100",
+                "fc": "77",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.encounter.refresh_from_db()
+        self.assertTrue(self.encounter.attended)
+        self.assertFalse(self.encounter.no_show)
+        self.assertEqual(self.encounter.status, EncounterStatus.CARGADA)
+        self.assertEqual(self.encounter.vital_signs.so2_rest, 100)
+        self.assertEqual(self.encounter.vital_signs.fc_rest, 77)
+
+    def test_invalid_vitals_batch_rolls_back_both_values(self):
+        self.encounter.no_show = True
+        self.encounter.status = EncounterStatus.NO_LLEGO
+        self.encounter.save(update_fields=["no_show", "status", "updated_at"])
+        VitalSigns.objects.create(encounter=self.encounter, so2_rest=95, fc_rest=70)
+
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "action": "save_vitals_group",
+                "encounter_id": self.encounter.pk,
+                "vitals_group": "rest",
+                "so2": "101",
+                "fc": "80",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.encounter.refresh_from_db()
+        self.encounter.vital_signs.refresh_from_db()
+        self.assertEqual(self.encounter.vital_signs.so2_rest, 95)
+        self.assertEqual(self.encounter.vital_signs.fc_rest, 70)
+        self.assertFalse(self.encounter.attended)
+        self.assertTrue(self.encounter.no_show)
+
+    def test_individual_vital_update_is_rejected(self):
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "action": "inline_update",
+                "encounter_id": self.encounter.pk,
+                "field_name": "so2_rest",
+                "value": "95",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(VitalSigns.objects.filter(encounter=self.encounter, so2_rest__isnull=False).exists())
+
+    def test_inline_referring_physician_can_create_new_doctor_name(self):
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "action": "inline_update",
+                "encounter_id": self.encounter.pk,
+                "field_name": "referring_physician",
+                "value": "Dr. Pepito Perez",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.encounter.refresh_from_db()
+        self.assertIsNotNone(self.encounter.referring_physician)
+        self.assertEqual(self.encounter.referring_physician.full_name, "DR. Pepito Perez")
+        self.assertTrue(ReferringPhysician.objects.filter(full_name__iexact="DR. Pepito Perez").exists())
+
+    def test_dashboard_renders_manual_save_buttons_for_vitals(self):
+        with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
+            response = self.client.get(reverse("clinic:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn('name="action" value="save_vitals_group"', html)
+        self.assertIn('data-vitals-batch="1" data-vitals-group="rest"', html)
+        self.assertIn('data-vitals-batch="1" data-vitals-group="post"', html)
+        self.assertIn('name="so2"', html)
+        self.assertIn('name="fc"', html)
+        self.assertIn('title="Guardar SO2 y FC en reposo"', html)
+        self.assertIn('title="Guardar SO2 y FC post"', html)
+
+    def test_dashboard_ignores_missing_storage_files_in_latest_report(self):
+        result = SpirometryResult.objects.create(
+            encounter=self.encounter,
+            respiratory_pattern="Normal",
+        )
+        VitalSigns.objects.create(encounter=self.encounter, so2_rest=95, fc_rest=66)
+        artifacts = build_reports_for_encounter(self.encounter)
+        save_generated_report_artifacts(self.encounter, artifacts, self.user)
+        report_attachment = self.encounter.generated_reports.first().attachment
+        report_attachment.file.storage.delete(report_attachment.file.name)
+
+        with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
+            response = self.client.get(reverse("clinic:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn("SUAREZ, MARIA JESUS", html)
+
+
+class DashboardQuickAddTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="quick-add-test", password="secret123")
+        grant_clinic_permissions(self.user, "manage_agenda")
+        self.client.force_login(self.user)
+
+    def test_quick_add_without_time_uses_current_local_time(self):
+        with (
+            patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 18)),
+            patch("clinic.views.timezone.localtime", return_value=datetime(2026, 6, 18, 14, 37, 44)),
+        ):
+            response = self.client.post(
+                reverse("clinic:dashboard"),
+                {
+                    "patient_name": "Paciente Hora Auto",
+                    "patient_dni": "",
+                    "encounter_time": "",
+                    "study_type": StudyType.CICLOMETRIA,
+                    "coverage_type": CoverageType.PARTICULAR,
+                    "distance_meters": "200",
+                    "borg_final": "0",
+                    "completed": "on",
+                },
+            )
+
+        self.assertRedirects(response, reverse("clinic:dashboard"))
+        encounter = Encounter.objects.get(patient__full_name="PACIENTE HORA AUTO")
+        self.assertEqual(encounter.encounter_date, date(2026, 6, 18))
+        self.assertEqual(encounter.encounter_time, time(14, 37))
+        self.assertFalse(encounter.attended)
+        self.assertTrue(encounter.no_show)
+        self.assertEqual(encounter.status, EncounterStatus.NO_LLEGO)
+
+    def test_quick_add_keeps_manual_time_when_present(self):
+        with patch("clinic.views.timezone.localtime", return_value=datetime(2026, 6, 18, 14, 37, 44)):
+            response = self.client.post(
+                reverse("clinic:dashboard"),
+                {
+                    "patient_name": "Paciente Hora Manual",
+                    "encounter_time": "09:15",
+                    "study_type": StudyType.CICLOMETRIA,
+                    "coverage_type": CoverageType.PARTICULAR,
+                    "distance_meters": "200",
+                    "borg_final": "0",
+                    "completed": "on",
+                },
+            )
+
+        self.assertRedirects(response, reverse("clinic:dashboard"))
+        encounter = Encounter.objects.get(patient__full_name="PACIENTE HORA MANUAL")
+        self.assertEqual(encounter.encounter_time, time(9, 15))
+        self.assertTrue(encounter.no_show)
+
+    def test_quick_add_with_incomplete_rest_vitals_stays_not_attended(self):
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "patient_name": "Paciente Con Signos",
+                "encounter_time": "10:00",
+                "study_type": StudyType.CICLOMETRIA,
+                "coverage_type": CoverageType.PARTICULAR,
+                "so2_rest": "95",
+                "distance_meters": "200",
+                "borg_final": "0",
+                "completed": "on",
+                "no_show": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:dashboard"))
+        encounter = Encounter.objects.get(patient__full_name="PACIENTE CON SIGNOS")
+        self.assertFalse(encounter.attended)
+        self.assertTrue(encounter.no_show)
+        self.assertEqual(encounter.status, EncounterStatus.NO_LLEGO)
+
+    def test_quick_add_with_complete_rest_vitals_starts_attended(self):
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "patient_name": "Paciente Con Signos Completos",
+                "encounter_time": "10:10",
+                "study_type": StudyType.CICLOMETRIA,
+                "coverage_type": CoverageType.PARTICULAR,
+                "so2_rest": "95",
+                "fc_rest": "74",
+                "distance_meters": "200",
+                "borg_final": "0",
+                "completed": "on",
+                "no_show": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:dashboard"))
+        encounter = Encounter.objects.get(patient__full_name="PACIENTE CON SIGNOS COMPLETOS")
+        self.assertTrue(encounter.attended)
+        self.assertFalse(encounter.no_show)
+        self.assertEqual(encounter.status, EncounterStatus.CARGADA)
+
+    def test_quick_add_accepts_custom_referring_physician_name(self):
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "patient_name": "Paciente Con Doctor Libre",
+                "encounter_time": "11:15",
+                "study_type": StudyType.CICLOMETRIA,
+                "coverage_type": CoverageType.PARTICULAR,
+                "referring_physician": "Dra. Nueva Propuesta",
+                "distance_meters": "200",
+                "borg_final": "0",
+                "completed": "on",
+                "no_show": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:dashboard"))
+        encounter = Encounter.objects.select_related("referring_physician").get(patient__full_name="PACIENTE CON DOCTOR LIBRE")
+        self.assertIsNotNone(encounter.referring_physician)
+        self.assertEqual(encounter.referring_physician.full_name, "DR. Nueva Propuesta")
+        self.assertTrue(ReferringPhysician.objects.filter(full_name__iexact="DR. Nueva Propuesta").exists())
+
+    def test_existing_dni_never_overwrites_canonical_patient_name(self):
+        patient = Patient.objects.create(full_name="PEREZ, JUAN", dni="30111222")
+
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "patient_name": "NOMBRE OCR EQUIVOCADO",
+                "patient_dni": "30.111.222",
+                "encounter_time": "12:00",
+                "study_type": StudyType.CICLOMETRIA,
+                "coverage_type": CoverageType.PARTICULAR,
+                "distance_meters": "200",
+                "borg_final": "0",
+                "completed": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:dashboard"))
+        patient.refresh_from_db()
+        self.assertEqual(patient.full_name, "PEREZ, JUAN")
+        self.assertTrue(Encounter.objects.filter(patient=patient, encounter_time=time(12, 0)).exists())
+
+    def test_quick_add_reuses_deleted_patient_identity_without_restoring_old_encounters(self):
+        patient = Patient.objects.create(full_name="PEREZ, JUAN", dni="30111222")
+        old_encounter = Encounter.objects.create(
+            patient=patient,
+            encounter_date=date(2026, 5, 1),
+            study_type=StudyType.ESPIROMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+        )
+        patient.soft_delete(deleted_by=self.user)
+
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "patient_name": "PEREZ, JUAN",
+                "patient_dni": "30.111.222",
+                "encounter_time": "12:30",
+                "study_type": StudyType.CICLOMETRIA,
+                "coverage_type": CoverageType.PARTICULAR,
+                "distance_meters": "200",
+                "borg_final": "0",
+                "completed": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:dashboard"))
+        patient.refresh_from_db()
+        old_encounter.refresh_from_db()
+        self.assertIsNone(patient.deleted_at)
+        self.assertIsNotNone(old_encounter.deleted_at)
+        self.assertEqual(Encounter.objects.filter(patient=patient).count(), 1)
+
+
 
 class DoctorReviewViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="review-test", password="secret123")
+        grant_clinic_permissions(self.user, "review_medically")
         self.patient = Patient.objects.create(full_name="SIPOLLONI, FELISA", dni=None)
         self.encounter = Encounter.objects.create(
             patient=self.patient,
@@ -404,6 +931,16 @@ class DoctorReviewViewTests(TestCase):
             updated_by=self.user,
         )
 
+    def test_list_defaults_to_buenos_aires_calendar_date(self):
+        self.client.force_login(self.user)
+
+        with patch("clinic.views.timezone.localdate", return_value=date(2026, 7, 13)):
+            response = self.client.get(reverse("clinic:doctor_review_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["selected_date"], "2026-07-13")
+        self.assertEqual(response.context["today"], date(2026, 7, 13))
+
     def test_upload_suggestion_does_not_become_medical_result(self):
         self.client.force_login(self.user)
         pdf_file = SimpleUploadedFile("felisa.pdf", b"%PDF-1.4 fake", content_type="application/pdf")
@@ -412,6 +949,8 @@ class DoctorReviewViewTests(TestCase):
             "code": "RM",
             "probability": 99,
             "summary": "99% probable RM. FVC debajo del LIN/LLN.",
+            "bronchodilator_positive": True,
+            "bronchodilator_reason": "Respuesta positiva sugerida por FEV1.",
             "values": {
                 "fvc": {"lln": 1.75, "predicted": 2.69, "best": 1.65, "percent": 61},
                 "fev1": {"lln": 1.36, "predicted": 1.98, "best": 1.58, "percent": 80},
@@ -431,9 +970,13 @@ class DoctorReviewViewTests(TestCase):
 
         self.assertRedirects(response, reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
         self.encounter.refresh_from_db()
-        self.assertEqual(self.encounter.status, EncounterStatus.PENDIENTE)
+        self.assertTrue(self.encounter.attended)
+        self.assertFalse(self.encounter.no_show)
+        self.assertEqual(self.encounter.status, EncounterStatus.CARGADA)
         self.assertEqual(self.encounter.spirometry_result.suggested_code, "RM")
         self.assertEqual(self.encounter.spirometry_result.respiratory_pattern, "")
+        self.assertTrue(self.encounter.spirometry_result.suggested_bronchodilator_positive)
+        self.assertFalse(self.encounter.spirometry_result.bronchodilator_positive)
 
     def test_upload_autofills_missing_document_profile_and_replaces_random_name(self):
         self.client.force_login(self.user)
@@ -548,6 +1091,152 @@ class DoctorReviewViewTests(TestCase):
         self.assertEqual(self.patient.height_cm, 165)
         self.assertEqual(str(self.patient.bmi), "23.14")
 
+    def test_save_review_persists_manual_bronchodilator_flag(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("clinic:doctor_review_detail", args=[self.encounter.pk]),
+            {
+                "pdf_file": "",
+                "respiratory_result": "RM",
+                "bronchodilator_positive": "on",
+                "analysis_payload_json": "",
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+        self.encounter.refresh_from_db()
+        self.assertTrue(self.encounter.spirometry_result.bronchodilator_positive)
+
+
+class DoctorReviewNavigationTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="doctor-nav", password="secret123")
+        grant_clinic_permissions(self.user, "review_medically")
+        self.client.force_login(self.user)
+        self.today = date(2026, 6, 28)
+
+        self.current_patient = Patient.objects.create(full_name="PACIENTE ACTUAL", dni="11111111")
+        self.next_patient = Patient.objects.create(full_name="PACIENTE SIGUIENTE", dni="22222222")
+        self.done_patient = Patient.objects.create(full_name="PACIENTE RESUELTO", dni="33333333")
+
+        self.current_encounter = Encounter.objects.create(
+            patient=self.current_patient,
+            encounter_date=self.today,
+            encounter_time=time(15, 0),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            status=EncounterStatus.CARGADA,
+            attended=True,
+            attended_at=timezone.make_aware(datetime(2026, 6, 28, 15, 5)),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        self.next_encounter = Encounter.objects.create(
+            patient=self.next_patient,
+            encounter_date=self.today,
+            encounter_time=time(15, 20),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            status=EncounterStatus.CARGADA,
+            attended=True,
+            attended_at=timezone.make_aware(datetime(2026, 6, 28, 15, 12)),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        self.done_encounter = Encounter.objects.create(
+            patient=self.done_patient,
+            encounter_date=self.today,
+            encounter_time=time(15, 40),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            status=EncounterStatus.REVISADA,
+            attended=True,
+            attended_at=timezone.make_aware(datetime(2026, 6, 28, 15, 30)),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+
+        Attachment.objects.create(
+            encounter=self.current_encounter,
+            file_kind=AttachmentKind.PDF_RESULTADO,
+            original_name="actual.pdf",
+            file="encounters/current/actual.pdf",
+            mime_type="application/pdf",
+            uploaded_by=self.user,
+        )
+        Attachment.objects.create(
+            encounter=self.next_encounter,
+            file_kind=AttachmentKind.PDF_RESULTADO,
+            original_name="next.pdf",
+            file="encounters/next/next.pdf",
+            mime_type="application/pdf",
+            uploaded_by=self.user,
+        )
+        Attachment.objects.create(
+            encounter=self.done_encounter,
+            file_kind=AttachmentKind.PDF_RESULTADO,
+            original_name="done.pdf",
+            file="encounters/done/done.pdf",
+            mime_type="application/pdf",
+            uploaded_by=self.user,
+        )
+
+    def test_review_detail_exposes_queue_context(self):
+        response = self.client.get(reverse("clinic:doctor_review_detail", args=[self.current_encounter.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["review_queue"]["pending_total"], 2)
+        self.assertEqual(response.context["review_queue"]["remaining_after_current"], 2)
+        self.assertIsNone(response.context["previous_review_encounter"])
+        self.assertEqual(response.context["next_review_encounter"].pk, self.next_encounter.pk)
+
+    def test_review_queue_state_returns_next_pending_patient(self):
+        response = self.client.get(reverse("clinic:doctor_review_queue_state", args=[self.current_encounter.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["pending_total"], 2)
+        self.assertTrue(payload["current_is_pending"])
+        self.assertEqual(payload["remaining_after_current"], 2)
+        self.assertIsNone(payload["previous_encounter_id"])
+        self.assertEqual(payload["previous_encounter_name"], "")
+        self.assertEqual(payload["previous_encounter_label"], "")
+        self.assertEqual(payload["next_encounter_id"], self.next_encounter.pk)
+        self.assertEqual(payload["next_encounter_name"], "PACIENTE SIGUIENTE")
+        self.assertEqual(payload["next_encounter_label"], "15:20 - PACIENTE SIGUIENTE")
+
+    def test_queue_decreases_only_after_saving_a_final_result(self):
+        first_state = self.client.get(
+            reverse("clinic:doctor_review_queue_state", args=[self.current_encounter.pk])
+        ).json()
+        self.assertEqual(first_state["pending_total"], 2)
+
+        with patch("clinic.views.build_analysis_for_uploaded_result", return_value={}):
+            response = self.client.post(
+                reverse("clinic:doctor_review_detail", args=[self.current_encounter.pk]),
+                {
+                    "pdf_file": "",
+                    "respiratory_result": "N",
+                    "analysis_payload_json": "",
+                },
+            )
+
+        self.assertRedirects(
+            response,
+            reverse("clinic:doctor_review_detail", args=[self.current_encounter.pk]),
+        )
+        self.current_encounter.refresh_from_db()
+        self.assertEqual(self.current_encounter.status, EncounterStatus.REVISADA)
+
+        final_state = self.client.get(
+            reverse("clinic:doctor_review_queue_state", args=[self.current_encounter.pk])
+        ).json()
+        self.assertEqual(final_state["pending_total"], 1)
+        self.assertFalse(final_state["current_is_pending"])
+        self.assertEqual(final_state["next_encounter_id"], self.next_encounter.pk)
+
 
 class DrappImportDeduplicationTests(TestCase):
     def setUp(self):
@@ -631,6 +1320,77 @@ class DrappImportDeduplicationTests(TestCase):
         self.assertEqual(created, 1)
         self.assertEqual(skipped, 0)
         self.assertEqual(Encounter.objects.filter(patient__dni="42999801").count(), 2)
+        imported = Encounter.objects.get(patient__dni="42999801", encounter_date=date(2026, 6, 5))
+        self.assertTrue(imported.no_show)
+        self.assertFalse(imported.attended)
+        self.assertEqual(imported.status, EncounterStatus.NO_LLEGO)
+
+    def test_import_reuses_deleted_patient_identity_without_restoring_old_encounters(self):
+        old_encounter = self.create_encounter(full_name="ORUETTA, RAMONA", dni="42999801")
+        patient = old_encounter.patient
+        patient.soft_delete(deleted_by=self.user)
+
+        created, skipped = import_drapp_rows(
+            [
+                {
+                    "patient_name": "ORUETTA, RAMONA",
+                    "coverage_raw": "Particular",
+                    "practice_raw": "Cicloespirometria",
+                    "datetime_raw": "15:00",
+                    "phone": "",
+                    "dni": "42.999.801",
+                    "agenda_date": date(2026, 6, 5),
+                }
+            ],
+            self.user,
+        )
+
+        patient.refresh_from_db()
+        old_encounter.refresh_from_db()
+        self.assertEqual((created, skipped), (1, 0))
+        self.assertIsNone(patient.deleted_at)
+        self.assertIsNotNone(old_encounter.deleted_at)
+        self.assertTrue(Encounter.objects.filter(patient=patient, encounter_date=date(2026, 6, 5)).exists())
+
+    def test_skips_same_name_with_different_dni_on_same_day(self):
+        self.create_encounter(full_name="PEREZ, MARIA", dni="11111111")
+
+        created, skipped = import_drapp_rows(
+            [
+                {
+                    "patient_name": "PEREZ, MARIA",
+                    "coverage_raw": "Particular",
+                    "practice_raw": "Espirometria",
+                    "datetime_raw": "16:00",
+                    "phone": "",
+                    "dni": "22222222",
+                    "agenda_date": date(2026, 6, 4),
+                }
+            ],
+            self.user,
+        )
+
+        self.assertEqual((created, skipped), (0, 1))
+        self.assertEqual(Encounter.objects.filter(encounter_date=date(2026, 6, 4)).count(), 1)
+
+    def test_rejects_practice_text_as_patient_name(self):
+        created, skipped = import_drapp_rows(
+            [
+                {
+                    "patient_name": "ESPIROMETRIA, CENTRO RESPIRATORIO",
+                    "coverage_raw": "Particular",
+                    "practice_raw": "Espirometria",
+                    "datetime_raw": "16:00",
+                    "phone": "",
+                    "dni": "6484284",
+                    "agenda_date": date(2026, 6, 4),
+                }
+            ],
+            self.user,
+        )
+
+        self.assertEqual((created, skipped), (0, 1))
+        self.assertFalse(Patient.objects.exists())
 
     def test_display_uniques_existing_duplicate_encounters(self):
         patient = Patient.objects.create(full_name="O ORUETTA, RAMONA", dni="42999801")
@@ -749,6 +1509,21 @@ class SpirometryPdfParsingTests(SimpleTestCase):
         self.assertEqual(snapshot["gender"], "Femenino")
         self.assertEqual(snapshot["height_cm"], 164)
 
+    def test_reads_accented_patient_code_label(self):
+        snapshot = extract_patient_snapshot_from_text(
+            "\n".join(
+                [
+                    "Código de paciente: 24.990.727",
+                    "Apellido: MUÑOZ",
+                    "Nombre: JAVIER ALEJANDRO",
+                ]
+            )
+        )
+
+        self.assertEqual(snapshot["patient_code"], "24990727")
+        self.assertEqual(snapshot["dni"], "24990727")
+        self.assertEqual(snapshot["full_name"], "MUÑOZ, JAVIER ALEJANDRO")
+
     def test_reads_patient_profile_when_pdf_joins_left_and_right_columns(self):
         snapshot = extract_patient_snapshot_from_text(
             "\n".join(
@@ -864,6 +1639,9 @@ class PrintReportViewTests(TestCase):
         self.assertIn("Moderadamente reducida", html)
         self.assertIn("dni-value", html)
         self.assertIn("PRUEBA NO NORMAL", html)
+        self.assertIn("SO2: 88%", html)
+        self.assertIn("FC: 64", html)
+        self.assertNotIn("FC: 64%", html)
         self.assertNotIn("desaturacion al esfuerzo", html.lower())
 
     def test_daily_print_uses_same_mutual_packet(self):
@@ -877,11 +1655,179 @@ class PrintReportViewTests(TestCase):
         self.assertIn("Capacidad Vital Lenta", html)
         self.assertIn("Moderadamente reducida", html)
         self.assertIn("PRUEBA NO NORMAL", html)
+        self.assertIn("SO2: 88%", html)
+        self.assertIn("FC: 64", html)
+        self.assertNotIn("FC: 64%", html)
+
+    def test_generated_docx_prints_fc_without_percent_symbol(self):
+        artifacts = build_reports_for_encounter(self.encounter)
+        doc = Document(BytesIO(artifacts[0].bytes_content))
+        text = "\n".join(paragraph.text for paragraph in doc.paragraphs)
+
+        self.assertIn("SO2: 88%", text)
+        self.assertIn("FC: 64", text)
+        self.assertNotIn("FC: 64%", text)
+
+    def test_generated_mixed_report_keeps_compact_split_wording(self):
+        result = self.encounter.spirometry_result
+        result.respiratory_pattern = "Mixto"
+        result.restriction_grade = "Moderadamente severa"
+        result.obstruction_grade = "Severa"
+        result.save(
+            update_fields=[
+                "respiratory_pattern",
+                "restriction_grade",
+                "obstruction_grade",
+                "updated_at",
+            ]
+        )
+
+        doc = Document(BytesIO(build_reports_for_encounter(self.encounter)[0].bytes_content))
+        text = "\n".join(paragraph.text for paragraph in doc.paragraphs)
+
+        self.assertIn("patrón mixto:\n Restricción Moderadamente severa.", text)
+        self.assertIn("\n Obstrucción Severa a las pequeñas vías respiratorias aéreas.", text)
+
+    def test_bronchodilator_line_appears_only_when_final_flag_is_positive(self):
+        result = self.encounter.spirometry_result
+        negative_doc = Document(BytesIO(build_reports_for_encounter(self.encounter)[0].bytes_content))
+        negative_text = "\n".join(paragraph.text for paragraph in negative_doc.paragraphs)
+        self.assertNotIn("Broncodilatador Positivo", negative_text)
+
+        result.bronchodilator_positive = True
+        result.save(update_fields=["bronchodilator_positive", "updated_at"])
+        positive_doc = Document(BytesIO(build_reports_for_encounter(self.encounter)[0].bytes_content))
+        positive_text = "\n".join(paragraph.text for paragraph in positive_doc.paragraphs)
+        self.assertIn("Broncodilatador Positivo", positive_text)
+
+    def test_spirometry_only_never_adds_walk_page(self):
+        self.encounter.study_type = StudyType.ESPIROMETRIA
+        self.encounter.save(update_fields=["study_type", "updated_at"])
+
+        artifacts = build_reports_for_encounter(self.encounter)
+        doc = Document(BytesIO(artifacts[0].bytes_content))
+        text = "\n".join(paragraph.text for paragraph in doc.paragraphs)
+
+        self.assertEqual(len(artifacts), 1)
+        self.assertEqual(artifacts[0].report_type, ReportType.ESPIROMETRIA)
+        self.assertNotIn("PRUEBA DE LOS 6 Y 12 MINUTOS", text)
+
+    def test_generated_walk_table_never_invents_intermediate_measurements(self):
+        artifacts = build_reports_for_encounter(self.encounter)
+        doc = Document(BytesIO(artifacts[0].bytes_content))
+        walk_table = next(table for table in doc.tables if table.rows[0].cells[0].text == "MINUTOS")
+
+        self.assertEqual(walk_table.rows[1].cells[1].text, "88")
+        self.assertEqual(walk_table.rows[1].cells[2].text, "64")
+        for row_index in range(2, 7):
+            self.assertEqual(walk_table.rows[row_index].cells[1].text, "")
+            self.assertEqual(walk_table.rows[row_index].cells[2].text, "")
+            self.assertEqual(walk_table.rows[row_index].cells[3].text, "")
+        self.assertEqual(walk_table.rows[7].cells[1].text, "65")
+        self.assertEqual(walk_table.rows[7].cells[2].text, "117")
+        self.assertEqual(walk_table.rows[7].cells[3].text, "1")
+
+    def test_regenerated_report_keeps_source_snapshot_hash_and_version_chain(self):
+        first_artifacts = build_reports_for_encounter(self.encounter)
+        save_generated_report_artifacts(self.encounter, first_artifacts, self.user)
+        first_report = GeneratedReport.objects.filter(
+            encounter=self.encounter,
+            report_type=ReportType.COMPLETO,
+        ).latest("created_at")
+
+        vital = self.encounter.vital_signs
+        vital.so2_rest = 89
+        vital.save(update_fields=["so2_rest", "updated_at"])
+        second_artifacts = build_reports_for_encounter(self.encounter)
+        save_generated_report_artifacts(self.encounter, second_artifacts, self.user)
+        latest_report = GeneratedReport.objects.filter(
+            encounter=self.encounter,
+            report_type=ReportType.COMPLETO,
+        ).latest("created_at")
+
+        self.assertEqual(latest_report.supersedes_id, first_report.pk)
+        self.assertEqual(len(latest_report.content_sha256), 64)
+        self.assertEqual(latest_report.source_snapshot["patient"]["full_name"], "FONTANARI ALICIA NOEMI")
+        self.assertEqual(latest_report.source_snapshot["vital_signs"]["so2_rest"], 89)
+
+
+class AttachmentUrlResilienceTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="storage-test", password="secret123")
+        grant_clinic_permissions(self.user, "manage_agenda", "review_medically")
+        self.client.force_login(self.user)
+        self.patient = Patient.objects.create(full_name="PACIENTE STORAGE", dni="30111222")
+        self.encounter = Encounter.objects.create(
+            patient=self.patient,
+            encounter_date=date(2026, 7, 14),
+            encounter_time=time(10, 30),
+            study_type=StudyType.ESPIROMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            status=EncounterStatus.REVISADA,
+            attended=True,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        VitalSigns.objects.create(encounter=self.encounter, so2_rest=96, fc_rest=72)
+        SpirometryResult.objects.create(encounter=self.encounter, respiratory_pattern="Normal")
+        self.attachment = Attachment.objects.create(
+            encounter=self.encounter,
+            file_kind=AttachmentKind.FOTO_RESULTADO,
+            original_name="resultado-storage.png",
+            file="encounters/storage/resultado-storage.png",
+            mime_type="image/png",
+            uploaded_by=self.user,
+        )
+        GeneratedReport.objects.create(
+            encounter=self.encounter,
+            report_type=ReportType.ESPIROMETRIA,
+            attachment=self.attachment,
+            generated_by=self.user,
+        )
+
+    def storage_url_failure(self):
+        return patch.object(
+            self.attachment.file.storage,
+            "url",
+            side_effect=RuntimeError("storage url unavailable"),
+        )
+
+    def test_doctor_review_renders_when_attachment_url_is_unavailable(self):
+        with self.storage_url_failure():
+            response = self.client.get(reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Archivo original no disponible")
+
+    def test_patient_history_renders_when_attachment_url_is_unavailable(self):
+        with self.storage_url_failure():
+            response = self.client.get(reverse("clinic:patient_detail", args=[self.patient.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Resultado original no disponible")
+        self.assertContains(response, "resultado-storage.png (no disponible)")
+
+    def test_encounter_detail_renders_when_attachment_url_is_unavailable(self):
+        with self.storage_url_failure():
+            response = self.client.get(reverse("clinic:encounter_detail", args=[self.encounter.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Archivo no disponible")
+        self.assertContains(response, "resultado-storage.png (no disponible)")
+
+    def test_print_view_renders_without_broken_original_file_link(self):
+        with self.storage_url_failure():
+            response = self.client.get(reverse("clinic:encounter_print", args=[self.encounter.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Abrir resultado original")
+        self.assertContains(response, "PACIENTE STORAGE")
 
 
 class PatientHistoryActionsTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="history-test", password="secret123")
+        grant_clinic_permissions(self.user, "manage_agenda", "purge_clinical_data")
         self.client.force_login(self.user)
         self.patient = Patient.objects.create(full_name="TEST, PACIENTE", dni="12345678")
         self.encounter = Encounter.objects.create(
@@ -904,7 +1850,13 @@ class PatientHistoryActionsTests(TestCase):
         html = response.content.decode()
         self.assertIn("PRUEBA NO NORMAL", html)
         self.assertIn("Editar atencion", html)
+        self.assertIn("Generar completo", html)
         self.assertIn("Subir documento", html)
+
+    def test_print_without_final_result_is_blocked_instead_of_defaulting_to_normal(self):
+        response = self.client.get(reverse("clinic:encounter_print", args=[self.encounter.pk]))
+
+        self.assertRedirects(response, reverse("clinic:encounter_detail", args=[self.encounter.pk]))
 
     def test_patient_detail_can_upload_document_to_specific_encounter(self):
         upload = SimpleUploadedFile(
@@ -956,10 +1908,310 @@ class PatientHistoryActionsTests(TestCase):
 
         self.assertRedirects(response, reverse("clinic:patient_detail", args=[self.patient.pk]))
 
+    def test_encounter_edit_preserves_original_date_and_status(self):
+        self.encounter.encounter_date = date(2026, 6, 4)
+        self.encounter.status = EncounterStatus.INFORME_GENERADO
+        self.encounter.coverage_type = CoverageType.PARTICULAR
+        self.encounter.save(update_fields=["encounter_date", "status", "coverage_type", "updated_at"])
+
+        response = self.client.post(
+            reverse("clinic:encounter_edit", args=[self.encounter.pk]),
+            {
+                "patient_name": "TEST, PACIENTE",
+                "patient_dni": "12345678",
+                "encounter_time": "16:30",
+                "study_type": "Ciclometria",
+                "coverage_type": "Mutual",
+                "referring_physician": "",
+                "so2_rest": 90,
+                "fc_rest": 70,
+                "so2_post": 85,
+                "fc_post": 120,
+                "distance_meters": 100,
+                "completed": "on",
+                "stopped": "",
+                "symptoms": "",
+                "borg_final": 1,
+                "respiratory_result": "N",
+                "attended": "on",
+                "no_show": "",
+                "return_to": reverse("clinic:patient_detail", args=[self.patient.pk]),
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:patient_detail", args=[self.patient.pk]))
+        self.encounter.refresh_from_db()
+        self.assertEqual(self.encounter.encounter_date, date(2026, 6, 4))
+        self.assertEqual(self.encounter.status, EncounterStatus.INFORME_GENERADO)
+        self.assertEqual(self.encounter.coverage_type, CoverageType.MUTUAL)
+
+    def test_encounter_edit_rejects_dni_owned_by_another_patient_atomically(self):
+        other_patient = Patient.objects.create(full_name="OTRO, PACIENTE", dni="87654321")
+
+        response = self.client.post(
+            reverse("clinic:encounter_edit", args=[self.encounter.pk]),
+            {
+                "patient_name": "NOMBRE QUE NO DEBE GUARDARSE",
+                "patient_dni": "87.654.321",
+                "encounter_time": "18:15",
+                "study_type": "Espirometria",
+                "coverage_type": "Mutual",
+                "referring_physician": "",
+                "so2_rest": 90,
+                "fc_rest": 70,
+                "so2_post": 85,
+                "fc_post": 120,
+                "distance_meters": 100,
+                "completed": "on",
+                "borg_final": 1,
+                "respiratory_result": "N",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "ya pertenece a OTRO, PACIENTE")
+        self.encounter.refresh_from_db()
+        self.patient.refresh_from_db()
+        other_patient.refresh_from_db()
+        self.assertEqual(self.encounter.patient_id, self.patient.pk)
+        self.assertEqual(self.encounter.encounter_time, time(16, 30))
+        self.assertEqual(self.encounter.coverage_type, CoverageType.PARTICULAR)
+        self.assertEqual(self.patient.full_name, "TEST, PACIENTE")
+        self.assertEqual(other_patient.full_name, "OTRO, PACIENTE")
+
+    def test_dashboard_delete_sends_encounter_to_trash_even_with_documents(self):
+        Attachment.objects.create(
+            encounter=self.encounter,
+            file_kind=AttachmentKind.PDF_RESULTADO,
+            original_name="resultado.pdf",
+            file="encounters/protegido/resultado.pdf",
+            mime_type="application/pdf",
+            uploaded_by=self.user,
+        )
+
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "action": "delete_encounter",
+                "encounter_id": self.encounter.pk,
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.encounter.refresh_from_db()
+        self.assertIsNotNone(self.encounter.deleted_at)
+        self.assertFalse(Encounter.objects.filter(pk=self.encounter.pk).exists())
+        self.assertTrue(Encounter.all_objects.filter(pk=self.encounter.pk).exists())
+        self.assertEqual(response.json()["deleted"], True)
+
+    def test_patient_delete_sends_patient_with_clinical_history_to_trash(self):
+        response = self.client.post(reverse("clinic:patient_delete", args=[self.patient.pk]))
+
+        self.assertRedirects(response, reverse("clinic:patient_list"))
+        self.patient.refresh_from_db()
+        self.encounter.refresh_from_db()
+        self.assertIsNotNone(self.patient.deleted_at)
+        self.assertIsNotNone(self.encounter.deleted_at)
+        self.assertFalse(Patient.objects.filter(pk=self.patient.pk).exists())
+        self.assertFalse(Encounter.objects.filter(pk=self.encounter.pk).exists())
+        self.assertTrue(Patient.all_objects.filter(pk=self.patient.pk).exists())
+        self.assertTrue(Encounter.all_objects.filter(pk=self.encounter.pk).exists())
+
+    def test_recycle_bin_can_restore_patient_and_encounter(self):
+        self.patient.soft_delete(deleted_by=self.user)
+
+        response = self.client.post(
+            reverse("clinic:recycle_bin"),
+            {
+                "action": "restore_patient",
+                "patient_id": self.patient.pk,
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:recycle_bin"))
+        self.patient.refresh_from_db()
+        self.encounter.refresh_from_db()
+        self.assertIsNone(self.patient.deleted_at)
+        self.assertIsNone(self.encounter.deleted_at)
+        self.assertTrue(Patient.objects.filter(pk=self.patient.pk).exists())
+        self.assertTrue(Encounter.objects.filter(pk=self.encounter.pk).exists())
+
+    def test_restoring_patient_does_not_restore_an_older_independent_deletion(self):
+        older_encounter = Encounter.objects.create(
+            patient=self.patient,
+            encounter_date=date(2026, 5, 1),
+            study_type=StudyType.ESPIROMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        older_encounter.soft_delete(deleted_by=self.user)
+        older_batch = Encounter.all_objects.get(pk=older_encounter.pk).deletion_batch
+
+        self.patient.soft_delete(deleted_by=self.user)
+        Patient.all_objects.get(pk=self.patient.pk).restore()
+
+        restored_current = Encounter.all_objects.get(pk=self.encounter.pk)
+        still_deleted_older = Encounter.all_objects.get(pk=older_encounter.pk)
+        self.assertIsNone(restored_current.deleted_at)
+        self.assertIsNotNone(still_deleted_older.deleted_at)
+        self.assertEqual(still_deleted_older.deletion_batch, older_batch)
+
+    def test_failed_report_generation_does_not_change_attendance(self):
+        self.encounter.no_show = True
+        self.encounter.attended = False
+        self.encounter.status = EncounterStatus.NO_LLEGO
+        self.encounter.save(update_fields=["no_show", "attended", "status", "updated_at"])
+
+        response = self.client.post(
+            reverse("clinic:encounter_generate_report", args=[self.encounter.pk]),
+            {"next": reverse("clinic:dashboard")},
+        )
+
+        self.assertRedirects(response, reverse("clinic:dashboard"))
+        self.encounter.refresh_from_db()
+        self.assertFalse(self.encounter.attended)
+        self.assertTrue(self.encounter.no_show)
+        self.assertEqual(self.encounter.status, EncounterStatus.NO_LLEGO)
+
+    def test_report_inconsistency_warning_does_not_change_attendance(self):
+        self.encounter.no_show = True
+        self.encounter.attended = False
+        self.encounter.status = EncounterStatus.NO_LLEGO
+        self.encounter.save(update_fields=["no_show", "attended", "status", "updated_at"])
+        vital = self.encounter.vital_signs
+        vital.so2_post = 40
+        vital.save(update_fields=["so2_post", "updated_at"])
+        SpirometryResult.objects.create(encounter=self.encounter, respiratory_pattern="Normal")
+
+        response = self.client.post(
+            reverse("clinic:encounter_generate_report", args=[self.encounter.pk]),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.encounter.refresh_from_db()
+        self.assertFalse(self.encounter.attended)
+        self.assertTrue(self.encounter.no_show)
+        self.assertEqual(self.encounter.status, EncounterStatus.NO_LLEGO)
+
+    def test_patient_detail_inconsistency_warning_does_not_generate_or_change_attendance(self):
+        self.encounter.no_show = True
+        self.encounter.attended = False
+        self.encounter.status = EncounterStatus.NO_LLEGO
+        self.encounter.save(update_fields=["no_show", "attended", "status", "updated_at"])
+        vital = self.encounter.vital_signs
+        vital.so2_post = 40
+        vital.save(update_fields=["so2_post", "updated_at"])
+        SpirometryResult.objects.create(encounter=self.encounter, respiratory_pattern="Normal")
+
+        response = self.client.post(
+            reverse("clinic:patient_detail", args=[self.patient.pk]),
+            {
+                "action": "generate_patient_report",
+                "encounter_id": self.encounter.pk,
+                "report_scope": "complete",
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:patient_detail", args=[self.patient.pk]))
+        self.encounter.refresh_from_db()
+        self.assertFalse(self.encounter.attended)
+        self.assertTrue(self.encounter.no_show)
+        self.assertEqual(self.encounter.status, EncounterStatus.NO_LLEGO)
+        self.assertFalse(GeneratedReport.objects.filter(encounter=self.encounter).exists())
+
+    def test_report_build_error_does_not_change_attendance(self):
+        self.encounter.no_show = True
+        self.encounter.attended = False
+        self.encounter.status = EncounterStatus.NO_LLEGO
+        self.encounter.save(update_fields=["no_show", "attended", "status", "updated_at"])
+        SpirometryResult.objects.create(encounter=self.encounter, respiratory_pattern="Normal")
+
+        with patch("clinic.views.build_reports_for_encounter", side_effect=RuntimeError("fallo controlado")):
+            response = self.client.post(
+                reverse("clinic:encounter_generate_report", args=[self.encounter.pk]),
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.encounter.refresh_from_db()
+        self.assertFalse(self.encounter.attended)
+        self.assertTrue(self.encounter.no_show)
+        self.assertEqual(self.encounter.status, EncounterStatus.NO_LLEGO)
+
+    def test_recycle_bin_can_purge_patient_and_associated_encounter(self):
+        self.patient.soft_delete(deleted_by=self.user)
+
+        response = self.client.post(
+            reverse("clinic:recycle_bin"),
+            {
+                "action": "purge_patient",
+                "patient_id": self.patient.pk,
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:recycle_bin"))
+        self.assertFalse(Patient.all_objects.filter(pk=self.patient.pk).exists())
+        self.assertFalse(Encounter.all_objects.filter(pk=self.encounter.pk).exists())
+
+    def test_recycle_bin_cannot_purge_an_active_patient(self):
+        response = self.client.post(
+            reverse("clinic:recycle_bin"),
+            {
+                "action": "purge_patient",
+                "patient_id": self.patient.pk,
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(Patient.objects.filter(pk=self.patient.pk).exists())
+        self.assertTrue(Encounter.objects.filter(pk=self.encounter.pk).exists())
+
+    def test_patient_detail_can_generate_mutual_report_only(self):
+        self.encounter.coverage_type = CoverageType.MUTUAL
+        self.encounter.save(update_fields=["coverage_type", "updated_at"])
+        SpirometryResult.objects.create(encounter=self.encounter, respiratory_pattern="Normal")
+
+        response = self.client.post(
+            reverse("clinic:patient_detail", args=[self.patient.pk]),
+            {
+                "action": "generate_patient_report",
+                "encounter_id": self.encounter.pk,
+                "report_scope": "mutual",
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:patient_detail", args=[self.patient.pk]))
+        reports = GeneratedReport.objects.filter(encounter=self.encounter)
+        self.assertEqual(reports.count(), 1)
+        self.assertEqual(reports.get().report_type, ReportType.MUTUAL)
+
+    def test_patient_detail_complete_report_includes_mutual_when_coverage_is_mutual(self):
+        self.encounter.coverage_type = CoverageType.MUTUAL
+        self.encounter.save(update_fields=["coverage_type", "updated_at"])
+        SpirometryResult.objects.create(encounter=self.encounter, respiratory_pattern="Normal")
+
+        response = self.client.post(
+            reverse("clinic:patient_detail", args=[self.patient.pk]),
+            {
+                "action": "generate_patient_report",
+                "encounter_id": self.encounter.pk,
+                "report_scope": "complete",
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:patient_detail", args=[self.patient.pk]))
+        report_types = set(GeneratedReport.objects.filter(encounter=self.encounter).values_list("report_type", flat=True))
+        self.assertIn(ReportType.COMPLETO, report_types)
+        self.assertIn(ReportType.MUTUAL, report_types)
+
 
 class CalendarEditingTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="calendar-edit", password="secret123")
+        grant_clinic_permissions(self.user, "manage_agenda")
         self.client.force_login(self.user)
         self.patient = Patient.objects.create(full_name="ARRIETA, LIDIA", dni="17124122")
         self.encounter = Encounter.objects.create(
@@ -1003,6 +2255,7 @@ class CalendarEditingTests(TestCase):
 class StatisticsMonthNavigationTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="stats-months", password="secret123")
+        grant_clinic_permissions(self.user, "view_clinical_statistics")
         self.client.force_login(self.user)
         patient = Patient.objects.create(full_name="MES, PRUEBA", dni="11111111")
         Encounter.objects.create(
@@ -1040,3 +2293,44 @@ class StatisticsMonthNavigationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
         self.assertIn("Mes actual", html)
+
+
+class ClinicalAccessControlTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="read-only", password="secret123")
+        self.client.force_login(self.user)
+        self.patient = Patient.objects.create(full_name="SOLO, LECTURA", dni="55666777")
+        self.encounter = Encounter.objects.create(
+            patient=self.patient,
+            encounter_date=date(2026, 7, 13),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+
+    def test_read_only_user_cannot_mutate_dashboard(self):
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "action": "inline_update",
+                "encounter_id": self.encounter.pk,
+                "field_name": "patient_name",
+                "value": "ALTERADO",
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.patient.refresh_from_db()
+        self.assertEqual(self.patient.full_name, "SOLO, LECTURA")
+
+    def test_read_only_user_cannot_delete_patient(self):
+        response = self.client.post(reverse("clinic:patient_delete", args=[self.patient.pk]))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Patient.objects.filter(pk=self.patient.pk).exists())
+
+    def test_specialized_sections_require_their_permissions(self):
+        self.assertEqual(self.client.get(reverse("clinic:doctor_review_list")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("clinic:statistics")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("clinic:recycle_bin")).status_code, 403)

@@ -13,6 +13,11 @@ from .models import (
 )
 
 
+admin.site.site_header = "Clínica Espiro"
+admin.site.site_title = "Clínica Espiro"
+admin.site.index_title = "Administración del sistema"
+
+
 class VitalSignsInline(admin.StackedInline):
     model = VitalSigns
     extra = 0

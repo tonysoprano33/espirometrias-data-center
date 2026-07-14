@@ -18,7 +18,10 @@
     }
     .doctor-review-header .section-title {
         margin: 2px 0 0;
-        font-size: clamp(1.15rem, 1.6vw, 1.55rem);
+        font-size: clamp(1.35rem, 1.9vw, 2rem);
+        color: #0d3f54;
+        letter-spacing: .02em;
+        font-weight: 900;
     }
     .doctor-review-header .pill {
         margin: 0;
@@ -32,6 +35,169 @@
     .doctor-review-actions .button {
         padding: 9px 12px;
         min-height: 0;
+    }
+    .review-queue-banner {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: minmax(260px, 1fr) auto;
+        gap: 14px;
+        align-items: center;
+        padding: 14px 16px;
+        border-radius: 18px;
+        border: 1px solid rgba(22, 101, 128, .18);
+        background:
+            radial-gradient(circle at top left, rgba(87, 199, 233, .16), transparent 30%),
+            linear-gradient(135deg, #f2fbff 0%, #fff8ea 100%);
+        box-shadow: 0 14px 30px rgba(24, 81, 103, .08);
+        position: sticky;
+        top: 10px;
+        z-index: 12;
+    }
+    .review-queue-heading {
+        margin: 0;
+        color: #0b3144;
+        font-size: clamp(1.05rem, 1.4vw, 1.3rem);
+    }
+    .review-queue-subtitle {
+        margin: 6px 0 0;
+        color: #4b6472;
+        font-size: .9rem;
+        font-weight: 700;
+    }
+    .review-queue-count {
+        color: #0d6f8a;
+        font-weight: 900;
+    }
+    .review-queue-actions-bar {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+    }
+    .review-navigation-row {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        justify-content: flex-end;
+        flex-wrap: nowrap;
+    }
+    .review-navigation-stack {
+        display: grid;
+        gap: 4px;
+        justify-items: end;
+    }
+    .review-prev-button {
+        background: linear-gradient(180deg, #63b8d1, #2f87a3);
+        box-shadow: 0 14px 28px rgba(47, 135, 163, .20);
+    }
+    .review-prev-button:hover {
+        background: linear-gradient(180deg, #71c3da, #3a95b1);
+        text-decoration: none;
+    }
+    .review-next-button {
+        background: linear-gradient(180deg, #ef9a2f, #d77c14);
+        box-shadow: 0 14px 28px rgba(215, 124, 20, .24);
+    }
+    .review-next-button:hover {
+        background: linear-gradient(180deg, #f3a742, #dc861f);
+        text-decoration: none;
+    }
+    .review-prev-button,
+    .review-next-button {
+        min-width: 184px;
+        justify-content: center;
+        text-align: center;
+    }
+    .review-queue-empty {
+        display: inline-flex;
+        align-items: center;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(255,255,255,.82);
+        border: 1px solid rgba(148, 163, 184, .28);
+        color: #47606d;
+        font-weight: 800;
+    }
+    .review-next-caption {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: nowrap;
+        justify-content: flex-end;
+        color: #47606d;
+        font-size: .82rem;
+        font-weight: 700;
+        text-align: right;
+        max-width: 220px;
+        white-space: nowrap;
+        overflow: hidden;
+    }
+    .review-prev-caption {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: nowrap;
+        justify-content: flex-end;
+        color: #47606d;
+        font-size: .82rem;
+        font-weight: 700;
+        text-align: right;
+        max-width: 220px;
+        white-space: nowrap;
+        overflow: hidden;
+    }
+    .review-queue-time {
+        display: inline-flex;
+        align-items: center;
+        flex: 0 0 auto;
+        padding: 4px 9px;
+        border-radius: 999px;
+        background: rgba(13, 111, 138, .10);
+        border: 1px solid rgba(13, 111, 138, .20);
+        color: #0b5f78;
+        font-size: .72rem;
+        font-weight: 900;
+        letter-spacing: .02em;
+        white-space: nowrap;
+    }
+    .review-queue-name {
+        display: inline-block;
+        min-width: 0;
+        color: #123a4b;
+        font-size: .98rem;
+        font-weight: 900;
+        letter-spacing: .01em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .review-queue-live {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        background: #fff4d6;
+        border: 1px solid #f0be5a;
+        color: #8a4e00;
+        font-size: .82rem;
+        font-weight: 900;
+        letter-spacing: .02em;
+        text-transform: uppercase;
+    }
+    .review-queue-live::before {
+        content: "!";
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        border-radius: 999px;
+        background: #ef9a2f;
+        color: #fff;
+        font-size: .86rem;
+        font-weight: 900;
     }
     .doctor-profile-strip {
         display: grid;
@@ -101,13 +267,13 @@
     .review-panel-compact {
         position: sticky;
         top: 10px;
-        padding: 12px;
+        padding: 10px;
         max-height: calc(100vh - 24px);
         overflow: auto;
     }
     .review-panel-compact .suggestion-box {
-        margin: 8px 0 10px;
-        padding: 12px;
+        margin: 0 0 8px;
+        padding: 10px;
         border: 2px solid #6eb8d8;
         border-radius: 16px;
         background: linear-gradient(180deg, #eefafd, #d9f3fb);
@@ -129,18 +295,28 @@
         background: rgba(255,255,255,.9);
     }
     .review-panel-compact .suggestion-box .suggestion-code {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 52px;
+        min-height: 48px;
+        padding: 8px 10px;
+        border-radius: 10px;
         background: linear-gradient(180deg, #38a8d2, #2088b2);
         border: 1px solid #17799e;
         color: #fff;
+        font-size: 1.35rem;
+        font-weight: 900;
     }
     .review-panel-compact .measurement-grid {
-        grid-template-columns: 1fr;
-        gap: 5px;
-        margin-top: 8px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+        margin-top: 7px;
     }
     .review-panel-compact .measurement-grid div {
-        padding: 6px 8px;
-        font-size: .82rem;
+        padding: 6px;
+        font-size: .76rem;
+        line-height: 1.2;
     }
     .review-panel-compact .field label {
         margin-bottom: 4px;
@@ -185,7 +361,7 @@
         border-top: 1px dashed rgba(23,49,63,.14);
     }
     .doctor-result-field {
-        padding: 14px;
+        padding: 11px 12px;
         border: 3px solid #e38b22;
         border-radius: 16px;
         background: linear-gradient(180deg, #fff7d6, #fff0b5);
@@ -195,44 +371,65 @@
     .doctor-result-field label {
         display: block;
         color: #8a4300;
-        font-size: 1.18rem;
+        font-size: 1rem;
         font-weight: 900;
         text-transform: uppercase;
         letter-spacing: .04em;
     }
     .doctor-result-field input {
         width: 100%;
-        min-height: 68px;
-        margin-top: 8px;
+        min-height: 54px;
+        margin-top: 6px;
         border: 3px solid #d3a900;
         border-radius: 14px;
         background: #fffdf2;
         color: #0f3344;
-        font-size: 2rem;
+        font-size: 1.7rem;
         font-weight: 900;
         text-transform: uppercase;
         letter-spacing: .05em;
         transition: border-color .18s ease, background .18s ease, color .18s ease, box-shadow .18s ease;
     }
     .doctor-result-help {
-        margin: 8px 0 0;
+        margin: 6px 0 0;
         color: #7a3a00;
-        font-size: .92rem;
+        font-size: .82rem;
         font-weight: 800;
     }
     .doctor-result-state {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        margin-top: 10px;
-        padding: 6px 10px;
+        margin-top: 7px;
+        padding: 5px 9px;
         border-radius: 999px;
         background: rgba(227, 139, 34, .12);
         color: #8a4300;
-        font-size: .82rem;
+        font-size: .74rem;
         font-weight: 900;
         letter-spacing: .03em;
         text-transform: uppercase;
+    }
+    .bronchodilator-field {
+        margin-top: 8px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(46, 155, 194, .22);
+        background: rgba(237, 250, 255, .9);
+    }
+    .bronchodilator-field label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        color: #1e607c;
+        font-weight: 800;
+    }
+    .bronchodilator-field input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        margin: 0;
+        accent-color: #1f9bc2;
     }
     .doctor-result-field.has-value {
         border-color: #d3a900;
@@ -258,8 +455,8 @@
         color: #1d6c43;
     }
     .save-result-button {
-        min-height: 58px;
-        font-size: 1.2rem;
+        min-height: 48px;
+        font-size: 1.05rem;
         font-weight: 900;
         text-transform: uppercase;
         box-shadow: 0 14px 30px rgba(13, 111, 138, .22);
@@ -293,7 +490,25 @@
         .review-workspace {
             grid-template-columns: 1fr;
         }
+        .review-queue-banner {
+            grid-template-columns: 1fr;
+        }
         .doctor-review-actions {
+            justify-content: flex-start;
+        }
+        .review-queue-actions-bar {
+            align-items: stretch;
+        }
+        .review-navigation-row {
+            justify-content: flex-start;
+            flex-wrap: wrap;
+        }
+        .review-navigation-stack {
+            justify-items: stretch;
+        }
+        .review-prev-caption,
+        .review-next-caption {
+            text-align: left;
             justify-content: flex-start;
         }
         .doctor-profile-strip {
@@ -329,10 +544,77 @@
     </div>
 
     <div class="doctor-review-actions">
-        {% if pdf_attachment %}
-            <a class="button" href="{{ pdf_attachment.file.url }}" target="_blank" rel="noopener">Abrir archivo grande</a>
-            <a class="button alt" href="{{ pdf_attachment.file.url }}" download>Descargar archivo</a>
+        {% if pdf_attachment_url %}
+            <a class="button" href="{{ pdf_attachment_url }}" target="_blank" rel="noopener">Abrir archivo grande</a>
+            <a class="button alt" href="{{ pdf_attachment_url }}" download>Descargar archivo</a>
+        {% elif pdf_attachment %}
+            <span class="muted">Archivo original no disponible</span>
         {% endif %}
+    </div>
+
+    <div
+        class="review-queue-banner"
+        data-review-queue
+        data-queue-endpoint="{% url 'clinic:doctor_review_queue_state' encounter.pk %}"
+        data-initial-pending-ids="{% for item in review_queue.pending_encounters %}{{ item.pk }}{% if not forloop.last %},{% endif %}{% endfor %}"
+    >
+        <div>
+            <p class="pill" style="margin:0 0 6px;">Navegacion del doctor</p>
+            <h2 class="review-queue-heading" data-queue-heading>
+                {% if review_queue.pending_total %}
+                    Quedan <span class="review-queue-count" data-queue-total>{{ review_queue.pending_total }}</span> pacientes pendientes para esta fecha.
+                {% else %}
+                    No quedan pacientes pendientes para diagnosticar hoy.
+                {% endif %}
+            </h2>
+            <p class="review-queue-subtitle" data-queue-subtitle>
+                {% if review_queue.current_is_pending %}
+                    Esta ficha sigue pendiente. Solo se descuenta cuando guardas el resultado y queda en verde.
+                {% elif review_queue.pending_total %}
+                    Esta ficha ya no esta en pendiente. Si queres, podes saltar directo a la siguiente lista para revisar.
+                {% else %}
+                    Cuando llegue una nueva ficha con PDF y atencion marcada, te la voy a señalar aca.
+                {% endif %}
+            </p>
+            <div class="review-queue-live" data-queue-live style="display:none;"></div>
+        </div>
+        <div class="review-queue-actions-bar">
+            <div class="review-navigation-row">
+                <div class="review-navigation-stack">
+                    <a
+                        class="button review-prev-button"
+                        data-prev-review-link
+                        href="{% if previous_review_encounter %}{% url 'clinic:doctor_review_detail' previous_review_encounter.pk %}{% endif %}"
+                        {% if not previous_review_encounter %}style="display:none;"{% endif %}
+                    >
+                        Anterior paciente <-
+                    </a>
+                    <span class="review-prev-caption" data-prev-review-caption {% if not previous_review_encounter %}style="display:none;"{% endif %}>
+                        {% if previous_review_encounter %}
+                            {% if previous_review_encounter.encounter_time %}<span class="review-queue-time">{{ previous_review_encounter.encounter_time|time:"H:i" }}</span>{% endif %}
+                            <span class="review-queue-name">{{ previous_review_encounter.patient.full_name }}</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="review-navigation-stack">
+                    <a
+                        class="button review-next-button"
+                        data-next-review-link
+                        href="{% if next_review_encounter %}{% url 'clinic:doctor_review_detail' next_review_encounter.pk %}{% endif %}"
+                        {% if not next_review_encounter %}style="display:none;"{% endif %}
+                    >
+                        {% if review_queue.current_is_pending %}Siguiente paciente ->{% else %}Abrir pendiente ->{% endif %}
+                    </a>
+                    <span class="review-next-caption" data-next-review-caption {% if not next_review_encounter %}style="display:none;"{% endif %}>
+                        {% if next_review_encounter %}
+                            {% if next_review_encounter.encounter_time %}<span class="review-queue-time">{{ next_review_encounter.encounter_time|time:"H:i" }}</span>{% endif %}
+                            <span class="review-queue-name">{{ next_review_encounter.patient.full_name }}</span>
+                        {% endif %}
+                    </span>
+                    <span class="review-queue-empty" data-next-review-empty {% if next_review_encounter %}style="display:none;"{% endif %}>No hay siguiente pendiente</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     {% if patient_profile_available %}
@@ -433,20 +715,19 @@
                     </div>
                 </div>
             </details>
-            <p class="pill">Resultado medico</p>
             {% if spirometry_suggestion %}
                 <div class="suggestion-box">
                     <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
                         <div>
-                            <div class="muted" style="font-weight:bold;">Sugerido por valores del PDF</div>
+                            <div class="muted" style="font-weight:bold;">Orientacion automatica por valores del PDF</div>
                             <span class="suggestion-code" data-suggested-code>{{ spirometry_suggestion.code }}</span>
                         </div>
                         <button class="button small alt" type="button" data-use-suggestion>Usar sugerido</button>
                     </div>
                     {% if spirometry_suggestion.probability_phrase %}
-                        <p style="margin:10px 0 0;"><strong>{{ spirometry_suggestion.probability_phrase }}</strong></p>
+                        <p style="margin:7px 0 0;"><strong>{{ spirometry_suggestion.probability_phrase }}</strong></p>
                     {% endif %}
-                    <p class="muted" style="margin:10px 0 0;">{{ spirometry_suggestion.reason }}</p>
+                    <p class="muted" style="margin:6px 0 0;line-height:1.25;">{{ spirometry_suggestion.reason }}</p>
                     <div class="measurement-grid">
                         <div>
                             <strong>FVC</strong><br>
@@ -467,8 +748,14 @@
                             % {{ spirometry_suggestion.values.fev1_fvc.percent|default:"-" }}
                         </div>
                     </div>
-                    <p class="muted" style="font-size:.84rem;margin-bottom:0;">
-                        Es ayuda para carga rapida. La decision final queda en la revision medica.
+                    {% if spirometry_suggestion.bronchodilator_positive %}
+                        <p style="margin:10px 0 0;"><strong>Broncodilatador positivo</strong></p>
+                        {% if spirometry_suggestion.bronchodilator_reason %}
+                            <p class="muted" style="margin:6px 0 0;">{{ spirometry_suggestion.bronchodilator_reason }}</p>
+                        {% endif %}
+                    {% endif %}
+                    <p class="muted" style="font-size:.76rem;margin:6px 0 0;line-height:1.25;">
+                        La calidad indicada corresponde a la lectura de los datos, no a certeza diagnostica. La decision final es del medico.
                     </p>
                 </div>
             {% endif %}
@@ -484,8 +771,17 @@
                         <div class="muted">{{ form.respiratory_result.errors }}</div>
                     {% endif %}
                 </div>
+                <div class="field bronchodilator-field">
+                    <label for="{{ form.bronchodilator_positive.id_for_label }}">
+                        {{ form.bronchodilator_positive }}
+                        <span>Marcar broncodilatador positivo en el informe</span>
+                    </label>
+                    {% if form.bronchodilator_positive.errors %}
+                        <div class="muted">{{ form.bronchodilator_positive.errors }}</div>
+                    {% endif %}
+                </div>
             </div>
-            <p class="muted" style="margin:12px 0 0;">
+            <p class="muted" style="margin:8px 0 0;font-size:.82rem;">
                 Codigos: N, OL, OM, OMS, OS, RL, RM, RMS, RS o mixto tipo RLOMS.
             </p>
             <datalist id="result-code-options">
@@ -493,7 +789,7 @@
                     <option value="{{ value }}">{{ label }}</option>
                 {% endfor %}
             </datalist>
-            <button class="button save-result-button" type="submit" style="margin-top:18px;width:100%;">Guardar resultado</button>
+            <button class="button save-result-button" type="submit" style="margin-top:10px;width:100%;">Guardar resultado</button>
         </form>
     </aside>
 </section>
@@ -514,6 +810,204 @@
         var suggestedCode = document.querySelector("[data-suggested-code]");
         var doctorResultField = document.querySelector("[data-doctor-result-field]");
         var doctorResultState = document.querySelector("[data-doctor-result-state]");
+        var reviewQueueNode = document.querySelector("[data-review-queue]");
+        var queueHeading = document.querySelector("[data-queue-heading]");
+        var queueSubtitle = document.querySelector("[data-queue-subtitle]");
+        var queueTotalNode = document.querySelector("[data-queue-total]");
+        var queueLiveNode = document.querySelector("[data-queue-live]");
+        var previousReviewLink = document.querySelector("[data-prev-review-link]");
+        var previousReviewCaption = document.querySelector("[data-prev-review-caption]");
+        var nextReviewLink = document.querySelector("[data-next-review-link]");
+        var nextReviewCaption = document.querySelector("[data-next-review-caption]");
+        var nextReviewEmpty = document.querySelector("[data-next-review-empty]");
+        var knownPendingIds = [];
+
+        function parsePendingIds(rawValue) {
+            return String(rawValue || "")
+                .split(",")
+                .map(function (value) { return String(value || "").trim(); })
+                .filter(function (value) { return value; });
+        }
+
+        function setQueueLiveMessage(message, href) {
+            if (!queueLiveNode) return;
+            if (!message) {
+                queueLiveNode.style.display = "none";
+                queueLiveNode.textContent = "";
+                queueLiveNode.removeAttribute("data-href");
+                queueLiveNode.style.cursor = "";
+                return;
+            }
+            queueLiveNode.textContent = message;
+            queueLiveNode.style.display = "inline-flex";
+            if (href) {
+                queueLiveNode.setAttribute("data-href", href);
+                queueLiveNode.style.cursor = "pointer";
+            } else {
+                queueLiveNode.removeAttribute("data-href");
+                queueLiveNode.style.cursor = "";
+            }
+        }
+
+        function escapeHtml(value) {
+            return String(value || "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
+        function renderQueueCaption(label) {
+            var parts;
+            var timePart;
+            var namePart;
+            parts = String(label || "").split(" - ");
+            if (parts.length > 1) {
+                timePart = parts.shift();
+                namePart = parts.join(" - ");
+            } else {
+                timePart = "";
+                namePart = String(label || "");
+            }
+            if (!namePart) {
+                return "";
+            }
+            return (timePart ? '<span class="review-queue-time">' + escapeHtml(timePart) + '</span>' : "") +
+                '<span class="review-queue-name">' + escapeHtml(namePart) + '</span>';
+        }
+
+        function updateQueueNavigation(payload) {
+            var total;
+            var remaining;
+            var currentIsPending;
+            var previousLabel;
+            var previousUrl;
+            var nextLabel;
+            var nextUrl;
+            total = Number(payload && payload.pending_total ? payload.pending_total : 0);
+            remaining = Number(payload && payload.remaining_after_current ? payload.remaining_after_current : 0);
+            currentIsPending = !!(payload && payload.current_is_pending);
+            previousLabel = String((payload && payload.previous_encounter_label) || payload.previous_encounter_name || "");
+            previousUrl = String((payload && payload.previous_encounter_url) || "");
+            nextLabel = String((payload && payload.next_encounter_label) || payload.next_encounter_name || "");
+            nextUrl = String((payload && payload.next_encounter_url) || "");
+
+            if (queueTotalNode) {
+                queueTotalNode.textContent = String(total);
+            }
+
+            if (queueHeading) {
+                if (currentIsPending) {
+                    queueHeading.innerHTML = 'Quedan <span class="review-queue-count" data-queue-total>' + String(total) + '</span> pacientes pendientes para esta fecha.';
+                    queueTotalNode = queueHeading.querySelector("[data-queue-total]");
+                } else if (total > 0) {
+                    queueHeading.innerHTML = 'Hay <span class="review-queue-count" data-queue-total>' + String(total) + '</span> pacientes pendientes para esta fecha.';
+                    queueTotalNode = queueHeading.querySelector("[data-queue-total]");
+                } else {
+                    queueHeading.textContent = "No quedan pacientes pendientes para diagnosticar hoy.";
+                }
+            }
+
+            if (queueSubtitle) {
+                if (currentIsPending) {
+                    queueSubtitle.textContent = "Estas revisando la ficha " + String(payload.current_index || 1) + " de " + String(total) + " listas para diagnostico del " + String(payload.queue_date_label || "");
+                } else if (total > 0) {
+                    queueSubtitle.textContent = "Esta ficha ya no esta en pendiente. Si queres, podes saltar directo a la siguiente lista para revisar.";
+                } else {
+                    queueSubtitle.textContent = "Cuando llegue una nueva ficha con PDF y atencion marcada, te la voy a señalar aca.";
+                }
+            }
+
+            if (previousReviewLink) {
+                if (previousUrl) {
+                    previousReviewLink.href = previousUrl;
+                    previousReviewLink.style.display = "";
+                } else {
+                    previousReviewLink.style.display = "none";
+                }
+            }
+            if (previousReviewCaption) {
+                previousReviewCaption.innerHTML = previousLabel ? renderQueueCaption(previousLabel) : "";
+                previousReviewCaption.style.display = previousLabel ? "" : "none";
+            }
+
+            if (nextUrl) {
+                if (nextReviewLink) {
+                    nextReviewLink.href = nextUrl;
+                    nextReviewLink.textContent = currentIsPending ? "Siguiente paciente ->" : "Ir al primer pendiente ->";
+                    nextReviewLink.style.display = "";
+                }
+                if (nextReviewCaption) {
+                    nextReviewCaption.innerHTML = nextLabel ? renderQueueCaption(nextLabel) : "";
+                    nextReviewCaption.style.display = nextLabel ? "" : "none";
+                }
+                if (nextReviewEmpty) {
+                    nextReviewEmpty.style.display = "none";
+                }
+            } else {
+                if (nextReviewLink) {
+                    nextReviewLink.style.display = "none";
+                }
+                if (nextReviewCaption) {
+                    nextReviewCaption.textContent = "";
+                    nextReviewCaption.style.display = "none";
+                }
+                if (nextReviewEmpty) {
+                    nextReviewEmpty.style.display = "";
+                    nextReviewEmpty.textContent = "No hay siguiente pendiente";
+                }
+            }
+        }
+
+        function pollReviewQueue() {
+            var endpoint = reviewQueueNode ? reviewQueueNode.getAttribute("data-queue-endpoint") : "";
+            var xhr;
+            if (!endpoint || !window.XMLHttpRequest) return;
+            if (document.hidden) return;
+            xhr = new XMLHttpRequest();
+            xhr.open("GET", endpoint, true);
+            xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+            xhr.onreadystatechange = function () {
+                var payload;
+                var freshIds;
+                var hasNewPending;
+                if (xhr.readyState !== 4 || xhr.status < 200 || xhr.status >= 300) return;
+                try {
+                    payload = JSON.parse(xhr.responseText || "{}");
+                } catch (error) {
+                    payload = {};
+                }
+                if (!payload.ok) return;
+                freshIds = (payload.pending_ids || []).map(function (value) { return String(value); });
+                hasNewPending = freshIds.some(function (value) { return knownPendingIds.indexOf(value) === -1; });
+                updateQueueNavigation(payload);
+                if (hasNewPending && payload.next_encounter_url) {
+                    setQueueLiveMessage("Nueva ficha lista: " + String(payload.next_encounter_name || "abrir revision") + ".", payload.next_encounter_url);
+                } else if (!hasNewPending) {
+                    setQueueLiveMessage("");
+                }
+                knownPendingIds = freshIds;
+            };
+            xhr.send();
+        }
+
+        if (reviewQueueNode) {
+            knownPendingIds = parsePendingIds(reviewQueueNode.getAttribute("data-initial-pending-ids"));
+            if (queueLiveNode) {
+                queueLiveNode.addEventListener("click", function () {
+                    var href = queueLiveNode.getAttribute("data-href");
+                    if (href) {
+                        window.location.href = href;
+                    }
+                });
+            }
+            pollReviewQueue();
+            window.setInterval(pollReviewQueue, 60000);
+            document.addEventListener("visibilitychange", function () {
+                if (!document.hidden) pollReviewQueue();
+            });
+        }
 
         function syncDoctorResultState() {
             if (!doctorResultField || !resultInputs.length) {

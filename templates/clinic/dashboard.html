@@ -114,6 +114,42 @@
     .danger-link {
         color: #b64731;
     }
+    .stats-strip {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+    .stats-strip .stat {
+        padding: 12px 14px;
+        border-radius: 16px;
+        border: 1px solid rgba(23,49,63,.08);
+        background: rgba(255,255,255,.94);
+    }
+    .stats-strip .stat strong {
+        display: block;
+        font-size: 1.5rem;
+        margin-top: 4px;
+        color: #0f3344;
+    }
+    .stats-strip .stat.pending {
+        background: linear-gradient(180deg, rgba(229,231,235,.96), rgba(255,255,255,.98));
+        border-color: rgba(100,116,139,.18);
+    }
+    .stats-strip .stat.waiting {
+        background: linear-gradient(180deg, rgba(255,243,205,.96), rgba(255,255,255,.98));
+        border-color: rgba(245,158,11,.20);
+    }
+    .stats-strip .stat.reviewed,
+    .stats-strip .stat.generated,
+    .stats-strip .stat.done {
+        background: linear-gradient(180deg, rgba(220,252,231,.96), rgba(255,255,255,.98));
+        border-color: rgba(34,197,94,.20);
+    }
+    .stats-strip .stat.missed {
+        background: linear-gradient(180deg, rgba(255,228,219,.96), rgba(255,255,255,.98));
+        border-color: rgba(157,61,34,.20);
+    }
     .ops-strip {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -217,10 +253,11 @@
     }
     .encounter-summary-name {
         display: block;
-        font-size: .94rem;
-        font-weight: bold;
-        color: var(--ink);
+        font-size: 1.02rem;
+        font-weight: 900;
+        color: #143d52;
         line-height: 1.1;
+        letter-spacing: .01em;
     }
     .encounter-summary-meta {
         display: flex;
@@ -255,6 +292,53 @@
     }
     .encounter-summary-pill.status {
         background: rgba(234,240,243,.95);
+        border-color: rgba(148,163,184,.28);
+        color: #334155;
+        font-weight: 800;
+    }
+    .encounter-summary-pill.status.pending,
+    .status-badge.pending {
+        background: rgba(226,232,240,.96);
+        color: #475569;
+        border-color: rgba(100,116,139,.22);
+    }
+    .encounter-summary-pill.status.waiting,
+    .status-badge.waiting {
+        background: rgba(255,237,213,.96);
+        color: #9a4d00;
+        border-color: rgba(245,158,11,.22);
+    }
+    .encounter-summary-pill.status.reviewed,
+    .encounter-summary-pill.status.generated,
+    .encounter-summary-pill.status.done,
+    .status-badge.reviewed,
+    .status-badge.generated,
+    .status-badge.done {
+        background: rgba(220,252,231,.96);
+        color: #166534;
+        border-color: rgba(34,197,94,.22);
+    }
+    .encounter-summary-pill.status.missed,
+    .status-badge.missed {
+        background: rgba(255,228,219,.96);
+        color: #9d3d22;
+        border-color: rgba(157,61,34,.22);
+    }
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 32px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(148,163,184,.24);
+        background: rgba(241,245,249,.96);
+        color: #334155;
+        font-size: .8rem;
+        font-weight: 900;
+        line-height: 1;
+        text-transform: uppercase;
+        letter-spacing: .02em;
     }
     .encounter-summary-toggle {
         border: 1px solid rgba(23,49,63,.12);
@@ -296,6 +380,33 @@
     .physician-search-input.is-unmatched {
         border-color: #e38b22;
         background: #fff7d6;
+    }
+    .vitals-manual-group {
+        display: grid;
+        gap: 4px;
+        justify-items: stretch;
+        width: 100%;
+    }
+    .so2-input,
+    .fc-input {
+        appearance: textfield;
+        -moz-appearance: textfield;
+    }
+    .so2-input::-webkit-inner-spin-button,
+    .so2-input::-webkit-outer-spin-button,
+    .fc-input::-webkit-inner-spin-button,
+    .fc-input::-webkit-outer-spin-button {
+        margin: 0;
+        -webkit-appearance: none;
+    }
+    .vitals-save-button {
+        width: 100%;
+        min-height: 30px;
+        padding: 5px 8px;
+        border-radius: 12px;
+        font-size: .72rem;
+        line-height: 1;
+        white-space: nowrap;
     }
     .drapp-box textarea {
         min-height: 180px;
@@ -566,6 +677,248 @@
             display: none !important;
         }
     }
+    @media (max-width: 1680px) and (min-width: 901px) {
+        .responsive-table-wrap.notebook-stack {
+            overflow-x: auto;
+        }
+        .responsive-table-wrap.notebook-stack .table {
+            display: block;
+            width: 100%;
+            min-width: 1210px;
+            table-layout: fixed;
+        }
+        .responsive-table-wrap.notebook-stack thead {
+            display: block;
+        }
+        .responsive-table-wrap.notebook-stack tbody {
+            display: block;
+        }
+        .responsive-table-wrap.notebook-stack thead tr,
+        .responsive-table-wrap.notebook-stack [data-encounter-row],
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed {
+            display: grid;
+            grid-template-columns: 38px 76px 150px 98px 72px 72px 142px 98px 98px 108px 92px 92px 160px;
+            align-items: center;
+            column-gap: 0;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-head,
+        .responsive-table-wrap.notebook-stack .encounter-summary-cell {
+            display: flex !important;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-head { grid-column: 1; }
+        .responsive-table-wrap.notebook-stack .encounter-summary-cell { grid-column: 1; }
+        .responsive-table-wrap.notebook-stack .time-cell { grid-column: 2; }
+        .responsive-table-wrap.notebook-stack .patient-cell { grid-column: 3; }
+        .responsive-table-wrap.notebook-stack .vitals-cell[data-label="DNI"] { grid-column: 4; }
+        .responsive-table-wrap.notebook-stack .study-cell { grid-column: 5; }
+        .responsive-table-wrap.notebook-stack .coverage-cell[data-label="Cobertura"] { grid-column: 6; }
+        .responsive-table-wrap.notebook-stack .coverage-cell[data-label="Dr. deriva"] { grid-column: 7; }
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"] { grid-column: 8; }
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"] { grid-column: 9; }
+        .responsive-table-wrap.notebook-stack .result-cell { grid-column: 10; }
+        .responsive-table-wrap.notebook-stack .attendance-cell { grid-column: 11; }
+        .responsive-table-wrap.notebook-stack .status-cell { grid-column: 12; }
+        .responsive-table-wrap.notebook-stack .td-actions { grid-column: 13; }
+        .responsive-table-wrap.notebook-stack thead th,
+        .responsive-table-wrap.notebook-stack [data-encounter-row] > td,
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed > td {
+            display: flex !important;
+            align-items: center;
+            min-width: 0;
+            padding: 7px 0;
+            border: none;
+            overflow: hidden;
+        }
+        .responsive-table-wrap.notebook-stack thead th {
+            justify-content: flex-start;
+            font-size: .7rem;
+            line-height: 1.05;
+            letter-spacing: .04em;
+            white-space: nowrap;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row],
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed {
+            min-height: 74px;
+            padding: 10px 6px;
+            border-bottom: 1px solid rgba(200,216,223,.9);
+            background: linear-gradient(90deg, rgba(235,245,252,.62) 0%, rgba(255,255,255,.98) 7%, rgba(255,255,255,.98) 100%);
+            box-shadow: none;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-cell {
+            justify-content: center;
+            align-self: stretch;
+            padding-right: 2px;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-shell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-top > div,
+        .responsive-table-wrap.notebook-stack .encounter-summary-meta,
+        .responsive-table-wrap.notebook-stack [data-toggle-label] {
+            display: none !important;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-toggle {
+            min-width: 28px;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            border-radius: 999px;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-toggle strong {
+            font-size: .8rem;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row] > td::before,
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed > td::before {
+            display: none !important;
+            content: none !important;
+        }
+        .responsive-table-wrap.notebook-stack .cell-input,
+        .responsive-table-wrap.notebook-stack .inline-input,
+        .responsive-table-wrap.notebook-stack .result-input,
+        .responsive-table-wrap.notebook-stack .physician-search-input {
+            min-height: 42px;
+            padding: 8px 12px;
+            font-size: .9rem;
+            border-radius: 14px;
+        }
+        .responsive-table-wrap.notebook-stack .cell-time {
+            width: 100%;
+            min-width: 0;
+            max-width: 92px;
+            text-align: center;
+            font-size: .92rem;
+        }
+        .responsive-table-wrap.notebook-stack .patient-inline-form {
+            display: block;
+            width: 100%;
+        }
+        .responsive-table-wrap.notebook-stack .patient-inline-dni {
+            display: none !important;
+        }
+        .responsive-table-wrap.notebook-stack .patient-cell .cell-input {
+            width: 100%;
+            min-width: 0;
+            font-size: .92rem;
+            font-weight: 800;
+        }
+        .responsive-table-wrap.notebook-stack .vitals-cell[data-label="DNI"] {
+            justify-content: flex-start;
+        }
+        .responsive-table-wrap.notebook-stack .vitals-cell[data-label="DNI"] .inline-display {
+            font-size: 1.05rem;
+            font-weight: 900;
+            letter-spacing: .03em;
+            white-space: nowrap;
+        }
+        .responsive-table-wrap.notebook-stack .study-cell .cell-select,
+        .responsive-table-wrap.notebook-stack td[data-label="Cobertura"] .cell-select {
+            width: 100%;
+            font-size: .9rem;
+            font-weight: 800;
+        }
+        .responsive-table-wrap.notebook-stack td[data-label="Dr. deriva"] .physician-search-wrap {
+            width: 100%;
+            gap: 2px;
+        }
+        .responsive-table-wrap.notebook-stack td[data-label="Dr. deriva"] .physician-search-input {
+            width: 100%;
+        }
+        .responsive-table-wrap.notebook-stack .physician-search-hint {
+            display: none;
+        }
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"],
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"] {
+            justify-content: flex-start;
+        }
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"]::before,
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"]::before {
+            display: none !important;
+        }
+        .responsive-table-wrap.notebook-stack .inline-pair {
+            gap: 6px;
+            flex-wrap: nowrap;
+            align-items: center;
+        }
+        .responsive-table-wrap.notebook-stack .inline-pair span {
+            font-size: 1rem;
+            font-weight: 800;
+            color: #254c61;
+        }
+        .responsive-table-wrap.notebook-stack .cell-small {
+            width: 56px;
+            max-width: 56px;
+            min-width: 56px;
+            min-height: 42px;
+            padding: 8px 10px;
+            text-align: center;
+            font-size: .9rem;
+            font-weight: 800;
+        }
+        .responsive-table-wrap.notebook-stack .result-cell,
+        .responsive-table-wrap.notebook-stack .attendance-cell,
+        .responsive-table-wrap.notebook-stack .status-cell {
+            justify-content: flex-start;
+        }
+        .responsive-table-wrap.notebook-stack .result-input {
+            width: 100%;
+            min-width: 0 !important;
+            max-width: none;
+            font-size: .9rem;
+            font-weight: 900;
+            text-align: left;
+        }
+        .responsive-table-wrap.notebook-stack .attendance-button {
+            min-height: 42px;
+            width: 100%;
+            justify-content: center;
+            padding: 8px 12px;
+            font-size: .88rem;
+        }
+        .responsive-table-wrap.notebook-stack .status-badge {
+            max-width: none;
+            white-space: nowrap;
+            font-size: .86rem;
+        }
+        .responsive-table-wrap.notebook-stack .td-actions {
+            align-self: center;
+            justify-content: flex-start;
+            overflow: visible;
+        }
+        .responsive-table-wrap.notebook-stack .td-actions > div {
+            display: flex !important;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px !important;
+            width: 100%;
+            min-width: 0 !important;
+        }
+        .responsive-table-wrap.notebook-stack .td-actions .button.small {
+            width: 100%;
+            max-width: 156px;
+            min-height: 38px;
+            font-size: .8rem;
+            padding: 7px 10px;
+        }
+        .responsive-table-wrap.notebook-stack .agenda-row-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px 6px;
+            align-items: center;
+        }
+        .responsive-table-wrap.notebook-stack .td-actions a,
+        .responsive-table-wrap.notebook-stack .td-actions .link-button {
+            font-size: .74rem;
+            line-height: 1.15;
+        }
+        .responsive-table-wrap.notebook-stack [data-report-links] {
+            display: none !important;
+        }
+        .responsive-table-wrap.notebook-stack [data-report-help] {
+            display: none !important;
+        }
+    }
     @media (max-width: 1250px) {
         .responsive-table-wrap.notebook-stack .table {
             min-width: 980px;
@@ -579,46 +932,41 @@
             border-radius: 12px;
         }
         .responsive-table-wrap.notebook-stack .table {
-            min-width: 920px;
+            min-width: 1100px;
         }
         .responsive-table-wrap.notebook-stack thead tr,
         .responsive-table-wrap.notebook-stack [data-encounter-row] {
-            grid-template-columns: 24px 46px minmax(112px, 1fr) 74px 34px 34px minmax(128px, 1.04fr) 62px 62px 54px 62px 56px 78px;
-        }
-        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed {
-            grid-template-columns: 24px 46px minmax(120px, 1.05fr) 74px 34px 34px minmax(128px, 1.04fr) 62px 62px 54px 62px 56px;
+            grid-template-columns: 34px 70px 138px 90px 60px 60px 126px 90px 90px 98px 82px 82px 146px;
+            column-gap: 0;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row] {
-            min-height: 40px;
-            border-radius: 10px;
+            min-height: 68px;
+            border-radius: 0;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row] > td,
         .responsive-table-wrap.notebook-stack thead th {
-            padding: 3px 3px;
+            padding: 6px 4px;
         }
         .responsive-table-wrap.notebook-stack thead th {
-            font-size: .52rem;
+            font-size: .66rem;
         }
         .responsive-table-wrap.notebook-stack .cell-input,
         .responsive-table-wrap.notebook-stack .inline-input,
         .responsive-table-wrap.notebook-stack .result-input {
-            min-height: 22px;
-            padding: 2px 4px;
-            border-radius: 7px;
-            font-size: .62rem;
+            min-height: 38px;
+            padding: 7px 10px;
+            border-radius: 12px;
+            font-size: .84rem;
         }
         .responsive-table-wrap.notebook-stack .cell-time {
-            font-size: .62rem;
+            font-size: .86rem;
         }
         .responsive-table-wrap.notebook-stack .patient-cell .cell-input {
-            font-size: .66rem;
+            font-size: .86rem;
             border-left-width: 4px;
         }
         .responsive-table-wrap.notebook-stack .patient-inline-dni {
-            display: inline-flex;
-            max-width: 68px;
-            font-size: .58rem;
-            padding: 2px 5px;
+            display: none !important;
         }
         .responsive-table-wrap.notebook-stack .vitals-cell[data-label="DNI"] .inline-display {
             max-width: 100%;
@@ -626,7 +974,7 @@
             border: none;
             background: transparent;
             color: #0d3f55;
-            font-size: .68rem;
+            font-size: .96rem;
             line-height: 1;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -636,69 +984,339 @@
         .responsive-table-wrap.notebook-stack td[data-label="Cobertura"] .cell-select,
         .responsive-table-wrap.notebook-stack td[data-label="Dr. deriva"] .cell-select,
         .responsive-table-wrap.notebook-stack .physician-search-input {
-            min-height: 22px;
-            font-size: .62rem;
+            min-height: 38px;
+            font-size: .82rem;
             line-height: 1;
         }
         .responsive-table-wrap.notebook-stack td[data-label="Dr. deriva"] .cell-select,
         .responsive-table-wrap.notebook-stack .physician-search-input {
-            padding-left: 3px;
-            padding-right: 14px;
+            padding-left: 8px;
+            padding-right: 10px;
         }
         .responsive-table-wrap.notebook-stack .physician-search-hint {
             display: none;
         }
         .responsive-table-wrap.notebook-stack .cell-small {
-            width: 29px;
-            max-width: 29px;
-            min-height: 22px;
-            font-size: .58rem;
+            width: 50px;
+            max-width: 50px;
+            min-width: 50px;
+            min-height: 38px;
+            font-size: .84rem;
         }
         .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"]::before,
         .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"]::before {
-            width: 12px;
-            height: 16px;
-            flex-basis: 12px;
-            font-size: .5rem;
+            display: none !important;
         }
         .responsive-table-wrap.notebook-stack .inline-pair {
-            gap: 1px;
+            gap: 5px;
         }
         .responsive-table-wrap.notebook-stack .inline-pair span {
-            font-size: .56rem;
+            font-size: .88rem;
         }
         .responsive-table-wrap.notebook-stack .result-input {
-            width: 48px !important;
-            min-width: 48px !important;
-            max-width: 48px;
-            font-size: .58rem;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none;
+            font-size: .84rem;
             border-width: 1px;
         }
         .responsive-table-wrap.notebook-stack .attendance-button,
         .responsive-table-wrap.notebook-stack .button.small {
-            padding: 3px 4px;
-            border-radius: 7px;
-            font-size: .58rem;
+            padding: 7px 10px;
+            border-radius: 12px;
+            font-size: .8rem;
             line-height: 1;
-            min-height: 22px;
+            min-height: 38px;
         }
         .responsive-table-wrap.notebook-stack .status-badge {
-            max-width: 58px;
-            padding: 3px 4px;
-            border-radius: 7px;
-            font-size: .58rem;
+            max-width: none;
+            padding: 7px 10px;
+            border-radius: 12px;
+            font-size: .8rem;
             line-height: 1;
         }
         .responsive-table-wrap.notebook-stack .td-actions > div {
-            gap: 1px !important;
+            gap: 6px !important;
         }
         .responsive-table-wrap.notebook-stack .td-actions .button.small {
-            max-width: 54px;
+            max-width: 144px;
         }
         .responsive-table-wrap.notebook-stack .td-actions a,
         .responsive-table-wrap.notebook-stack .td-actions .muted,
         .responsive-table-wrap.notebook-stack .td-actions .link-button {
-            font-size: .52rem;
+            font-size: .72rem;
+        }
+    }
+    @media (max-width: 1850px) and (min-width: 681px) {
+        .responsive-table-wrap.notebook-stack {
+            overflow-x: visible;
+            border: none;
+            background: transparent;
+            box-shadow: none;
+        }
+        .responsive-table-wrap.notebook-stack .table {
+            display: block;
+            width: 100%;
+            min-width: 0 !important;
+            border-spacing: 0;
+        }
+        .responsive-table-wrap.notebook-stack thead {
+            display: none !important;
+        }
+        .responsive-table-wrap.notebook-stack tbody {
+            display: grid;
+            gap: 8px;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row],
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed {
+            display: grid !important;
+            grid-template-columns: 32px 66px minmax(120px, 1.35fr) minmax(82px, .72fr) minmax(80px, .58fr) minmax(80px, .58fr) 72px minmax(96px, .55fr);
+            grid-template-areas:
+                "toggle time patient dni result attendance status actions"
+                "toggle study coverage doctor rest post post actions";
+            align-items: center;
+            gap: 6px;
+            min-height: 96px;
+            padding: 9px;
+            border: 1px solid rgba(19, 60, 78, .12);
+            border-radius: 16px;
+            background: linear-gradient(90deg, rgba(235, 245, 252, .72) 0 62px, rgba(255,255,255,.98) 62px 100%);
+            box-shadow: 0 8px 20px rgba(17, 50, 68, .07);
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row] > td,
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed > td {
+            display: flex !important;
+            align-items: center;
+            min-width: 0;
+            width: auto;
+            min-height: 0;
+            padding: 0 !important;
+            border: none;
+            overflow: visible;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row] > td::before,
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed > td::before {
+            display: none !important;
+            content: none !important;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-cell {
+            grid-area: toggle;
+            align-self: stretch;
+            justify-content: center;
+            background: transparent;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-shell,
+        .responsive-table-wrap.notebook-stack .encounter-summary-top {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-top > div,
+        .responsive-table-wrap.notebook-stack .encounter-summary-meta,
+        .responsive-table-wrap.notebook-stack [data-toggle-label] {
+            display: none !important;
+        }
+        .responsive-table-wrap.notebook-stack .encounter-summary-toggle {
+            min-width: 28px;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            border-radius: 999px;
+            background: #ffffff;
+            box-shadow: 0 2px 8px rgba(14, 63, 82, .08);
+        }
+        .responsive-table-wrap.notebook-stack .time-cell { grid-area: time; }
+        .responsive-table-wrap.notebook-stack .patient-cell { grid-area: patient; }
+        .responsive-table-wrap.notebook-stack .vitals-cell[data-label="DNI"] { grid-area: dni; }
+        .responsive-table-wrap.notebook-stack .study-cell { grid-area: study; }
+        .responsive-table-wrap.notebook-stack .coverage-cell[data-label="Cobertura"] { grid-area: coverage; }
+        .responsive-table-wrap.notebook-stack .coverage-cell[data-label="Dr. deriva"] { grid-area: doctor; }
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"] { grid-area: rest; }
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"] { grid-area: post; }
+        .responsive-table-wrap.notebook-stack .result-cell { grid-area: result; }
+        .responsive-table-wrap.notebook-stack .attendance-cell { grid-area: attendance; }
+        .responsive-table-wrap.notebook-stack .status-cell { grid-area: status; }
+        .responsive-table-wrap.notebook-stack .td-actions {
+            grid-area: actions;
+            align-self: stretch;
+            align-items: center;
+            justify-content: center;
+        }
+        .responsive-table-wrap.notebook-stack .cell-input,
+        .responsive-table-wrap.notebook-stack .inline-input,
+        .responsive-table-wrap.notebook-stack .result-input,
+        .responsive-table-wrap.notebook-stack .physician-search-input {
+            min-height: 36px;
+            padding: 7px 9px;
+            border-radius: 11px;
+            font-size: .82rem;
+            line-height: 1.05;
+        }
+        .responsive-table-wrap.notebook-stack .cell-time {
+            width: 100%;
+            max-width: none;
+            text-align: center;
+            font-size: .78rem;
+            font-variant-numeric: tabular-nums;
+        }
+        .responsive-table-wrap.notebook-stack .patient-inline-form {
+            display: block;
+            width: 100%;
+        }
+        .responsive-table-wrap.notebook-stack .patient-inline-dni {
+            display: none !important;
+        }
+        .responsive-table-wrap.notebook-stack .patient-cell .cell-input {
+            width: 100%;
+            font-size: .84rem;
+            font-weight: 900;
+            letter-spacing: .01em;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            border-left-width: 4px;
+        }
+        .responsive-table-wrap.notebook-stack .vitals-cell[data-label="DNI"] .inline-display {
+            display: inline-flex;
+            width: 100%;
+            min-width: 0;
+            justify-content: flex-start;
+            padding: 0;
+            border: none;
+            background: transparent;
+            color: #0c4057;
+            font-family: ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+            font-size: .9rem;
+            font-weight: 850;
+            letter-spacing: -.02em;
+            font-variant-numeric: tabular-nums;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .responsive-table-wrap.notebook-stack .study-cell .cell-select,
+        .responsive-table-wrap.notebook-stack td[data-label="Cobertura"] .cell-select {
+            width: 100%;
+            min-width: 0;
+            text-align: center;
+            text-align-last: center;
+            font-size: .82rem;
+            font-weight: 850;
+        }
+        .responsive-table-wrap.notebook-stack td[data-label="Dr. deriva"] .physician-search-wrap {
+            width: 100%;
+            gap: 0;
+        }
+        .responsive-table-wrap.notebook-stack td[data-label="Dr. deriva"] .physician-search-input {
+            width: 100%;
+            min-width: 0;
+            font-size: .76rem;
+            padding-left: 8px;
+            padding-right: 8px;
+            text-overflow: ellipsis;
+        }
+        .responsive-table-wrap.notebook-stack .physician-search-hint {
+            display: none !important;
+        }
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"],
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"] {
+            justify-content: center;
+            gap: 4px;
+        }
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"]::before,
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"]::before {
+            display: inline-flex !important;
+            content: "R" !important;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 20px;
+            border-radius: 999px;
+            background: rgba(6, 111, 134, .12);
+            color: #08677c;
+            font-size: .62rem;
+            font-weight: 900;
+            flex: 0 0 16px;
+        }
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"]::before {
+            content: "P" !important;
+        }
+        .responsive-table-wrap.notebook-stack .inline-pair {
+            width: 100%;
+            flex-wrap: nowrap;
+            gap: 4px;
+            justify-content: center;
+        }
+        .responsive-table-wrap.notebook-stack .inline-pair span {
+            font-size: .85rem;
+            font-weight: 850;
+            color: #254c61;
+        }
+        .responsive-table-wrap.notebook-stack .cell-small {
+            width: 38px;
+            min-width: 38px;
+            max-width: 38px;
+            min-height: 36px;
+            padding: 7px 4px;
+            text-align: center;
+            font-size: .8rem;
+            font-weight: 850;
+            font-variant-numeric: tabular-nums;
+        }
+        .responsive-table-wrap.notebook-stack .result-input {
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none;
+            text-align: center;
+            font-size: .8rem;
+            font-weight: 900;
+            letter-spacing: .01em;
+            border-width: 2px;
+        }
+        .responsive-table-wrap.notebook-stack .attendance-button,
+        .responsive-table-wrap.notebook-stack .status-badge {
+            width: 100%;
+            min-height: 36px;
+            justify-content: center;
+            padding: 7px 9px;
+            border-radius: 12px;
+            font-size: .76rem;
+            line-height: 1;
+            white-space: nowrap;
+        }
+        .responsive-table-wrap.notebook-stack .td-actions > div {
+            display: grid !important;
+            grid-template-columns: 1fr;
+            align-items: stretch;
+            justify-items: stretch;
+            gap: 4px !important;
+            width: 100%;
+            min-width: 0 !important;
+        }
+        .responsive-table-wrap.notebook-stack .td-actions .button.small {
+            width: 100%;
+            max-width: none;
+            min-height: 32px;
+            padding: 6px 7px;
+            border-radius: 12px;
+            font-size: .68rem;
+            line-height: 1.05;
+        }
+        .responsive-table-wrap.notebook-stack .agenda-row-links {
+            display: flex !important;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1px 6px;
+            line-height: 1.05;
+        }
+        .responsive-table-wrap.notebook-stack .td-actions a,
+        .responsive-table-wrap.notebook-stack .td-actions .link-button {
+            font-size: .64rem;
+            line-height: 1.05;
+        }
+        .responsive-table-wrap.notebook-stack [data-report-links],
+        .responsive-table-wrap.notebook-stack [data-report-help] {
+            display: none !important;
         }
     }
     @media (max-width: 1500px) {
@@ -762,7 +1380,7 @@
             min-height: 42px;
         }
     }
-    @media (max-width: 760px) {
+    @media (max-width: 680px) {
         .ops-strip {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
@@ -949,14 +1567,39 @@
             justify-content: center;
             text-align: center;
         }
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed {
+            padding: 10px 12px;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed > td:not(.encounter-summary-cell) {
+            display: none !important;
+        }
+        .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed > .encounter-summary-cell {
+            display: block !important;
+            width: 100%;
+            padding: 0;
+            margin: 0;
+            border: 0;
+        }
         .result-legend {
             font-size: .82rem;
             line-height: 1.3;
         }
     }
     @media (max-width: 560px) {
+        .stats-strip {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .stats-strip .stat {
+            min-width: 0;
+            padding: 10px 11px;
+            overflow-wrap: anywhere;
+        }
+        .stats-strip .stat strong {
+            font-size: 1.2rem;
+        }
         .ops-strip {
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
         .ops-card {
             padding: 9px 10px;
@@ -979,10 +1622,49 @@
             font-size: .74rem;
         }
     }
+    .import-review-panel {
+        border-top: 1px solid #c7dde4;
+        padding-top: 14px;
+    }
+    .import-review-table input,
+    .import-review-table select {
+        min-width: 88px;
+        width: 100%;
+        padding: 7px 8px;
+        font: inherit;
+    }
+    .import-review-table td:nth-child(4) input {
+        min-width: 220px;
+    }
+    .import-row-warning {
+        background: #fff8e8;
+    }
+    .import-warning-text {
+        display: block;
+        color: #9a4f0c;
+        font-size: .76rem;
+        font-weight: 700;
+        margin-top: 4px;
+    }
+    @media (max-width: 900px) {
+        .import-review-table td:nth-child(4) input {
+            min-width: 170px;
+        }
+    }
+    .agenda-readonly [data-inline-ajax],
+    .agenda-readonly [data-inline-edit] {
+        pointer-events: none;
+    }
+    .agenda-readonly [data-inline-ajax] input,
+    .agenda-readonly [data-inline-ajax] select,
+    .agenda-readonly [data-inline-ajax] button,
+    .agenda-readonly [data-inline-edit] button {
+        opacity: .78;
+    }
 </style>
 <section class="stats-strip">
     {% for item in status_cards %}
-        <article class="stat">
+        <article class="stat {{ item.css_class }}">
             <span class="muted">{{ item.label }}</span>
             <strong>{{ item.total }}</strong>
         </article>
@@ -1017,6 +1699,7 @@
         <a class="button alt" href="{% url 'clinic:daily_print' %}" target="_blank" rel="noopener">Imprimir todo el dia</a>
     </div>
 
+    {% if perms.clinic.manage_agenda %}
     <div class="agenda-entry-panel">
         <div class="quick-add-box">
             <h2 class="mini-title">Agregar paciente</h2>
@@ -1066,7 +1749,7 @@
                                     placeholder="Buscar doctor..."
                                     data-quick-physician-search
                                 >
-                                <span class="physician-search-hint" data-physician-hint>Escribi y elegi un doctor.</span>
+                                <span class="physician-search-hint" data-physician-hint>Escribí un doctor. Si no existe, se guarda como nuevo.</span>
                             </div>
                         </div>
                         <div class="field">
@@ -1096,6 +1779,10 @@
                         <div class="field">
                             <label for="{{ quick_form.respiratory_result.id_for_label }}">{{ quick_form.respiratory_result.label }}</label>
                             {{ quick_form.respiratory_result }}
+                        </div>
+                        <div class="field">
+                            <label for="{{ quick_form.bronchodilator_positive.id_for_label }}">{{ quick_form.bronchodilator_positive.label }}</label>
+                            {{ quick_form.bronchodilator_positive }}
                         </div>
                         <div class="field">
                             <label for="{{ quick_form.completed.id_for_label }}">{{ quick_form.completed.label }}</label>
@@ -1170,10 +1857,74 @@
                 {% endif %}
                 <button class="button alt" type="submit">Importar</button>
             </form>
+            {% if import_preview %}
+                <div class="import-review-panel" id="import-review" style="margin-top:18px;">
+                    <p class="pill">Paso 2 de 2</p>
+                    <h3 style="margin:8px 0 4px;">Revisar antes de agregar</h3>
+                    <p class="muted" style="margin:0 0 12px;">
+                        Corregi cualquier lectura equivocada. Nada se guarda hasta tocar Confirmar importacion.
+                    </p>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="confirm_drapp_import">
+                        <input type="hidden" name="import_preview_token" value="{{ import_preview_token }}">
+                        <div class="table-wrap">
+                            <table class="table import-review-table">
+                                <thead>
+                                    <tr>
+                                        <th>Agregar</th>
+                                        <th>Fecha</th>
+                                        <th>Hora</th>
+                                        <th>Paciente</th>
+                                        <th>DNI</th>
+                                        <th>Cobertura</th>
+                                        <th>Estudio</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in import_preview %}
+                                        <tr{% if not row.valid %} class="import-row-warning"{% endif %}>
+                                            <td>
+                                                <input type="checkbox" name="row_{{ row.index }}_selected" value="1" {% if row.valid %}checked{% endif %} {% if row.duplicate %}disabled{% endif %} aria-label="Agregar {{ row.patient_name }}">
+                                            </td>
+                                            <td>
+                                                <input type="date" name="row_{{ row.index }}_date"{% if row.date_detected %} value="{{ row.agenda_date|date:'Y-m-d' }}"{% endif %} required>
+                                            </td>
+                                            <td><input type="time" name="row_{{ row.index }}_time" value="{{ row.datetime_raw }}" required></td>
+                                            <td>
+                                                <input type="text" name="row_{{ row.index }}_patient_name" value="{{ row.patient_name }}" required>
+                                                {% if row.warning %}<span class="import-warning-text">{{ row.warning }}</span>{% endif %}
+                                            </td>
+                                            <td><input type="text" name="row_{{ row.index }}_dni" value="{{ row.dni }}" inputmode="numeric" placeholder="Opcional"></td>
+                                            <td>
+                                                <select name="row_{{ row.index }}_coverage">
+                                                    <option value="Particular" {% if row.coverage_type == "Particular" %}selected{% endif %}>Particular</option>
+                                                    <option value="Mutual" {% if row.coverage_type == "Mutual" %}selected{% endif %}>Mutual</option>
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <select name="row_{{ row.index }}_study">
+                                                    <option value="Ciclometria" {% if row.study_type == "Ciclometria" %}selected{% endif %}>Ciclometria</option>
+                                                    <option value="Espirometria" {% if row.study_type == "Espirometria" %}selected{% endif %}>Espirometria</option>
+                                                </select>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;">
+                            <button class="button" type="submit">Confirmar importacion</button>
+                            <a class="button secondary" href="{% url 'clinic:dashboard' %}">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            {% endif %}
         </div>
     </div>
+    {% endif %}
 
-    <div class="table-wrap responsive-table-wrap notebook-stack">
+    <div class="table-wrap responsive-table-wrap notebook-stack{% if not perms.clinic.manage_agenda %} agenda-readonly{% endif %}">
         <table class="table">
             <thead>
                 <tr>
@@ -1197,6 +1948,10 @@
                     <tr
                         data-encounter-row
                         data-encounter-id="{{ encounter.pk }}"
+                        data-status-class="{{ encounter.status_css_class }}"
+                        data-attended="{% if encounter.attended %}1{% else %}0{% endif %}"
+                        data-attended-at="{{ encounter.attended_at|date:'c'|default:'' }}"
+                        data-encounter-time="{{ encounter.encounter_time|time:'H:i'|default:'' }}"
                         data-study-type="{{ encounter.study_type }}"
                         data-has-cycle-data="{% if encounter.has_cycle_data %}1{% else %}0{% endif %}"
                         data-auto-collapse="{% if encounter.attended or encounter.no_show %}1{% else %}0{% endif %}"
@@ -1214,11 +1969,12 @@
                                 </div>
                                 <div class="encounter-summary-meta">
                                     <span class="encounter-summary-pill" data-summary-time>{{ encounter.encounter_time|time:"H:i"|default:"-" }}</span>
+                                    <span class="encounter-summary-pill" data-summary-dni>{% if encounter.patient.dni %}{{ encounter.patient.dni|dni_format }}{% else %}Sin DNI{% endif %}</span>
                                     <span class="encounter-summary-pill" data-summary-study>{{ encounter.study_type }}</span>
                                     <span class="encounter-summary-pill" data-summary-coverage>{{ encounter.coverage_type }}</span>
                                     <span class="encounter-summary-pill result" data-summary-result>{% if encounter.result_code %}{{ encounter.result_code }}{% else %}Sin resultado{% endif %}</span>
                                     <span class="encounter-summary-pill {% if encounter.attended %}attended{% elif encounter.no_show %}no-show{% endif %}" data-summary-attendance>{% if encounter.attended %}Atendido{% elif encounter.no_show %}No llego{% else %}Esperado{% endif %}</span>
-                                    <span class="encounter-summary-pill status" data-summary-status>{{ encounter.status }}</span>
+                                    <span class="encounter-summary-pill status {{ encounter.status_css_class }}" data-summary-status>{{ encounter.status }}</span>
                                 </div>
                             </div>
                         </td>
@@ -1296,51 +2052,40 @@
                                         list="physician-options"
                                         autocomplete="off"
                                         placeholder="Buscar doctor..."
+                                        data-inline-submit
                                         data-physician-search
                                     >
-                                    <span class="physician-search-hint" data-physician-hint>Escribi y elegi un doctor.</span>
+                                    <span class="physician-search-hint" data-physician-hint>Escribí un doctor. Si no existe, se guarda nuevo.</span>
                                 </div>
                             </form>
                         </td>
                         <td data-label="SO2 / FC reposo">
-                            <div class="inline-pair">
-                                <form method="post" class="inline-cell-form" data-inline-ajax>
-                                    {% csrf_token %}
-                                    <input type="hidden" name="action" value="inline_update">
-                                    <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
-                                    <input type="hidden" name="field_name" value="so2_rest">
-                                    <input type="number" name="value" value="{{ encounter.vital_signs.so2_rest|default:'' }}" class="cell-input cell-small so2-input" max="99" inputmode="numeric" data-inline-submit>
-                                </form>
-                                <span>/</span>
-                                <form method="post" class="inline-cell-form" data-inline-ajax>
-                                    {% csrf_token %}
-                                    <input type="hidden" name="action" value="inline_update">
-                                    <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
-                                    <input type="hidden" name="field_name" value="fc_rest">
-                                    <input type="number" name="value" value="{{ encounter.vital_signs.fc_rest|default:'' }}" class="cell-input cell-small fc-input" max="999" inputmode="numeric" data-inline-submit>
-                                </form>
-                            </div>
+                            <form method="post" class="vitals-manual-group" data-inline-ajax data-vitals-batch="1" data-vitals-group="rest">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="save_vitals_group">
+                                <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                <input type="hidden" name="vitals_group" value="rest">
+                                <div class="inline-pair">
+                                    <input type="number" name="so2" value="{{ encounter.vital_signs.so2_rest|default:'' }}" class="cell-input cell-small so2-input" min="0" max="100" inputmode="numeric" aria-label="SO2 en reposo">
+                                    <span>/</span>
+                                    <input type="number" name="fc" value="{{ encounter.vital_signs.fc_rest|default:'' }}" class="cell-input cell-small fc-input" min="0" max="300" inputmode="numeric" aria-label="FC en reposo">
+                                </div>
+                                <button type="submit" class="button small vitals-save-button" title="Guardar SO2 y FC en reposo">Guardar</button>
+                            </form>
                         </td>
                         <td class="vitals-cell" data-label="SO2 / FC post">
-                            <div class="inline-pair" data-post-fields {% if encounter.study_type != "Ciclometria" %}style="display:none;"{% endif %}>
+                            <form method="post" class="vitals-manual-group" data-inline-ajax data-vitals-batch="1" data-vitals-group="post" data-post-fields {% if encounter.study_type != "Ciclometria" %}style="display:none;"{% endif %}>
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="save_vitals_group">
+                                <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                <input type="hidden" name="vitals_group" value="post">
                                 <div class="inline-pair">
-                                    <form method="post" class="inline-cell-form" data-inline-ajax>
-                                        {% csrf_token %}
-                                        <input type="hidden" name="action" value="inline_update">
-                                        <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
-                                        <input type="hidden" name="field_name" value="so2_post">
-                                        <input type="number" name="value" value="{{ encounter.vital_signs.so2_post|default:'' }}" class="cell-input cell-small so2-input" max="99" inputmode="numeric" data-inline-submit>
-                                    </form>
+                                    <input type="number" name="so2" value="{{ encounter.vital_signs.so2_post|default:'' }}" class="cell-input cell-small so2-input" min="0" max="100" inputmode="numeric" aria-label="SO2 post caminata">
                                     <span>/</span>
-                                    <form method="post" class="inline-cell-form" data-inline-ajax>
-                                        {% csrf_token %}
-                                        <input type="hidden" name="action" value="inline_update">
-                                        <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
-                                        <input type="hidden" name="field_name" value="fc_post">
-                                        <input type="number" name="value" value="{{ encounter.vital_signs.fc_post|default:'' }}" class="cell-input cell-small fc-input" max="999" inputmode="numeric" data-inline-submit>
-                                    </form>
+                                    <input type="number" name="fc" value="{{ encounter.vital_signs.fc_post|default:'' }}" class="cell-input cell-small fc-input" min="0" max="300" inputmode="numeric" aria-label="FC post caminata">
                                 </div>
-                            </div>
+                                <button type="submit" class="button small vitals-save-button" title="Guardar SO2 y FC post">Guardar</button>
+                            </form>
                             <span data-post-placeholder {% if encounter.study_type == "Ciclometria" %}style="display:none;"{% endif %}>-</span>
                         </td>
                         <td class="result-cell" data-label="Resultado" data-result-label>
@@ -1378,7 +2123,7 @@
                                 </button>
                             </form>
                         </td>
-                        <td class="status-cell" data-label="Estado" data-status-label><span class="status-badge">{{ encounter.status }}</span></td>
+                        <td class="status-cell" data-label="Estado" data-status-label><span class="status-badge {{ encounter.status_css_class }}">{{ encounter.status }}</span></td>
                         <td class="td-actions" data-label="Acciones">
                             <div style="display:grid; gap:8px; min-width:150px;">
                                 <form method="post" action="{% url 'clinic:encounter_generate_report' encounter.pk %}" data-report-form>
@@ -1395,16 +2140,16 @@
                                     </button>
                                 </form>
                                 <div class="agenda-row-links">
-                                    <a href="{% url 'clinic:encounter_edit' encounter.pk %}">Editar</a> |
-                                    <a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Revision</a> |
-                                    <a href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a> |
+                                    {% if perms.clinic.manage_agenda %}<a href="{% url 'clinic:encounter_edit' encounter.pk %}">Editar</a> |{% endif %}
+                                    {% if perms.clinic.review_medically %}<a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Revision</a> |{% endif %}
+                                    {% if encounter.can_generate_report %}<a href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a>{% else %}<span class="muted" title="{{ encounter.report_block_reason }}">Imprimir no disponible</span>{% endif %} |
                                     <a href="{% url 'clinic:patient_detail' encounter.patient.pk %}" data-history-link>Historia</a> |
-                                    <form method="post" style="display:inline;" data-delete-form>
+                                    {% if perms.clinic.manage_agenda %}<form method="post" style="display:inline;" data-delete-form>
                                         {% csrf_token %}
                                         <input type="hidden" name="action" value="delete_encounter">
                                         <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
                                         <button type="submit" class="link-button danger-link" data-delete-button>Eliminar</button>
-                                    </form>
+                                    </form>{% endif %}
                                 </div>
                                 <div data-report-links>
                                     {% if encounter.has_generated_reports %}
@@ -1568,6 +2313,10 @@
             }
         }
 
+        function isManualInlineForm(form) {
+            return !!(form && form.dataset && form.dataset.manualInlineSave === "1");
+        }
+
         function normalizeDoctorSearch(value) {
             return String(value || "")
                 .normalize("NFD")
@@ -1614,17 +2363,22 @@
             if (!input || !hidden || !hidden.value) return;
             const options = document.querySelectorAll("#physician-options option");
             for (let i = 0; i < options.length; i += 1) {
-                if (String(options[i].dataset.id || "") === String(hidden.value || "")) {
+                if (
+                    String(options[i].dataset.id || "") === String(hidden.value || "") ||
+                    normalizeDoctorSearch(options[i].value) === normalizeDoctorSearch(hidden.value)
+                ) {
                     input.value = options[i].value;
                     setPhysicianSearchState(input, true);
                     return;
                 }
             }
+            input.value = hidden.value;
+            setPhysicianSearchState(input, true);
         }
 
         function getPrimaryField(form) {
             if (!form) return null;
-            return getPhysicianSearchInput(form) || form.querySelector('input[name="value"], select[name="value"], textarea[name="value"], input[name="patient_dni"]');
+            return getPhysicianSearchInput(form) || form.querySelector('input[name="value"], select[name="value"], textarea[name="value"], input[name="patient_dni"], input[name="so2"]');
         }
 
         function isDniForm(form) {
@@ -1634,6 +2388,11 @@
         function getCurrentFieldValue(form) {
             const physicianHidden = getPhysicianHiddenInput(form);
             if (physicianHidden) return String(physicianHidden.value || "");
+            if (form && form.dataset.vitalsBatch === "1") {
+                const so2 = form.querySelector('input[name="so2"]');
+                const fc = form.querySelector('input[name="fc"]');
+                return String(so2 ? so2.value : "") + "/" + String(fc ? fc.value : "");
+            }
             const field = getPrimaryField(form);
             if (!field) return "";
             if (field.type === "checkbox") {
@@ -1690,9 +2449,6 @@
             if (element.form) {
                 element.addEventListener("input", () => {
                     markFormDirty(element.form);
-                    if (element.tagName !== "SELECT") {
-                        scheduleInlineSubmit(element.form, 500);
-                    }
                 });
                 element.addEventListener("change", () => markFormDirty(element.form));
             }
@@ -1719,22 +2475,13 @@
 
             input.addEventListener("input", () => {
                 const option = findPhysicianOptionByName(input.value);
-                if (option) {
-                    hidden.value = option.dataset.id || "";
-                    setPhysicianSearchState(input, true);
-                    markFormDirty(form);
-                    scheduleInlineSubmit(form, 150);
-                } else {
-                    setPhysicianSearchState(input, false);
-                }
+                hidden.value = option ? (option.dataset.id || input.value.trim()) : input.value.trim();
+                setPhysicianSearchState(input, true);
+                markFormDirty(form);
             });
             input.addEventListener("change", () => {
                 const option = findPhysicianOptionByName(input.value);
-                if (!option) {
-                    setPhysicianSearchState(input, false);
-                    return;
-                }
-                hidden.value = option.dataset.id || "";
+                hidden.value = option ? (option.dataset.id || input.value.trim()) : input.value.trim();
                 setPhysicianSearchState(input, true);
                 markFormDirty(form);
                 submitInlineForm(form);
@@ -1743,11 +2490,13 @@
                 if (event.key !== "Enter") return;
                 const option = findPhysicianOptionByName(input.value);
                 event.preventDefault();
-                if (!option) {
-                    setPhysicianSearchState(input, false);
-                    return;
-                }
-                hidden.value = option.dataset.id || "";
+                hidden.value = option ? (option.dataset.id || input.value.trim()) : input.value.trim();
+                setPhysicianSearchState(input, true);
+                markFormDirty(form);
+                submitInlineForm(form);
+            });
+            input.addEventListener("blur", () => {
+                hidden.value = input.value.trim();
                 setPhysicianSearchState(input, true);
                 markFormDirty(form);
                 submitInlineForm(form);
@@ -1762,20 +2511,12 @@
 
             input.addEventListener("input", () => {
                 const option = findPhysicianOptionByName(input.value);
-                if (!option) {
-                    setPhysicianSearchState(input, false);
-                    return;
-                }
-                hidden.value = option.dataset.id || "";
+                hidden.value = option ? (option.dataset.id || input.value.trim()) : input.value.trim();
                 setPhysicianSearchState(input, true);
             });
             input.addEventListener("change", () => {
                 const option = findPhysicianOptionByName(input.value);
-                if (!option) {
-                    setPhysicianSearchState(input, false);
-                    return;
-                }
-                hidden.value = option.dataset.id || "";
+                hidden.value = option ? (option.dataset.id || input.value.trim()) : input.value.trim();
                 setPhysicianSearchState(input, true);
             });
         });
@@ -1791,6 +2532,20 @@
         document.querySelectorAll("[data-inline-form]").forEach((form) => {
             const input = form.querySelector("input, select, textarea");
             if (input) {
+                if (isManualInlineForm(form)) {
+                    input.addEventListener("input", () => {
+                        markFormDirty(form);
+                    });
+                    input.addEventListener("change", () => {
+                        markFormDirty(form);
+                    });
+                    input.addEventListener("keydown", (event) => {
+                        if (event.key === "Enter") {
+                            event.preventDefault();
+                        }
+                    });
+                    return;
+                }
                 input.addEventListener("input", () => {
                     markFormDirty(form);
                     if (isDniForm(form)) return;
@@ -1946,6 +2701,18 @@
             if (typeof payload.has_cycle_data !== "undefined") {
                 row.dataset.hasCycleData = payload.has_cycle_data ? "1" : "0";
             }
+            if (form.dataset.vitalsBatch === "1") {
+                const groupName = form.dataset.vitalsGroup;
+                const so2Input = form.querySelector('input[name="so2"]');
+                const fcInput = form.querySelector('input[name="fc"]');
+                if (groupName === "rest") {
+                    if (so2Input) so2Input.value = payload.so2_rest || "";
+                    if (fcInput) fcInput.value = payload.fc_rest || "";
+                } else if (groupName === "post") {
+                    if (so2Input) so2Input.value = payload.so2_post || "";
+                    if (fcInput) fcInput.value = payload.fc_post || "";
+                }
+            }
             updateReportUI(row, payload);
             syncEncounterRowUi(row);
         }
@@ -1981,10 +2748,10 @@
                         },
                         body: new FormData(form)
                     });
-                    if (!response.ok) {
-                        throw new Error("No se pudo guardar");
-                    }
                     const payload = await response.json();
+                    if (!response.ok || payload.ok === false) {
+                        throw new Error(payload.message || "No se pudo guardar");
+                    }
                     const currentValue = getCurrentFieldValue(form);
                     applyInlineResponse(form, payload, {
                         forceDniClose: isDniForm(form) && currentValue === submittedValue
@@ -2113,7 +2880,26 @@
             form.dataset.dirty = "0";
             form.addEventListener("submit", (event) => {
                 event.preventDefault();
-                submitInlineForm(form);
+                const button = form.dataset.vitalsBatch === "1" ? form.querySelector('button[type="submit"]') : null;
+                const originalLabel = button ? button.textContent : "";
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = "Guardando...";
+                }
+                submitInlineForm(form).then(() => {
+                    if (button) button.textContent = "Guardado";
+                }).catch((error) => {
+                    if (button) {
+                        button.textContent = error.message || "Error";
+                        button.title = error.message || "No se pudo guardar";
+                    }
+                }).finally(() => {
+                    if (!button) return;
+                    window.setTimeout(() => {
+                        button.disabled = false;
+                        button.textContent = originalLabel;
+                    }, 900);
+                });
             });
         });
 
@@ -2134,6 +2920,34 @@
                     if (button.textContent === "Guardando...") {
                         button.textContent = originalLabel;
                     }
+                });
+            });
+        });
+
+        async function submitVitalsGroup(button) {
+            const row = button ? button.closest("tr") : null;
+            const groupName = button ? button.dataset.saveVitalsGroup : "";
+            if (!row || !groupName) return;
+            const forms = Array.from(
+                row.querySelectorAll('form[data-manual-inline-save="1"][data-vitals-group="' + groupName + '"]')
+            );
+            const tasks = forms.map((form) => submitInlineForm(form));
+            await Promise.all(tasks.filter(Boolean));
+        }
+
+        document.querySelectorAll("[data-save-vitals-group]").forEach((button) => {
+            button.addEventListener("click", () => {
+                if (button.dataset.saving === "1") return;
+                const originalLabel = button.textContent;
+                button.dataset.saving = "1";
+                button.disabled = true;
+                button.textContent = "Guardando...";
+                submitVitalsGroup(button).catch((error) => {
+                    console.error(error);
+                }).finally(() => {
+                    button.dataset.saving = "0";
+                    button.disabled = false;
+                    button.textContent = originalLabel;
                 });
             });
         });
@@ -2351,6 +3165,45 @@
             if (payload.no_show) addClass(button, "no-show");
         }
 
+        function getRowEncounterTime(row) {
+            var value = row ? String(row.getAttribute("data-encounter-time") || "").trim() : "";
+            return value || "99:99";
+        }
+
+        function getRowAttendedAt(row) {
+            return row ? String(row.getAttribute("data-attended-at") || "").trim() : "";
+        }
+
+        function reorderAgendaRows() {
+            var tbody = document.querySelector ? document.querySelector(".table tbody") : null;
+            var rows;
+            var ordered;
+            var i;
+            if (!tbody || !tbody.querySelectorAll) return;
+            rows = Array.prototype.slice.call(tbody.querySelectorAll("[data-encounter-row]"));
+            if (!rows.length) return;
+            ordered = rows.sort(function (a, b) {
+                var aAttended = a.getAttribute("data-attended") === "1";
+                var bAttended = b.getAttribute("data-attended") === "1";
+                var aAttendedAt = getRowAttendedAt(a);
+                var bAttendedAt = getRowAttendedAt(b);
+                var aTime = getRowEncounterTime(a);
+                var bTime = getRowEncounterTime(b);
+                var aId = Number(a.getAttribute("data-encounter-id") || "0");
+                var bId = Number(b.getAttribute("data-encounter-id") || "0");
+
+                if (aAttended !== bAttended) return aAttended ? -1 : 1;
+                if (aAttended && bAttended && aAttendedAt !== bAttendedAt) {
+                    return aAttendedAt < bAttendedAt ? -1 : 1;
+                }
+                if (aTime !== bTime) return aTime < bTime ? -1 : 1;
+                return aId - bId;
+            });
+            for (i = 0; i < ordered.length; i += 1) {
+                tbody.appendChild(ordered[i]);
+            }
+        }
+
         function updateReport(row, payload) {
             var button = row && row.querySelector ? row.querySelector("[data-report-button]") : null;
             var help = row && row.querySelector ? row.querySelector("[data-report-help]") : null;
@@ -2390,11 +3243,26 @@
         function updateRow(row, payload) {
             var statusCell;
             var historyLink;
+            var activeElement;
+            var keepFocus;
+            var rowTop;
+            var nextTop;
             if (!row || !payload) return;
+            if (typeof payload.attended !== "undefined") {
+                row.setAttribute("data-attended", payload.attended ? "1" : "0");
+            }
+            if (payload.status_css_class) {
+                row.setAttribute("data-status-class", payload.status_css_class);
+            }
+            row.setAttribute("data-attended-at", payload.attended_at || "");
+            row.setAttribute("data-encounter-time", payload.encounter_time || "");
+            activeElement = document.activeElement;
+            keepFocus = !!(activeElement && row.contains && row.contains(activeElement) && activeElement.focus);
+            rowTop = row.getBoundingClientRect ? row.getBoundingClientRect().top : 0;
 
             statusCell = row.querySelector ? row.querySelector("[data-status-label]") : null;
             if (statusCell && payload.status) {
-                statusCell.innerHTML = '<span class="status-badge">' + escapeHtml(payload.status) + '</span>';
+                statusCell.innerHTML = '<span class="status-badge ' + escapeHtml(payload.status_css_class || "neutral") + '">' + escapeHtml(payload.status) + '</span>';
             }
 
             if (payload.study_type) updatePostFields(row, payload.study_type);
@@ -2418,6 +3286,20 @@
             updateReport(row, payload);
             if (window.espiroAgendaCollapse && typeof window.espiroAgendaCollapse.syncRow === "function") {
                 window.espiroAgendaCollapse.syncRow(row);
+            }
+            reorderAgendaRows();
+            nextTop = row.getBoundingClientRect ? row.getBoundingClientRect().top : rowTop;
+            if (keepFocus) {
+                try {
+                    activeElement.focus({ preventScroll: true });
+                } catch (error) {
+                    try {
+                        activeElement.focus();
+                    } catch (focusError) {}
+                }
+            }
+            if (window.scrollBy && nextTop !== rowTop) {
+                window.scrollBy(0, nextTop - rowTop);
             }
 
             historyLink = row.querySelector ? row.querySelector("[data-history-link]") : null;
@@ -2658,6 +3540,7 @@
 
         function installOldBrowserInlineFallback() {
             var forms = document.querySelectorAll ? document.querySelectorAll("form[data-inline-ajax]") : [];
+            var manualForms = document.querySelectorAll ? document.querySelectorAll("form[data-manual-inline-save='1']") : [];
             var fields = document.querySelectorAll ? document.querySelectorAll("[data-inline-submit]") : [];
             var openers = document.querySelectorAll ? document.querySelectorAll("[data-inline-open]") : [];
             var dniInputs = document.querySelectorAll ? document.querySelectorAll("[data-inline-edit] input[name='patient_dni']") : [];
@@ -2666,10 +3549,34 @@
             for (i = 0; i < forms.length; i += 1) {
                 forms[i].setAttribute("data-dirty", "0");
                 addEvent(forms[i], "submit", function (event) {
+                    if ((event.target || event.srcElement).getAttribute && (event.target || event.srcElement).getAttribute("data-manual-inline-save") === "1") {
+                        stopEvent(event);
+                        return false;
+                    }
                     stopEvent(event);
                     submitInlineForm(event.target || event.srcElement);
                     return false;
                 });
+            }
+            for (i = 0; i < manualForms.length; i += 1) {
+                (function (manualForm) {
+                    var manualFields = manualForm.querySelectorAll ? manualForm.querySelectorAll("input, select, textarea") : [];
+                    var j;
+                    for (j = 0; j < manualFields.length; j += 1) {
+                        addEvent(manualFields[j], "input", function () {
+                            manualForm.setAttribute("data-dirty", "1");
+                        });
+                        addEvent(manualFields[j], "change", function () {
+                            manualForm.setAttribute("data-dirty", "1");
+                        });
+                        addEvent(manualFields[j], "keydown", function (event) {
+                            event = event || window.event;
+                            if (event.keyCode === 13) {
+                                stopEvent(event);
+                            }
+                        });
+                    }
+                })(manualForms[i]);
             }
             for (i = 0; i < fields.length; i += 1) {
                 addEvent(fields[i], "change", function (event) {
@@ -2740,6 +3647,8 @@
         function scheduleVitalSubmit(field, delay) {
             var form;
             if (!field || !field.form || !isVitalField(field)) return;
+            if (field.form.getAttribute && field.form.getAttribute("data-vitals-batch") === "1") return;
+            if (field.form && field.form.getAttribute && field.form.getAttribute("data-manual-inline-save") === "1") return;
             form = field.form;
             markLocalEdit(field);
             if (form._vitalTimer) window.clearTimeout(form._vitalTimer);
@@ -2756,29 +3665,46 @@
             var fields = document.querySelectorAll ? document.querySelectorAll(".so2-input, .fc-input") : [];
             var i;
             for (i = 0; i < fields.length; i += 1) {
-                addEvent(fields[i], "input", function (event) {
-                    var field = event.target || event.srcElement;
-                    if (!isVitalField(field)) return;
-                    stopBubbleOnly(event);
-                    scheduleVitalSubmit(field, 450);
-                }, true);
-                addEvent(fields[i], "keyup", function (event) {
-                    var field = event.target || event.srcElement;
-                    if (!isVitalField(field)) return;
-                    scheduleVitalSubmit(field, 450);
-                }, true);
                 addEvent(fields[i], "change", function (event) {
                     var field = event.target || event.srcElement;
                     if (!isVitalField(field)) return;
+                    if (field.form && field.form.getAttribute && field.form.getAttribute("data-vitals-batch") === "1") return;
+                    if (field.form && field.form.getAttribute && field.form.getAttribute("data-manual-inline-save") === "1") return;
                     stopBubbleOnly(event);
                     scheduleVitalSubmit(field, 10);
                 }, true);
                 addEvent(fields[i], "blur", function (event) {
                     var field = event.target || event.srcElement;
                     if (!isVitalField(field)) return;
+                    if (field.form && field.form.getAttribute && field.form.getAttribute("data-vitals-batch") === "1") return;
+                    if (field.form && field.form.getAttribute && field.form.getAttribute("data-manual-inline-save") === "1") return;
                     scheduleVitalSubmit(field, 10);
                 }, true);
             }
+        }
+
+        function handleVitalsSaveClick(event) {
+            if (window.espiroModernDashboardReady) return;
+            var target = event.target || event.srcElement;
+            var button = closestAttr(target, "data-save-vitals-group");
+            var row;
+            var groupName;
+            var forms;
+            var originalLabel;
+            if (!button) return;
+            stopEvent(event);
+            row = closestAttr(button, "data-encounter-row");
+            groupName = button.getAttribute ? button.getAttribute("data-save-vitals-group") : "";
+            forms = row && row.querySelectorAll ? row.querySelectorAll('form[data-manual-inline-save="1"][data-vitals-group="' + groupName + '"]') : [];
+            if (!forms || !forms.length) return false;
+            originalLabel = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = "Guardando...";
+            submitFormsInOrder(forms, 0, function () {
+                button.disabled = false;
+                button.innerHTML = originalLabel;
+            });
+            return false;
         }
 
         function capNumericInputs(event) {
@@ -2786,8 +3712,8 @@
             var value;
             if (!field || !field.className) return;
             value = String(field.value || "").replace(/\D/g, "");
-            if ((" " + field.className + " ").indexOf(" so2-input ") !== -1 && value.length > 2) {
-                field.value = value.substring(0, 2);
+            if ((" " + field.className + " ").indexOf(" so2-input ") !== -1 && value.length > 3) {
+                field.value = value.substring(0, 3);
             }
             if ((" " + field.className + " ").indexOf(" fc-input ") !== -1 && value.length > 3) {
                 field.value = value.substring(0, 3);
@@ -3168,6 +4094,7 @@
         }
 
         addEvent(document, "click", handleAttendanceClick, true);
+        addEvent(document, "click", handleVitalsSaveClick, true);
         addEvent(document, "submit", handleReportSubmit, true);
         addEvent(document, "submit", handleDeleteSubmit, true);
         addEvent(document, "input", capNumericInputs, true);
@@ -3180,8 +4107,11 @@
         installDrappPasteZone();
         installDrappBrowserOcr();
 
-        window.setInterval(pollRows, 20000);
+        window.setInterval(pollRows, 60000);
         window.setTimeout(pollRows, 3000);
+        addEvent(document, "visibilitychange", function () {
+            if (!document.hidden) pollRows();
+        });
     })();
 </script>
 <script>
@@ -3189,7 +4119,7 @@
         var storagePrefix = "espiro-agenda-collapse-";
 
         function isCompactAgendaMode() {
-            return !!(window.matchMedia && window.matchMedia("(max-width: 1600px)").matches);
+            return !!(window.matchMedia && window.matchMedia("(max-width: 680px)").matches);
         }
 
         function getSummaryStorageKey(row) {
@@ -3237,6 +4167,11 @@
             return statusNode ? String(statusNode.textContent || "").trim() : "";
         }
 
+        function getDniLabel(row) {
+            var button = row && row.querySelector ? row.querySelector('td[data-label="DNI"] [data-inline-open]') : null;
+            return button ? String(button.textContent || "").trim() : "";
+        }
+
         function setSummaryText(row, selector, value) {
             var node = row && row.querySelector ? row.querySelector(selector) : null;
             if (node) {
@@ -3244,12 +4179,23 @@
             }
         }
 
+        function setStatusClass(node, statusClass) {
+            if (!node) return;
+            node.classList.remove("pending", "waiting", "reviewed", "generated", "done", "missed", "neutral");
+            node.classList.add(statusClass || "neutral");
+        }
+
         function refreshRowSummary(row) {
             var attendanceNode;
             var attendanceLabel;
+            var dniValue;
+            var statusNode;
+            var statusClass;
             if (!row) return;
             setSummaryText(row, "[data-summary-patient]", getFieldValue(row, "patient_name") || "Paciente");
             setSummaryText(row, "[data-summary-time]", getFieldValue(row, "encounter_time") || "-");
+            dniValue = getDniLabel(row);
+            setSummaryText(row, "[data-summary-dni]", dniValue || "Sin DNI");
             setSummaryText(row, "[data-summary-study]", getFieldValue(row, "study_type") || "-");
             setSummaryText(row, "[data-summary-coverage]", getFieldValue(row, "coverage_type") || "-");
             setSummaryText(row, "[data-summary-result]", getFieldValue(row, "respiratory_result") || "Sin resultado");
@@ -3266,6 +4212,9 @@
                 }
             }
             setSummaryText(row, "[data-summary-status]", getStatusLabel(row) || "Pendiente");
+            statusNode = row.querySelector ? row.querySelector("[data-summary-status]") : null;
+            statusClass = String(row.getAttribute("data-status-class") || "neutral");
+            setStatusClass(statusNode, statusClass);
         }
 
         function updateToggleUi(row, collapsed) {
@@ -3314,6 +4263,7 @@
         function installEncounterCollapse() {
             var rows = document.querySelectorAll ? document.querySelectorAll("[data-encounter-row]") : [];
             var i;
+            reorderAgendaRows();
             for (i = 0; i < rows.length; i += 1) {
                 (function (row) {
                     var toggle = row.querySelector ? row.querySelector("[data-encounter-toggle]") : null;

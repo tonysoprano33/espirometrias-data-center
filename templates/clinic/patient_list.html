@@ -1,11 +1,221 @@
 {% extends "base.html" %}
+{% load clinic_extras %}
 
 {% block title %}Pacientes | Clinica Espiro{% endblock %}
 
 {% block content %}
 <style>
+    .patient-page-shell {
+        display: grid;
+        gap: 18px;
+    }
+    .patient-hero {
+        background:
+            radial-gradient(circle at top right, rgba(47,111,187,.12), transparent 28%),
+            radial-gradient(circle at top left, rgba(15,90,95,.10), transparent 24%),
+            linear-gradient(180deg, rgba(255,255,255,.98), rgba(245,250,252,.96));
+    }
+    .patient-hero-head {
+        display:flex;
+        justify-content:space-between;
+        gap:16px;
+        align-items:flex-end;
+        flex-wrap:wrap;
+    }
+    .patient-filter-card {
+        padding-top: 8px;
+    }
     .patient-filter-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .patient-table strong {
+        color: #10374b;
+        font-size: 1rem;
+    }
+    .patient-table tbody tr {
+        background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(245,250,252,.95));
+        transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+    }
+    .patient-table tbody tr:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 24px rgba(16,43,60,.08);
+    }
+    .patient-table td {
+        vertical-align: middle;
+    }
+    .patient-primary {
+        display: grid;
+        gap: 8px;
+        min-width: 0;
+    }
+    .patient-primary a {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        text-decoration: none;
+    }
+    .patient-primary a:hover {
+        text-decoration: none;
+    }
+    .patient-accent {
+        width: 6px;
+        align-self: stretch;
+        min-height: 28px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #2c78c4, #0d6f8a);
+        box-shadow: 0 6px 12px rgba(13,111,138,.18);
+        flex: 0 0 6px;
+    }
+    .patient-name-block {
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+    }
+    .patient-name-block strong {
+        font-size: 1.08rem;
+        line-height: 1.08;
+    }
+    .patient-submeta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+    }
+    .patient-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 26px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(23,49,63,.12);
+        font-size: .74rem;
+        font-weight: 800;
+        line-height: 1;
+        white-space: nowrap;
+    }
+    .patient-chip.code {
+        background: linear-gradient(180deg, rgba(237,245,255,.98), rgba(249,252,255,.98));
+        color: #2a629e;
+    }
+    .patient-chip.phone {
+        background: linear-gradient(180deg, rgba(234,251,243,.98), rgba(249,255,252,.98));
+        color: #1c7b53;
+    }
+    .patient-chip.empty {
+        background: rgba(244,246,247,.94);
+        color: #6e808a;
+    }
+    .data-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 34px;
+        padding: 6px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(23,49,63,.1);
+        background: rgba(255,255,255,.94);
+        font-weight: 800;
+        line-height: 1.05;
+    }
+    .data-pill.dni {
+        background: linear-gradient(180deg, rgba(237,245,255,.98), rgba(247,251,255,.98));
+        color: #184d75;
+        font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+        font-variant-numeric: tabular-nums lining-nums;
+        font-size: .98rem;
+        letter-spacing: .02em;
+    }
+    .data-pill.phone {
+        background: linear-gradient(180deg, rgba(234,251,243,.98), rgba(248,255,251,.98));
+        color: #1a7554;
+        font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+        font-variant-numeric: tabular-nums lining-nums;
+    }
+    .data-pill.code {
+        background: linear-gradient(180deg, rgba(245,241,255,.98), rgba(251,249,255,.98));
+        color: #5e4d93;
+        font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+        font-variant-numeric: tabular-nums lining-nums;
+    }
+    .data-pill.empty {
+        background: rgba(244,246,247,.94);
+        color: #6e808a;
+    }
+    .count-badge {
+        display: inline-grid;
+        place-items: center;
+        min-width: 42px;
+        min-height: 42px;
+        padding: 0 10px;
+        border-radius: 14px;
+        background: linear-gradient(180deg, rgba(255,240,168,.88), rgba(255,247,210,.96));
+        border: 1px solid rgba(211,169,0,.24);
+        color: #8a5f00;
+        font-size: 1.05rem;
+        font-weight: 900;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.5);
+    }
+    .last-visit {
+        display: grid;
+        gap: 3px;
+    }
+    .last-visit strong {
+        font-size: .98rem;
+    }
+    .last-visit span {
+        font-size: .76rem;
+        color: var(--muted);
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+    .patient-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+    }
+    .patient-actions a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 34px;
+        padding: 0 12px;
+        border-radius: 12px;
+        text-decoration: none;
+        font-weight: 700;
+        box-shadow: 0 8px 18px rgba(16,43,60,.06);
+    }
+    .patient-actions a.primary {
+        background: linear-gradient(180deg, rgba(222,246,250,.98), rgba(240,252,255,.98));
+        border: 1px solid rgba(13,111,138,.22);
+        color: #0b5d75;
+    }
+    .patient-actions a.secondary {
+        background: rgba(255,255,255,.96);
+        border: 1px solid rgba(23,49,63,.14);
+        color: #1f4154;
+    }
+    .patient-actions a.danger {
+        background: linear-gradient(180deg, rgba(255,241,239,.98), rgba(255,248,247,.98));
+        border: 1px solid rgba(183,53,53,.18);
+        color: #a33c31;
+    }
+    .patient-actions a:hover {
+        transform: translateY(-1px);
+        text-decoration: none;
+    }
+    .patient-table .td-actions {
+        min-width: 220px;
+    }
+    .patient-table .td-actions > div {
+        display: flex;
+        justify-content: flex-end;
+    }
+    @media (max-width: 1400px) {
+        .patient-table .td-actions > div {
+            justify-content: flex-start;
+        }
     }
     @media (max-width: 1280px) {
         .patient-filter-grid {
@@ -16,18 +226,30 @@
         .patient-filter-grid {
             grid-template-columns: 1fr;
         }
+        .patient-actions {
+            width: 100%;
+        }
+        .patient-actions a {
+            flex: 1 1 120px;
+        }
     }
 </style>
-<section class="card">
-    <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-end;flex-wrap:wrap;">
+<div class="patient-page-shell">
+<section class="card patient-hero">
+    <div class="patient-hero-head">
         <div>
             <p class="pill">Base de pacientes</p>
             <h1 class="section-title">Pacientes</h1>
+            <p class="muted" style="margin:8px 0 0;">Buscá rápido por DNI, fecha, cobertura o diagnóstico sin perder de vista la historia clínica.</p>
         </div>
-        <a class="button" href="{% url 'clinic:patient_create' %}">Nuevo paciente</a>
+        {% if perms.clinic.manage_agenda %}
+            <a class="button" href="{% url 'clinic:patient_create' %}">Nuevo paciente</a>
+        {% endif %}
     </div>
+</section>
 
-    <form method="get" style="margin:16px 0 22px;">
+<section class="card patient-filter-card">
+    <form method="get" style="margin:0 0 4px;">
         <div class="form-grid patient-filter-grid">
             <div class="field">
                 <label for="q">Buscar por nombre o DNI</label>
@@ -74,9 +296,10 @@
             <a class="button alt" href="{% url 'clinic:patient_list' %}">Limpiar</a>
         </div>
     </form>
+</section>
 
     <div class="table-wrap responsive-table-wrap notebook-stack">
-        <table class="table">
+        <table class="table patient-table">
             <thead>
                 <tr>
                     <th>Paciente</th>
@@ -91,16 +314,58 @@
             <tbody>
                 {% for patient in patients %}
                     <tr>
-                        <td data-label="Paciente"><a href="{% url 'clinic:patient_detail' patient.pk %}"><strong>{{ patient.full_name }}</strong></a></td>
-                        <td data-label="DNI">{{ patient.dni|default:"-" }}</td>
-                        <td data-label="Telefono">{{ patient.phone|default:"-" }}</td>
-                        <td data-label="Codigo">{{ patient.patient_code|default:"-" }}</td>
-                        <td data-label="Atenciones">{{ patient.encounter_count }}</td>
-                        <td data-label="Ultima atencion">{{ patient.last_encounter_date|date:"d/m/Y"|default:"-" }}</td>
+                        <td data-label="Paciente">
+                            <div class="patient-primary">
+                                <a href="{% url 'clinic:patient_detail' patient.pk %}">
+                                    <span class="patient-accent"></span>
+                                    <span class="patient-name-block">
+                                        <strong>{{ patient.full_name }}</strong>
+                                    </span>
+                                </a>
+                                <div class="patient-submeta">
+                                    <span class="patient-chip code">
+                                        Cod. {{ patient.patient_code|default:"-" }}
+                                    </span>
+                                    {% if patient.phone %}
+                                        <span class="patient-chip phone">{{ patient.phone }}</span>
+                                    {% else %}
+                                        <span class="patient-chip empty">Sin telefono</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td data-label="DNI">
+                            <span class="data-pill dni {% if not patient.dni %}empty{% endif %}">
+                                {% if patient.dni %}{{ patient.dni|dni_format }}{% else %}-{% endif %}
+                            </span>
+                        </td>
+                        <td data-label="Telefono">
+                            <span class="data-pill phone {% if not patient.phone %}empty{% endif %}">
+                                {{ patient.phone|default:"-" }}
+                            </span>
+                        </td>
+                        <td data-label="Codigo">
+                            <span class="data-pill code {% if not patient.patient_code %}empty{% endif %}">
+                                {{ patient.patient_code|default:"-" }}
+                            </span>
+                        </td>
+                        <td data-label="Atenciones">
+                            <span class="count-badge">{{ patient.encounter_count }}</span>
+                        </td>
+                        <td data-label="Ultima atencion">
+                            <div class="last-visit">
+                                <strong>{{ patient.last_encounter_date|date:"d/m/Y"|default:"-" }}</strong>
+                                <span>Ultima visita</span>
+                            </div>
+                        </td>
                         <td class="td-actions" data-label="Acciones">
-                            <a href="{% url 'clinic:patient_detail' patient.pk %}">Abrir</a> |
-                            <a href="{% url 'clinic:patient_edit' patient.pk %}">Editar</a> |
-                            <a href="{% url 'clinic:patient_delete' patient.pk %}">Eliminar</a>
+                            <div class="patient-actions">
+                                <a class="primary" href="{% url 'clinic:patient_detail' patient.pk %}">Abrir</a>
+                                {% if perms.clinic.manage_agenda %}
+                                    <a class="secondary" href="{% url 'clinic:patient_edit' patient.pk %}">Editar</a>
+                                    <a class="danger" href="{% url 'clinic:patient_delete' patient.pk %}">Eliminar</a>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
                 {% empty %}
@@ -111,5 +376,5 @@
             </tbody>
         </table>
     </div>
-</section>
+</div>
 {% endblock %}

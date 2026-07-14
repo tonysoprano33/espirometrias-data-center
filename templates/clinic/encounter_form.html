@@ -3,45 +3,486 @@
 {% block title %}Nueva atencion | Clinica Espiro{% endblock %}
 
 {% block content %}
-<section class="card">
-    <p class="pill">Carga rapida</p>
-    <h1 class="section-title">Nueva atencion</h1>
-    <p class="muted" style="margin-top:0;">Solo lo importante para recibir al paciente. La fecha queda en hoy automaticamente y el PDF se carga aparte en revision medica.</p>
-    <form method="post" enctype="multipart/form-data">
+<style>
+    .intake-shell {
+        display: grid;
+        gap: 16px;
+    }
+    .intake-hero {
+        padding: 18px 20px;
+        border-radius: 20px;
+        border: 1px solid rgba(13, 111, 138, .12);
+        background:
+            radial-gradient(circle at top right, rgba(227, 139, 34, .15), transparent 26%),
+            linear-gradient(180deg, rgba(222, 246, 250, .92), rgba(255,255,255,.98));
+        box-shadow: 0 16px 30px rgba(16, 43, 60, .08);
+    }
+    .intake-hero h1 {
+        margin: 10px 0 6px;
+        font-size: clamp(1.9rem, 3vw, 2.8rem);
+        line-height: .96;
+        color: #0d3f55;
+    }
+    .intake-hero p {
+        margin: 0;
+        max-width: 78ch;
+        color: #537282;
+        font-size: 1rem;
+    }
+    .intake-form {
+        display: grid;
+        gap: 16px;
+    }
+    .intake-grid {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 16px;
+    }
+    .intake-panel {
+        grid-column: span 12;
+        padding: 18px;
+        border-radius: 18px;
+        border: 1px solid rgba(16, 43, 60, .09);
+        background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(246, 251, 253, .96));
+        box-shadow: 0 14px 26px rgba(16, 43, 60, .06);
+    }
+    .intake-panel.identity { grid-column: span 12; }
+    .intake-panel.study { grid-column: span 7; }
+    .intake-panel.report { grid-column: span 5; }
+    .intake-panel.vitals { grid-column: span 7; }
+    .intake-panel.flags { grid-column: span 5; }
+    .panel-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #dff5fb;
+        color: #0d6f8a;
+        font-size: .78rem;
+        font-weight: 900;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+    .intake-panel h2 {
+        margin: 10px 0 4px;
+        font-size: 1.2rem;
+        color: #12394d;
+    }
+    .panel-subtitle {
+        margin: 0 0 14px;
+        color: #64808f;
+        font-size: .93rem;
+    }
+    .intake-fields {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+    }
+    .intake-fields.two-cols {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .field {
+        margin: 0;
+    }
+    .field label {
+        margin-bottom: 7px;
+        color: #446476;
+        font-size: .85rem;
+        font-weight: 700;
+        letter-spacing: .02em;
+        text-transform: uppercase;
+    }
+    .field input,
+    .field select,
+    .field textarea {
+        min-height: 54px;
+        border-radius: 16px;
+        border: 1px solid rgba(13, 111, 138, .18);
+        background: #fff;
+        padding: 12px 14px;
+        color: #14384d;
+        font-size: 1.08rem;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+    }
+    .field input:focus,
+    .field select:focus,
+    .field textarea:focus {
+        outline: none;
+        border-color: rgba(13, 111, 138, .45);
+        box-shadow: 0 0 0 4px rgba(13, 111, 138, .1);
+    }
+    .field.field-highlight input,
+    .field.field-highlight select {
+        border-color: rgba(227, 139, 34, .24);
+        background: linear-gradient(180deg, #fffdfa, #fff7ea);
+    }
+    .field.field-code input {
+        font-size: 1.35rem;
+        font-weight: 900;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+    .field-help,
+    .field-error {
+        margin-top: 6px;
+        font-size: .84rem;
+    }
+    .field-help {
+        color: #708896;
+    }
+    .field-error {
+        color: #b73535;
+        font-weight: 700;
+    }
+    .metric-strip {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 6px;
+    }
+    .metric-card {
+        padding: 12px 14px;
+        border-radius: 16px;
+        border: 1px solid rgba(13, 111, 138, .12);
+        background: linear-gradient(180deg, rgba(221, 247, 244, .9), rgba(255,255,255,.98));
+    }
+    .metric-card span {
+        display: block;
+        color: #567584;
+        font-size: .78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+    .metric-card strong {
+        display: block;
+        margin-top: 6px;
+        color: #133449;
+        font-size: 1.5rem;
+        line-height: 1;
+    }
+    .toggle-stack {
+        display: grid;
+        gap: 12px;
+    }
+    .toggle-card {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        min-height: 86px;
+        padding: 14px 16px;
+        border-radius: 18px;
+        border: 1px solid rgba(13, 111, 138, .14);
+        background: linear-gradient(180deg, rgba(247, 252, 253, .98), rgba(255,255,255,.98));
+    }
+    .toggle-card.primary {
+        border-color: rgba(227, 139, 34, .28);
+        background:
+            radial-gradient(circle at top right, rgba(227, 139, 34, .14), transparent 34%),
+            linear-gradient(180deg, #fff8e8, #fffef9);
+    }
+    .toggle-card.success {
+        border-color: rgba(23, 138, 85, .22);
+        background:
+            radial-gradient(circle at top right, rgba(23, 138, 85, .12), transparent 34%),
+            linear-gradient(180deg, #effbf5, #fbfffc);
+    }
+    .toggle-card.warning {
+        border-color: rgba(179, 53, 53, .2);
+        background:
+            radial-gradient(circle at top right, rgba(179, 53, 53, .09), transparent 34%),
+            linear-gradient(180deg, #fff5f5, #fffdfd);
+    }
+    .toggle-card input[type="checkbox"] {
+        width: 24px;
+        height: 24px;
+        margin: 4px 0 0;
+        accent-color: #0d6f8a;
+        flex: 0 0 auto;
+    }
+    .toggle-copy {
+        display: grid;
+        gap: 3px;
+    }
+    .toggle-copy strong {
+        color: #14384d;
+        font-size: 1rem;
+    }
+    .toggle-copy span {
+        color: #64808f;
+        font-size: .88rem;
+        line-height: 1.3;
+    }
+    .codes-note {
+        padding: 14px 16px;
+        border-radius: 18px;
+        border: 1px dashed rgba(13, 111, 138, .18);
+        background: rgba(240, 250, 252, .88);
+        color: #476779;
+        font-size: .92rem;
+    }
+    .codes-note strong {
+        color: #0d5671;
+    }
+    .intake-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .intake-actions .button {
+        min-height: 54px;
+        padding: 12px 18px;
+        border-radius: 14px;
+        font-size: 1rem;
+        box-shadow: 0 10px 20px rgba(13, 111, 138, .18);
+    }
+    .button.alt-ghost {
+        background: #fff;
+        color: #0d6f8a;
+        border: 1px solid rgba(13, 111, 138, .18);
+        box-shadow: none;
+    }
+    @media (max-width: 1400px) {
+        .intake-panel.study,
+        .intake-panel.report,
+        .intake-panel.vitals,
+        .intake-panel.flags {
+            grid-column: span 12;
+        }
+        .metric-strip {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+    @media (max-width: 900px) {
+        .intake-fields,
+        .intake-fields.two-cols,
+        .metric-strip {
+            grid-template-columns: 1fr;
+        }
+        .intake-hero {
+            padding: 16px;
+        }
+        .intake-panel {
+            padding: 16px;
+        }
+    }
+</style>
+
+<section class="intake-shell">
+    <header class="intake-hero card">
+        <p class="pill">Carga rapida</p>
+        <h1>{% if edit_mode %}Editar atencion{% else %}Nueva atencion{% endif %}</h1>
+        <p>Dejé la pantalla ordenada por bloques para que cargues más rápido: primero el paciente, después el estudio y al final el cierre médico. El PDF se sigue subiendo aparte en revisión médica.</p>
+    </header>
+
+    <form method="post" enctype="multipart/form-data" class="intake-form">
         {% csrf_token %}
         {% if return_to %}
             <input type="hidden" name="return_to" value="{{ return_to }}">
         {% endif %}
-        <div class="form-grid">
-            {% for field in form %}
-                <div class="field">
-                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                    {{ field }}
-                    {% if field.errors %}
-                        <div class="muted">{{ field.errors }}</div>
-                    {% endif %}
+
+        <div class="intake-grid">
+            <section class="intake-panel identity">
+                <span class="panel-kicker">Paciente</span>
+                <h2>Identificación y turno</h2>
+                <p class="panel-subtitle">Solo los datos clave para ubicar rápido la ficha y no perder tiempo en recepción.</p>
+                <div class="intake-fields">
+                    <div class="field" style="grid-column: span 2;">
+                        <label for="{{ form.patient_name.id_for_label }}">{{ form.patient_name.label }}</label>
+                        {{ form.patient_name }}
+                        {% if form.patient_name.errors %}<div class="field-error">{{ form.patient_name.errors|join:", " }}</div>{% endif %}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.encounter_time.id_for_label }}">{{ form.encounter_time.label }}</label>
+                        {{ form.encounter_time }}
+                        {% if form.encounter_time.errors %}<div class="field-error">{{ form.encounter_time.errors|join:", " }}</div>{% endif %}
+                    </div>
+                    <div class="field" style="grid-column: span 2;">
+                        <label for="{{ form.patient_dni.id_for_label }}">{{ form.patient_dni.label }}</label>
+                        {{ form.patient_dni }}
+                        <div class="field-help">Podés dejarlo vacío y completarlo después si todavía no lo tenés.</div>
+                        {% if form.patient_dni.errors %}<div class="field-error">{{ form.patient_dni.errors|join:", " }}</div>{% endif %}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.referring_physician.id_for_label }}">{{ form.referring_physician.label }}</label>
+                        {{ form.referring_physician }}
+                        {% if form.referring_physician.errors %}<div class="field-error">{{ form.referring_physician.errors|join:", " }}</div>{% endif %}
+                    </div>
                 </div>
-            {% endfor %}
+            </section>
+
+            <section class="intake-panel study">
+                <span class="panel-kicker">Estudio</span>
+                <h2>Tipo de atención</h2>
+                <p class="panel-subtitle">Definí rápido el estudio, la cobertura y el resultado respiratorio si ya lo sabés.</p>
+                <div class="intake-fields">
+                    <div class="field field-highlight">
+                        <label for="{{ form.study_type.id_for_label }}">{{ form.study_type.label }}</label>
+                        {{ form.study_type }}
+                        {% if form.study_type.errors %}<div class="field-error">{{ form.study_type.errors|join:", " }}</div>{% endif %}
+                    </div>
+                    <div class="field field-highlight">
+                        <label for="{{ form.coverage_type.id_for_label }}">{{ form.coverage_type.label }}</label>
+                        {{ form.coverage_type }}
+                        {% if form.coverage_type.errors %}<div class="field-error">{{ form.coverage_type.errors|join:", " }}</div>{% endif %}
+                    </div>
+                    <div class="field field-code">
+                        <label for="{{ form.respiratory_result.id_for_label }}">{{ form.respiratory_result.label }}</label>
+                        {{ form.respiratory_result }}
+                        {% if form.respiratory_result.errors %}<div class="field-error">{{ form.respiratory_result.errors|join:", " }}</div>{% endif %}
+                    </div>
+                </div>
+                <div class="codes-note" style="margin-top:14px;">
+                    <strong>Códigos rápidos:</strong> N, OL, OM, OMS, OS, RL, RM, RMS, RS o mixto tipo RLOMS.
+                </div>
+            </section>
+
+            <section class="intake-panel report">
+                <span class="panel-kicker">Informe</span>
+                <h2>Cierre del médico</h2>
+                <p class="panel-subtitle">Acá dejé bien visible lo que impacta directo en el informe final.</p>
+                <div class="toggle-stack">
+                    <label class="toggle-card primary" for="{{ form.bronchodilator_positive.id_for_label }}">
+                        {{ form.bronchodilator_positive }}
+                        <span class="toggle-copy">
+                            <strong>Broncodilatador positivo</strong>
+                            <span>Si lo marcás, en la primera página del informe aparece abajo de SO2 / FC como aviso clínico.</span>
+                        </span>
+                    </label>
+                    <label class="toggle-card success" for="{{ form.attended.id_for_label }}">
+                        {{ form.attended }}
+                        <span class="toggle-copy">
+                            <strong>Paciente atendido</strong>
+                            <span>Dejalo listo cuando ya pasó por el estudio y querés avanzar más rápido con el flujo.</span>
+                        </span>
+                    </label>
+                    <label class="toggle-card warning" for="{{ form.no_show.id_for_label }}">
+                        {{ form.no_show }}
+                        <span class="toggle-copy">
+                            <strong>No llegó</strong>
+                            <span>Marcá esto solo si no vino, para que no quede mezclado con pacientes atendidos.</span>
+                        </span>
+                    </label>
+                </div>
+                {% if form.bronchodilator_positive.errors %}<div class="field-error">{{ form.bronchodilator_positive.errors|join:", " }}</div>{% endif %}
+                {% if form.attended.errors %}<div class="field-error">{{ form.attended.errors|join:", " }}</div>{% endif %}
+                {% if form.no_show.errors %}<div class="field-error">{{ form.no_show.errors|join:", " }}</div>{% endif %}
+            </section>
+
+            <section class="intake-panel vitals">
+                <span class="panel-kicker">Oxigenación</span>
+                <h2>Valores y caminata</h2>
+                <p class="panel-subtitle">La parte operativa de la prueba, agrupada para que no tengas que ir saltando por toda la pantalla.</p>
+                <div class="metric-strip">
+                    <div class="metric-card">
+                        <span>SO2 reposo</span>
+                        <strong>R</strong>
+                    </div>
+                    <div class="metric-card">
+                        <span>FC reposo</span>
+                        <strong>R</strong>
+                    </div>
+                    <div class="metric-card">
+                        <span>SO2 post</span>
+                        <strong>P</strong>
+                    </div>
+                    <div class="metric-card">
+                        <span>FC post</span>
+                        <strong>P</strong>
+                    </div>
+                </div>
+                <div class="intake-fields" style="margin-top:14px;">
+                    <div class="field">
+                        <label for="{{ form.so2_rest.id_for_label }}">{{ form.so2_rest.label }}</label>
+                        {{ form.so2_rest }}
+                        {% if form.so2_rest.errors %}<div class="field-error">{{ form.so2_rest.errors|join:", " }}</div>{% endif %}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.fc_rest.id_for_label }}">{{ form.fc_rest.label }}</label>
+                        {{ form.fc_rest }}
+                        {% if form.fc_rest.errors %}<div class="field-error">{{ form.fc_rest.errors|join:", " }}</div>{% endif %}
+                    </div>
+                    <div class="field" data-cycle-field>
+                        <label for="{{ form.so2_post.id_for_label }}">{{ form.so2_post.label }}</label>
+                        {{ form.so2_post }}
+                        {% if form.so2_post.errors %}<div class="field-error">{{ form.so2_post.errors|join:", " }}</div>{% endif %}
+                    </div>
+                    <div class="field" data-cycle-field>
+                        <label for="{{ form.fc_post.id_for_label }}">{{ form.fc_post.label }}</label>
+                        {{ form.fc_post }}
+                        {% if form.fc_post.errors %}<div class="field-error">{{ form.fc_post.errors|join:", " }}</div>{% endif %}
+                    </div>
+                    <div class="field" data-cycle-field>
+                        <label for="{{ form.distance_meters.id_for_label }}">{{ form.distance_meters.label }}</label>
+                        {{ form.distance_meters }}
+                        {% if form.distance_meters.errors %}<div class="field-error">{{ form.distance_meters.errors|join:", " }}</div>{% endif %}
+                    </div>
+                    <div class="field" data-cycle-field>
+                        <label for="{{ form.borg_final.id_for_label }}">{{ form.borg_final.label }}</label>
+                        {{ form.borg_final }}
+                        {% if form.borg_final.errors %}<div class="field-error">{{ form.borg_final.errors|join:", " }}</div>{% endif %}
+                    </div>
+                </div>
+            </section>
+
+            <section class="intake-panel flags">
+                <span class="panel-kicker">Criterios</span>
+                <h2>Cómo terminó la caminata</h2>
+                <p class="panel-subtitle">Los criterios se ven como tarjetas para que marques rápido sin perderte entre checkbox sueltos.</p>
+                <div class="toggle-stack" data-cycle-field>
+                    <label class="toggle-card success" for="{{ form.completed.id_for_label }}">
+                        {{ form.completed }}
+                        <span class="toggle-copy">
+                            <strong>Completada con éxito</strong>
+                            <span>La caminata se realizó hasta el final sin quedar interrumpida.</span>
+                        </span>
+                    </label>
+                    <label class="toggle-card" for="{{ form.stopped.id_for_label }}">
+                        {{ form.stopped }}
+                        <span class="toggle-copy">
+                            <strong>Se detuvo durante la marcha</strong>
+                            <span>Útil para que después el informe refleje si el paciente frenó antes de tiempo.</span>
+                        </span>
+                    </label>
+                    <label class="toggle-card warning" for="{{ form.symptoms.id_for_label }}">
+                        {{ form.symptoms }}
+                        <span class="toggle-copy">
+                            <strong>Presentó síntomas al final</strong>
+                            <span>Marcá esto si terminó con molestias o signos clínicos a consignar.</span>
+                        </span>
+                    </label>
+                </div>
+                {% if form.completed.errors %}<div class="field-error">{{ form.completed.errors|join:", " }}</div>{% endif %}
+                {% if form.stopped.errors %}<div class="field-error">{{ form.stopped.errors|join:", " }}</div>{% endif %}
+                {% if form.symptoms.errors %}<div class="field-error">{{ form.symptoms.errors|join:", " }}</div>{% endif %}
+            </section>
         </div>
-        <p class="muted" style="margin:12px 0 0;">
-            Codigos: N, OL, OM, OMS, OS, RL, RM, RMS, RS o mixto tipo RLOMS.
-        </p>
+
         <datalist id="result-code-options">
             {% for value, label in result_code_suggestions %}
                 <option value="{{ value }}">{{ label }}</option>
             {% endfor %}
         </datalist>
-        <button class="button" type="submit" style="margin-top:24px;">Guardar atencion</button>
+
+        <div class="intake-actions">
+            <button class="button" type="submit">{% if edit_mode %}Guardar cambios{% else %}Guardar atención{% endif %}</button>
+            {% if encounter %}
+                {% if perms.clinic.review_medically %}<a class="button alt-ghost" href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Ir a revisión médica</a>{% endif %}
+            {% endif %}
+        </div>
     </form>
 </section>
+
 <script>
     (function () {
         var studySelect = document.getElementById("id_study_type");
-        var cycleFields = ["id_so2_post", "id_fc_post", "id_distance_meters", "id_completed", "id_borg_final"];
+        var cycleFields = ["id_so2_post", "id_fc_post", "id_distance_meters", "id_completed", "id_stopped", "id_symptoms", "id_borg_final"];
 
         function findFieldWrapper(element) {
             while (element && element.nodeType === 1) {
-                if ((" " + element.className + " ").indexOf(" field ") !== -1) {
+                if ((" " + element.className + " ").indexOf(" field ") !== -1 || element.hasAttribute("data-cycle-field")) {
                     return element;
                 }
                 element = element.parentNode;
@@ -54,9 +495,13 @@
             var i;
             for (i = 0; i < cycleFields.length; i += 1) {
                 var field = document.getElementById(cycleFields[i]);
-                if (!field) return;
+                if (!field) continue;
                 var wrapper = findFieldWrapper(field);
                 if (wrapper) wrapper.style.display = isCyclometry ? "" : "none";
+            }
+            var extraCycleBlocks = document.querySelectorAll("[data-cycle-field]");
+            for (i = 0; i < extraCycleBlocks.length; i += 1) {
+                extraCycleBlocks[i].style.display = isCyclometry ? "" : "none";
             }
         }
 

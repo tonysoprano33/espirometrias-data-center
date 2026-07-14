@@ -15,6 +15,7 @@ urlpatterns = [
     path("pacientes/nuevo/", views.patient_create, name="patient_create"),
     path("pacientes/<int:pk>/editar/", views.patient_edit, name="patient_edit"),
     path("pacientes/<int:pk>/eliminar/", views.patient_delete, name="patient_delete"),
+    path("papelera/", views.recycle_bin_view, name="recycle_bin"),
     path("atenciones/nueva/", views.encounter_create, name="encounter_create"),
     path("atenciones/<int:pk>/", views.encounter_detail, name="encounter_detail"),
     path("atenciones/<int:pk>/editar/", views.encounter_edit, name="encounter_edit"),
@@ -22,5 +23,6 @@ urlpatterns = [
     path("atenciones/<int:pk>/generar-informe/", views.encounter_generate_report, name="encounter_generate_report"),
     path("imprimir-dia/", views.daily_print_view, name="daily_print"),
     path("revision-medica/", views.doctor_review_list, name="doctor_review_list"),
+    path("revision-medica/<int:pk>/cola/", views.doctor_review_queue_state, name="doctor_review_queue_state"),
     path("revision-medica/<int:pk>/", views.doctor_review_detail, name="doctor_review_detail"),
 ]

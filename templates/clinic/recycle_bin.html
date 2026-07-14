@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Papelera | Clinica Espiro{% endblock %}
+
+{% block content %}
+<section class="card" style="margin-bottom:18px;">
+    <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+        <div>
+            <p class="pill">Papelera de reciclaje</p>
+            <h1 class="section-title">Elementos eliminados</h1>
+            <p class="muted" style="max-width:72ch;">
+                Los pacientes y atenciones borrados quedan disponibles para restaurar.
+                Solo un administrador puede eliminarlos definitivamente; no se vacian de forma automatica.
+            </p>
+        </div>
+        {% if perms.clinic.purge_clinical_data %}<form method="post" onsubmit="return confirm('¿Vaciar la papelera definitivamente? Esta accion no se puede deshacer.');" style="margin:0;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="empty_trash">
+            <button class="button danger" type="submit" {% if trash_is_empty %}disabled{% endif %}>Vaciar papelera</button>
+        </form>{% endif %}
+    </div>
+
+    <div class="stats-strip" style="margin-top:18px;">
+        <div class="stat">
+            <span>Pacientes eliminados</span>
+            <strong>{{ deleted_patients_count }}</strong>
+        </div>
+        <div class="stat" style="border-left-color:#e38b22;">
+            <span>Atenciones eliminadas</span>
+            <strong>{{ deleted_encounters_count }}</strong>
+        </div>
+        <div class="stat" style="border-left-color:#178a55;">
+            <span>Borrado automatico</span>
+            <strong>Desactivado</strong>
+        </div>
+    </div>
+</section>
+
+<section class="card" style="margin-bottom:18px;">
+    <div style="display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap;">
+        <div>
+            <h2 class="section-title" style="margin-bottom:4px;">Pacientes en papelera</h2>
+            <p class="muted" style="margin:0;">Restaurar recupera tambien sus atenciones borradas.</p>
+        </div>
+    </div>
+
+    {% if deleted_patients %}
+        <div class="table-wrap" style="margin-top:14px;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Paciente</th>
+                        <th>DNI</th>
+                        <th>Eliminado el</th>
+                        <th>Eliminado por</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for patient in deleted_patients %}
+                        <tr>
+                            <td><strong>{{ patient.full_name }}</strong></td>
+                            <td>{{ patient.dni|default:"-" }}</td>
+                            <td>{{ patient.deleted_at|date:"d/m/Y H:i" }}</td>
+                            <td>{{ patient.deleted_by|default:"-" }}</td>
+                            <td>
+                                <form method="post" style="display:flex;gap:8px;flex-wrap:wrap;margin:0;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="patient_id" value="{{ patient.pk }}">
+                                    <button class="button small" type="submit" name="action" value="restore_patient">Restaurar</button>
+                                    {% if perms.clinic.purge_clinical_data %}<button class="button small danger" type="submit" name="action" value="purge_patient" onclick="return confirm('¿Eliminar definitivamente este paciente? Esta accion no se puede deshacer.');">Borrar definitivo</button>{% endif %}
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="muted" style="margin:14px 0 0;">No hay pacientes eliminados.</p>
+    {% endif %}
+</section>
+
+<section class="card">
+    <div style="display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap;">
+        <div>
+            <h2 class="section-title" style="margin-bottom:4px;">Atenciones en papelera</h2>
+            <p class="muted" style="margin:0;">Podes restaurar una atencion sola aunque el paciente ya siga activo.</p>
+        </div>
+    </div>
+
+    {% if deleted_encounters %}
+        <div class="table-wrap" style="margin-top:14px;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Paciente</th>
+                        <th>Fecha</th>
+                        <th>Estudio</th>
+                        <th>Eliminado el</th>
+                        <th>Eliminado por</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for encounter in deleted_encounters %}
+                        <tr>
+                            <td><strong>{{ encounter.patient.full_name }}</strong></td>
+                            <td>{{ encounter.encounter_date|date:"d/m/Y" }}</td>
+                            <td>{{ encounter.study_type }}</td>
+                            <td>{{ encounter.deleted_at|date:"d/m/Y H:i" }}</td>
+                            <td>{{ encounter.deleted_by|default:"-" }}</td>
+                            <td>
+                                <form method="post" style="display:flex;gap:8px;flex-wrap:wrap;margin:0;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                    <button class="button small" type="submit" name="action" value="restore_encounter">Restaurar</button>
+                                    {% if perms.clinic.purge_clinical_data %}<button class="button small danger" type="submit" name="action" value="purge_encounter" onclick="return confirm('¿Eliminar definitivamente esta atencion? Esta accion no se puede deshacer.');">Borrar definitivo</button>{% endif %}
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="muted" style="margin:14px 0 0;">No hay atenciones eliminadas.</p>
+    {% endif %}
+</section>
+{% endblock %}
