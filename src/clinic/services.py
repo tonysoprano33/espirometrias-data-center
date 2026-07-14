@@ -128,6 +128,15 @@ def build_walk_measurement_rows(vital, walk) -> list[dict]:
     return rows
 
 
+def compact_walk_measurement_rows(vital, walk) -> list[dict]:
+    rows = build_walk_measurement_rows(vital, walk)
+    compact_rows = []
+    for row in rows:
+        if any(row.get(key) not in ("", None) for key in ("so2", "fc", "borg")):
+            compact_rows.append(row)
+    return compact_rows
+
+
 def build_walk_test_assessment(
     so2_rest=None,
     so2_post=None,
@@ -303,6 +312,7 @@ def agregar_seccion_espirometria(doc: Document, so2: str, fc: str, informe: str,
 
 def agregar_seccion_caminata(
     doc: Document,
+    minute_vals: list[int],
     so2_vals: list[int],
     fc_vals: list[int],
     distancia: str,
@@ -351,7 +361,7 @@ def agregar_seccion_caminata(
             p.runs[0].font.name = "Times New Roman"
             p.runs[0].font.size = Pt(10)
 
-    tabla = doc.add_table(rows=8, cols=4)
+    tabla = doc.add_table(rows=len(so2_vals) + 1, cols=4)
     tabla.style = "Table Grid"
     hdr = ["MINUTOS", "SO2", "FC", "ESC.BORG"]
     for i, h in enumerate(hdr):
@@ -364,8 +374,8 @@ def agregar_seccion_caminata(
                 run.font.size = Pt(10)
             para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    for i in range(7):
-        tabla.rows[i + 1].cells[0].text = str(i)
+    for i in range(len(so2_vals)):
+        tabla.rows[i + 1].cells[0].text = str(minute_vals[i] if i < len(minute_vals) else i)
         tabla.rows[i + 1].cells[1].text = str(so2_vals[i])
         tabla.rows[i + 1].cells[2].text = str(fc_vals[i])
         tabla.rows[i + 1].cells[3].text = str(borg_vals[i])
@@ -395,6 +405,7 @@ def crear_informe_mutual(
     deriva: str,
     so2: str,
     fc: str,
+    minute_vals: list[int],
     so2_vals: list[int],
     fc_vals: list[int],
     borg_vals: list[int],
@@ -493,7 +504,7 @@ def crear_informe_mutual(
         if p.runs:
             p.runs[0].font.size = Pt(10)
 
-    tabla = doc.add_table(rows=8, cols=4)
+    tabla = doc.add_table(rows=len(so2_vals) + 1, cols=4)
     tabla.style = "Table Grid"
     hdr = ["MINUTOS", "SO2", "FC", "ESC.BORG"]
     for i, h in enumerate(hdr):
@@ -505,8 +516,8 @@ def crear_informe_mutual(
                 run.font.size = Pt(10)
             para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    for i in range(7):
-        tabla.rows[i + 1].cells[0].text = str(i)
+    for i in range(len(so2_vals)):
+        tabla.rows[i + 1].cells[0].text = str(minute_vals[i] if i < len(minute_vals) else i)
         tabla.rows[i + 1].cells[1].text = str(so2_vals[i])
         tabla.rows[i + 1].cells[2].text = str(fc_vals[i])
         tabla.rows[i + 1].cells[3].text = str(borg_vals[i])
@@ -772,7 +783,8 @@ def build_reports_for_encounter(encounter, *, include_mutual=None) -> list[Gener
     agregar_datos_paciente(doc_normal, nombre, dni, deriva)
     agregar_seccion_espirometria(doc_normal, so2, fc, informe, es_normal, broncodilatador_positivo)
 
-    walk_rows = build_walk_measurement_rows(vital, walk)
+    walk_rows = compact_walk_measurement_rows(vital, walk)
+    minute_vals = [row["minute"] for row in walk_rows]
     so2_vals = [row["so2"] for row in walk_rows]
     fc_vals = [row["fc"] for row in walk_rows]
     borg_vals = [row["borg"] for row in walk_rows]
@@ -783,6 +795,7 @@ def build_reports_for_encounter(encounter, *, include_mutual=None) -> list[Gener
     agregar_datos_paciente(doc_normal, nombre, dni, deriva)
     agregar_seccion_caminata(
         doc_normal,
+        minute_vals,
         so2_vals,
         fc_vals,
         distancia,
@@ -812,6 +825,7 @@ def build_reports_for_encounter(encounter, *, include_mutual=None) -> list[Gener
             deriva,
             so2,
             fc,
+            minute_vals,
             so2_vals,
             fc_vals,
             borg_vals,

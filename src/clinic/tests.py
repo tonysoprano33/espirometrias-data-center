@@ -941,6 +941,48 @@ class DoctorReviewViewTests(TestCase):
         self.assertEqual(response.context["selected_date"], "2026-07-13")
         self.assertEqual(response.context["today"], date(2026, 7, 13))
 
+    def test_list_deduplicates_same_patient_same_day_and_keeps_latest_card(self):
+        self.client.force_login(self.user)
+        duplicate_patient = Patient.objects.create(full_name="THEO, CORNEJO", dni="59158072")
+        Encounter.objects.create(
+            patient=duplicate_patient,
+            encounter_date=date(2026, 7, 14),
+            encounter_time=time(12, 10),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            status=EncounterStatus.PENDIENTE,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        latest_encounter = Encounter.objects.create(
+            patient=duplicate_patient,
+            encounter_date=date(2026, 7, 14),
+            encounter_time=time(12, 16),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            status=EncounterStatus.CARGADA,
+            attended=True,
+            attended_at=timezone.make_aware(datetime(2026, 7, 14, 12, 20)),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        Attachment.objects.create(
+            encounter=latest_encounter,
+            file_kind=AttachmentKind.PDF_RESULTADO,
+            original_name="theo.pdf",
+            file="encounters/theo/theo.pdf",
+            mime_type="application/pdf",
+            uploaded_by=self.user,
+        )
+
+        response = self.client.get(reverse("clinic:doctor_review_list"), {"date": "2026-07-14"})
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertEqual(html.count("THEO, CORNEJO"), 1)
+        self.assertIn("Revisar PDF", html)
+        self.assertNotIn("Abrir ficha", html)
+
     def test_upload_suggestion_does_not_become_medical_result(self):
         self.client.force_login(self.user)
         pdf_file = SimpleUploadedFile("felisa.pdf", b"%PDF-1.4 fake", content_type="application/pdf")
@@ -1717,15 +1759,15 @@ class PrintReportViewTests(TestCase):
         doc = Document(BytesIO(artifacts[0].bytes_content))
         walk_table = next(table for table in doc.tables if table.rows[0].cells[0].text == "MINUTOS")
 
+        self.assertEqual(len(walk_table.rows), 3)
+        self.assertEqual(walk_table.rows[1].cells[0].text, "0")
         self.assertEqual(walk_table.rows[1].cells[1].text, "88")
         self.assertEqual(walk_table.rows[1].cells[2].text, "64")
-        for row_index in range(2, 7):
-            self.assertEqual(walk_table.rows[row_index].cells[1].text, "")
-            self.assertEqual(walk_table.rows[row_index].cells[2].text, "")
-            self.assertEqual(walk_table.rows[row_index].cells[3].text, "")
-        self.assertEqual(walk_table.rows[7].cells[1].text, "65")
-        self.assertEqual(walk_table.rows[7].cells[2].text, "117")
-        self.assertEqual(walk_table.rows[7].cells[3].text, "1")
+        self.assertEqual(walk_table.rows[1].cells[3].text, "")
+        self.assertEqual(walk_table.rows[2].cells[0].text, "6")
+        self.assertEqual(walk_table.rows[2].cells[1].text, "65")
+        self.assertEqual(walk_table.rows[2].cells[2].text, "117")
+        self.assertEqual(walk_table.rows[2].cells[3].text, "1")
 
     def test_regenerated_report_keeps_source_snapshot_hash_and_version_chain(self):
         first_artifacts = build_reports_for_encounter(self.encounter)
