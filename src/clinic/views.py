@@ -76,9 +76,9 @@ from .pdf_intake import (
 from .services import build_reports_for_encounter
 from .services import (
     DEFAULT_DOCTOR,
+    build_walk_measurement_rows,
     build_walk_test_assessment,
     construir_informe_espirometria,
-    compact_walk_measurement_rows,
     formatear_dni,
     limpiar_entero,
     normalizar_medico,
@@ -2621,7 +2621,7 @@ def build_print_context_for_encounter(encounter):
     include_walk = encounter.study_type == "Ciclometria"
     walk_rows = []
     if include_walk:
-        walk_rows = compact_walk_measurement_rows(vital, walk)
+        walk_rows = build_walk_measurement_rows(vital, walk)
 
     pdf_attachment = get_latest_result_attachment(encounter)
     try:

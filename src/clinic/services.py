@@ -100,8 +100,26 @@ def _validated_walk_value(value, *, minimum: int, maximum: int):
     return parsed
 
 
+def _interpolate_walk_value(start, end, minute: int, *, maximum: int | None = None):
+    if start in ("", None) and end in ("", None):
+        return ""
+    if start in ("", None):
+        return end
+    if end in ("", None):
+        return start
+    try:
+        start_int = int(start)
+        end_int = int(end)
+    except (TypeError, ValueError):
+        return ""
+    value = round(start_int + ((end_int - start_int) * minute / 6))
+    if maximum is not None:
+        value = min(value, maximum)
+    return value
+
+
 def build_walk_measurement_rows(vital, walk) -> list[dict]:
-    """Return only values that were actually saved, never interpolated measurements."""
+    """Return the full minute-by-minute walk table expected in the report."""
     rows = [{"minute": minute, "so2": "", "fc": "", "borg": ""} for minute in range(7)]
 
     for reading in list(getattr(walk, "minute_readings", None) or []):
@@ -118,23 +136,22 @@ def build_walk_measurement_rows(vital, walk) -> list[dict]:
         rows[minute]["borg"] = _validated_walk_value(reading.get("borg"), minimum=0, maximum=10)
 
     if vital:
-        rows[0]["so2"] = _validated_walk_value(getattr(vital, "so2_rest", None), minimum=0, maximum=100)
-        rows[0]["fc"] = _validated_walk_value(getattr(vital, "fc_rest", None), minimum=0, maximum=300)
-        rows[6]["so2"] = _validated_walk_value(getattr(vital, "so2_post", None), minimum=0, maximum=100)
-        rows[6]["fc"] = _validated_walk_value(getattr(vital, "fc_post", None), minimum=0, maximum=300)
+        so2_rest = _validated_walk_value(getattr(vital, "so2_rest", None), minimum=0, maximum=100)
+        fc_rest = _validated_walk_value(getattr(vital, "fc_rest", None), minimum=0, maximum=300)
+        so2_post = _validated_walk_value(getattr(vital, "so2_post", None), minimum=0, maximum=100)
+        fc_post = _validated_walk_value(getattr(vital, "fc_post", None), minimum=0, maximum=300)
+        for minute in range(7):
+            if rows[minute]["so2"] == "":
+                rows[minute]["so2"] = _interpolate_walk_value(so2_rest, so2_post, minute, maximum=100)
+            if rows[minute]["fc"] == "":
+                rows[minute]["fc"] = _interpolate_walk_value(fc_rest, fc_post, minute, maximum=300)
 
-    if walk and getattr(walk, "borg_final", None) is not None:
-        rows[6]["borg"] = _validated_walk_value(getattr(walk, "borg_final", None), minimum=0, maximum=10)
+    final_borg = _validated_walk_value(getattr(walk, "borg_final", None) if walk else None, minimum=0, maximum=10)
+    if final_borg != "":
+        for minute in range(7):
+            if rows[minute]["borg"] == "":
+                rows[minute]["borg"] = _interpolate_walk_value(0, final_borg, minute, maximum=10)
     return rows
-
-
-def compact_walk_measurement_rows(vital, walk) -> list[dict]:
-    rows = build_walk_measurement_rows(vital, walk)
-    compact_rows = []
-    for row in rows:
-        if any(row.get(key) not in ("", None) for key in ("so2", "fc", "borg")):
-            compact_rows.append(row)
-    return compact_rows
 
 
 def build_walk_test_assessment(
@@ -312,7 +329,6 @@ def agregar_seccion_espirometria(doc: Document, so2: str, fc: str, informe: str,
 
 def agregar_seccion_caminata(
     doc: Document,
-    minute_vals: list[int],
     so2_vals: list[int],
     fc_vals: list[int],
     distancia: str,
@@ -361,7 +377,7 @@ def agregar_seccion_caminata(
             p.runs[0].font.name = "Times New Roman"
             p.runs[0].font.size = Pt(10)
 
-    tabla = doc.add_table(rows=len(so2_vals) + 1, cols=4)
+    tabla = doc.add_table(rows=8, cols=4)
     tabla.style = "Table Grid"
     hdr = ["MINUTOS", "SO2", "FC", "ESC.BORG"]
     for i, h in enumerate(hdr):
@@ -374,8 +390,8 @@ def agregar_seccion_caminata(
                 run.font.size = Pt(10)
             para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    for i in range(len(so2_vals)):
-        tabla.rows[i + 1].cells[0].text = str(minute_vals[i] if i < len(minute_vals) else i)
+    for i in range(7):
+        tabla.rows[i + 1].cells[0].text = str(i)
         tabla.rows[i + 1].cells[1].text = str(so2_vals[i])
         tabla.rows[i + 1].cells[2].text = str(fc_vals[i])
         tabla.rows[i + 1].cells[3].text = str(borg_vals[i])
@@ -405,7 +421,6 @@ def crear_informe_mutual(
     deriva: str,
     so2: str,
     fc: str,
-    minute_vals: list[int],
     so2_vals: list[int],
     fc_vals: list[int],
     borg_vals: list[int],
@@ -504,7 +519,7 @@ def crear_informe_mutual(
         if p.runs:
             p.runs[0].font.size = Pt(10)
 
-    tabla = doc.add_table(rows=len(so2_vals) + 1, cols=4)
+    tabla = doc.add_table(rows=8, cols=4)
     tabla.style = "Table Grid"
     hdr = ["MINUTOS", "SO2", "FC", "ESC.BORG"]
     for i, h in enumerate(hdr):
@@ -516,8 +531,8 @@ def crear_informe_mutual(
                 run.font.size = Pt(10)
             para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    for i in range(len(so2_vals)):
-        tabla.rows[i + 1].cells[0].text = str(minute_vals[i] if i < len(minute_vals) else i)
+    for i in range(7):
+        tabla.rows[i + 1].cells[0].text = str(i)
         tabla.rows[i + 1].cells[1].text = str(so2_vals[i])
         tabla.rows[i + 1].cells[2].text = str(fc_vals[i])
         tabla.rows[i + 1].cells[3].text = str(borg_vals[i])
@@ -783,8 +798,7 @@ def build_reports_for_encounter(encounter, *, include_mutual=None) -> list[Gener
     agregar_datos_paciente(doc_normal, nombre, dni, deriva)
     agregar_seccion_espirometria(doc_normal, so2, fc, informe, es_normal, broncodilatador_positivo)
 
-    walk_rows = compact_walk_measurement_rows(vital, walk)
-    minute_vals = [row["minute"] for row in walk_rows]
+    walk_rows = build_walk_measurement_rows(vital, walk)
     so2_vals = [row["so2"] for row in walk_rows]
     fc_vals = [row["fc"] for row in walk_rows]
     borg_vals = [row["borg"] for row in walk_rows]
@@ -795,7 +809,6 @@ def build_reports_for_encounter(encounter, *, include_mutual=None) -> list[Gener
     agregar_datos_paciente(doc_normal, nombre, dni, deriva)
     agregar_seccion_caminata(
         doc_normal,
-        minute_vals,
         so2_vals,
         fc_vals,
         distancia,
@@ -825,7 +838,6 @@ def build_reports_for_encounter(encounter, *, include_mutual=None) -> list[Gener
             deriva,
             so2,
             fc,
-            minute_vals,
             so2_vals,
             fc_vals,
             borg_vals,
