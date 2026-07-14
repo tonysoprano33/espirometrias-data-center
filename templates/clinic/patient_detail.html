@@ -72,6 +72,11 @@
         border-color: rgba(30, 139, 178, .28);
         color: #12627a;
     }
+    .patient-action-stack button.danger {
+        background: rgba(209, 91, 43, .08);
+        border-color: rgba(209, 91, 43, .24);
+        color: #b1522b;
+    }
     .patient-action-stack button:disabled {
         cursor: not-allowed;
         opacity: .55;
@@ -318,6 +323,14 @@
                                 {% endif %}
                                 {% if encounter.mutual_report_url %}
                                     <a href="{{ encounter.mutual_report_url }}" target="_blank" rel="noopener">Abrir mutual</a>
+                                {% endif %}
+                                {% if perms.clinic.manage_agenda %}
+                                <form method="post" onsubmit="return confirm('¿Eliminar esta atencion? Se enviara a papelera junto con sus archivos.');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="delete_encounter">
+                                    <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                    <button class="danger" type="submit">Eliminar atencion</button>
+                                </form>
                                 {% endif %}
                             </div>
                         </td>

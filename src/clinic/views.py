@@ -1525,9 +1525,43 @@ def import_identity_exists_for_date(encounter_date, parsed_dni: str, patient_nam
     )
 
 
+def _encounter_dedupe_rank(encounter):
+    printable_ready, _ = get_report_readiness(encounter, ignore_attendance=True)
+    vital = getattr(encounter, "vital_signs", None)
+    result_code = get_result_code_from_encounter(encounter)
+    has_reports = encounter.generated_reports.exists()
+    status_rank = {
+        EncounterStatus.ENTREGADA: 5,
+        EncounterStatus.INFORME_GENERADO: 4,
+        EncounterStatus.REVISADA: 3,
+        EncounterStatus.CARGADA: 2,
+        EncounterStatus.PENDIENTE: 1,
+        EncounterStatus.NO_LLEGO: 0,
+    }.get(encounter.status, 0)
+    vital_completeness = sum(
+        1
+        for value in (
+            getattr(vital, "so2_rest", None),
+            getattr(vital, "fc_rest", None),
+            getattr(vital, "so2_post", None),
+            getattr(vital, "fc_post", None),
+        )
+        if value is not None
+    )
+    return (
+        1 if printable_ready else 0,
+        1 if has_reports else 0,
+        1 if encounter.attended else 0,
+        1 if not encounter.no_show else 0,
+        1 if bool(result_code) else 0,
+        vital_completeness,
+        status_rank,
+    )
+
+
 def unique_encounters_by_patient_day(encounters):
     unique = []
-    seen_identity_keys = set()
+    seen_identity_keys = {}
     for encounter in encounters:
         patient = getattr(encounter, "patient", None)
         if not patient:
@@ -1537,11 +1571,22 @@ def unique_encounters_by_patient_day(encounters):
         dni = normalize_document_number(getattr(patient, "dni", "") or "")
         name_key = normalize_patient_identity_name(getattr(patient, "full_name", "") or "")
         identity_key = (day_key, "dni", dni) if dni else ((day_key, "name", name_key) if name_key else None)
-        if identity_key and identity_key in seen_identity_keys:
+        if not identity_key:
+            unique.append(encounter)
             continue
-        if identity_key:
-            seen_identity_keys.add(identity_key)
-        unique.append(encounter)
+
+        current_rank = _encounter_dedupe_rank(encounter)
+        previous = seen_identity_keys.get(identity_key)
+        if previous is None:
+            seen_identity_keys[identity_key] = (current_rank, encounter)
+            unique.append(encounter)
+            continue
+
+        previous_rank, previous_encounter = previous
+        if current_rank > previous_rank:
+            previous_index = unique.index(previous_encounter)
+            unique[previous_index] = encounter
+            seen_identity_keys[identity_key] = (current_rank, encounter)
     return unique
 
 
@@ -3523,6 +3568,21 @@ def patient_detail(request, pk):
         messages.success(request, f"{report_label} generado correctamente.")
         return redirect("clinic:patient_detail", pk=patient.pk)
 
+    if request.method == "POST" and request.POST.get("action") == "delete_encounter":
+        encounter_id = request.POST.get("encounter_id")
+        encounter = get_object_or_404(
+            patient.encounters.select_related("patient").prefetch_related("attachments", "generated_reports"),
+            pk=encounter_id,
+        )
+        patient_name = encounter.patient.full_name
+        soft_delete_encounter(
+            encounter,
+            actor=request.user,
+            reason=f"Se elimino la atencion desde historia clinica para {patient_name}.",
+        )
+        messages.success(request, f"Se envio a papelera la atencion de {patient_name}.")
+        return redirect("clinic:patient_detail", pk=patient.pk)
+
     if request.method == "POST" and request.POST.get("action") == "upload_patient_document":
         if document_form.is_valid():
             encounter = document_form.cleaned_data["encounter"]
@@ -4289,6 +4349,15 @@ def daily_print_view(request):
         .prefetch_related("attachments")
         .filter(encounter_date=today)
         .order_by("encounter_time", "created_at")
+    )
+    encounters = unique_encounters_by_patient_day(encounters)
+    encounters = sorted(
+        encounters,
+        key=lambda encounter: (
+            encounter.encounter_time or datetime_time(23, 59),
+            encounter.created_at,
+            encounter.pk,
+        ),
     )
 
     printable = []

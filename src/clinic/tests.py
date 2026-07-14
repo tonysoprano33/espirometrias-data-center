@@ -1701,6 +1701,29 @@ class PrintReportViewTests(TestCase):
         self.assertIn("FC: 64", html)
         self.assertNotIn("FC: 64%", html)
 
+    def test_daily_print_prefers_complete_duplicate_over_incomplete_duplicate(self):
+        duplicate = Encounter.objects.create(
+            patient=self.patient,
+            encounter_date=date(2026, 6, 4),
+            encounter_time=time(12, 16),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            status=EncounterStatus.PENDIENTE,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        self.assertIsNotNone(duplicate.pk)
+
+        with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 4)):
+            response = self.client.get(reverse("clinic:daily_print"))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertNotIn("Faltan datos antes de imprimir todo el dia", html)
+        self.assertIn("FONTANARI ALICIA NOEMI", html)
+        self.assertIn("SO2: 88%", html)
+        self.assertIn("FC: 64", html)
+
     def test_generated_docx_prints_fc_without_percent_symbol(self):
         artifacts = build_reports_for_encounter(self.encounter)
         doc = Document(BytesIO(artifacts[0].bytes_content))
@@ -2063,6 +2086,21 @@ class PatientHistoryActionsTests(TestCase):
         self.assertFalse(Encounter.objects.filter(pk=self.encounter.pk).exists())
         self.assertTrue(Encounter.all_objects.filter(pk=self.encounter.pk).exists())
         self.assertEqual(response.json()["deleted"], True)
+
+    def test_patient_detail_can_delete_encounter_from_history(self):
+        response = self.client.post(
+            reverse("clinic:patient_detail", args=[self.patient.pk]),
+            {
+                "action": "delete_encounter",
+                "encounter_id": self.encounter.pk,
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:patient_detail", args=[self.patient.pk]))
+        self.encounter.refresh_from_db()
+        self.assertIsNotNone(self.encounter.deleted_at)
+        self.assertFalse(Encounter.objects.filter(pk=self.encounter.pk).exists())
+        self.assertTrue(Encounter.all_objects.filter(pk=self.encounter.pk).exists())
 
     def test_patient_delete_sends_patient_with_clinical_history_to_trash(self):
         response = self.client.post(reverse("clinic:patient_delete", args=[self.patient.pk]))
