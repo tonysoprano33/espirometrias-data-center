@@ -1370,7 +1370,7 @@ def save_quick_encounter(form: QuickEncounterForm, request_user, encounter=None)
             "completed": bool(form.cleaned_data.get("completed")),
             "stopped": bool(form.cleaned_data.get("stopped")),
             "symptoms": bool(form.cleaned_data.get("symptoms")),
-            "borg_final": int(form.cleaned_data.get("borg_final") or 0),
+            "borg_final": int(form.cleaned_data.get("borg_final") or 1),
         },
     )
 
@@ -2710,7 +2710,7 @@ def dashboard(request):
         "coverage_type": "Particular",
         "distance_meters": 200,
         "completed": True,
-        "borg_final": 0,
+        "borg_final": 1,
         "bronchodilator_positive": False,
         "attended": False,
         "no_show": True,
@@ -3794,7 +3794,7 @@ def encounter_create(request):
                 "completed": True,
                 "stopped": False,
                 "symptoms": False,
-                "borg_final": 0,
+                "borg_final": 1,
                 "attended": False,
                 "no_show": True,
             }
@@ -3850,7 +3850,7 @@ def encounter_edit(request, pk):
                 "completed": getattr(walk, "completed", True),
                 "stopped": getattr(walk, "stopped", False),
                 "symptoms": getattr(walk, "symptoms", False),
-                "borg_final": getattr(walk, "borg_final", 0),
+                "borg_final": getattr(walk, "borg_final", 1),
                 "respiratory_result": current_result,
                 "bronchodilator_positive": bool(getattr(spirometry, "bronchodilator_positive", False)),
                 "attended": encounter.attended,

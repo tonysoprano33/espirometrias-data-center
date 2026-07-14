@@ -146,11 +146,14 @@ def build_walk_measurement_rows(vital, walk) -> list[dict]:
             if rows[minute]["fc"] == "":
                 rows[minute]["fc"] = _interpolate_walk_value(fc_rest, fc_post, minute, maximum=300)
 
-    final_borg = _validated_walk_value(getattr(walk, "borg_final", None) if walk else None, minimum=0, maximum=10)
+    raw_final_borg = getattr(walk, "borg_final", None) if walk else None
+    if raw_final_borg in (None, "", 0, "0"):
+        raw_final_borg = 1
+    final_borg = _validated_walk_value(raw_final_borg, minimum=0, maximum=10)
     if final_borg != "":
         for minute in range(7):
             if rows[minute]["borg"] == "":
-                rows[minute]["borg"] = _interpolate_walk_value(0, final_borg, minute, maximum=10)
+                rows[minute]["borg"] = min(int(int(final_borg) * minute / 6), 10)
     return rows
 
 

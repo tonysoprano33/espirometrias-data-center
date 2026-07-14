@@ -273,7 +273,7 @@ class QuickEncounterForm(forms.Form):
     completed = forms.BooleanField(label="Completada con exito", required=False, initial=True)
     stopped = forms.BooleanField(label="Se detuvo durante la marcha", required=False, initial=False)
     symptoms = forms.BooleanField(label="Presento sintomas al final", required=False, initial=False)
-    borg_final = forms.ChoiceField(label="Borg final", choices=[(value, str(value)) for value in range(0, 11)], initial=0)
+    borg_final = forms.ChoiceField(label="Borg final", choices=[(value, str(value)) for value in range(0, 11)], initial=1)
     respiratory_result = forms.CharField(label="Resultado", required=False, max_length=24)
     bronchodilator_positive = forms.BooleanField(label="Broncodilatador positivo", required=False, initial=False)
     attended = forms.BooleanField(label="Atendido", required=False, initial=False)
@@ -457,7 +457,7 @@ class WalkTestForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["distance_meters"].initial = 200
         self.fields["completed"].initial = True
-        self.fields["borg_final"].initial = 0
+        self.fields["borg_final"].initial = 1
         self.fields["borg_final"].widget = forms.Select(choices=[(value, str(value)) for value in range(0, 11)])
 
 

@@ -279,7 +279,7 @@ class WalkTest(TimeStampedModel):
     completed = models.BooleanField("Prueba concluida", default=True)
     stopped = models.BooleanField("Se detuvo", default=False)
     symptoms = models.BooleanField("Presento sintomas", default=False)
-    borg_final = models.PositiveSmallIntegerField("Borg final", default=0)
+    borg_final = models.PositiveSmallIntegerField("Borg final", default=1)
     minute_readings = models.JSONField("Mediciones reales por minuto", blank=True, default=list)
 
     class Meta:

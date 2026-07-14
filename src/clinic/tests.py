@@ -1773,6 +1773,19 @@ class PrintReportViewTests(TestCase):
         self.assertEqual(walk_table.rows[7].cells[2].text, "117")
         self.assertEqual(walk_table.rows[7].cells[3].text, "1")
 
+    def test_default_zero_borg_prints_as_one_at_minute_six(self):
+        walk = self.encounter.walk_test
+        walk.borg_final = 0
+        walk.save(update_fields=["borg_final", "updated_at"])
+
+        artifacts = build_reports_for_encounter(self.encounter)
+        doc = Document(BytesIO(artifacts[0].bytes_content))
+        walk_table = next(table for table in doc.tables if table.rows[0].cells[0].text == "MINUTOS")
+
+        self.assertEqual(walk_table.rows[1].cells[3].text, "0")
+        self.assertEqual(walk_table.rows[6].cells[3].text, "0")
+        self.assertEqual(walk_table.rows[7].cells[3].text, "1")
+
     def test_regenerated_report_keeps_source_snapshot_hash_and_version_chain(self):
         first_artifacts = build_reports_for_encounter(self.encounter)
         save_generated_report_artifacts(self.encounter, first_artifacts, self.user)
