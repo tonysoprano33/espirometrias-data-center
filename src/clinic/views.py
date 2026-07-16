@@ -450,8 +450,13 @@ def format_physician_display_name(raw_name: str) -> str:
     if not value:
         return ""
     upper_value = value.upper()
+    prefix = "DR."
     if upper_value.startswith("DRA "):
+        prefix = "DRA."
         value = value[4:].strip()
+    elif upper_value.startswith("DR A "):
+        prefix = "DRA."
+        value = value[5:].strip()
     elif upper_value.startswith("DR "):
         value = value[3:].strip()
     lower_particles = {"de", "del", "la", "las", "los", "y"}
@@ -466,7 +471,7 @@ def format_physician_display_name(raw_name: str) -> str:
             words.append(lowered)
         else:
             words.append(titlecase_piece(word))
-    return f"DR. {' '.join(words)}"
+    return f"{prefix} {' '.join(words)}"
 
 
 def resolve_or_create_physician(raw_value: str):

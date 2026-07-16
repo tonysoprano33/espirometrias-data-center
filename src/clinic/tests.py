@@ -21,11 +21,12 @@ from .pdf_intake import (
     extract_patient_snapshot_from_text,
     extract_spirometry_numbers_from_text,
 )
-from .services import build_reports_for_encounter, construir_informe_espirometria
+from .services import build_reports_for_encounter, construir_informe_espirometria, normalizar_medico
 from .views import (
     extract_drapp_rows_from_browser_ocr,
     extract_drapp_rows_from_ocr_lines,
     extract_drapp_rows_from_text,
+    format_physician_display_name,
     infer_coverage_type,
     import_drapp_rows,
     get_patient_age_value,
@@ -76,6 +77,17 @@ class ClinicalUploadValidationTests(SimpleTestCase):
             image_open.return_value.size = (50_000, 50_000)
             with self.assertRaisesMessage(ValidationError, "dimensiones demasiado grandes"):
                 validate_clinical_upload(uploaded)
+
+
+class PhysicianNameFormattingTests(SimpleTestCase):
+    def test_keeps_female_doctor_prefix_when_formatting_for_storage(self):
+        self.assertEqual(format_physician_display_name("Dra. Maria Perez"), "DRA. Maria Perez")
+        self.assertEqual(format_physician_display_name("DR.A Maria Perez"), "DRA. Maria Perez")
+
+    def test_keeps_female_doctor_prefix_when_printing_reports(self):
+        self.assertEqual(normalizar_medico("Dra. Maria Perez"), "DRA. MARIA PEREZ")
+        self.assertEqual(normalizar_medico("DR.A Maria Perez"), "DRA. MARIA PEREZ")
+        self.assertEqual(normalizar_medico("Dr. Juan Perez"), "DR. JUAN PEREZ")
 
 
 class PatientAgeSourceTests(SimpleTestCase):

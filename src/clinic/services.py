@@ -43,8 +43,14 @@ def normalizar_medico(nombre) -> str:
     limpio = re.sub(r"\s+", " ", str(nombre or "").strip().upper())
     if not limpio:
         return DEFAULT_DOCTOR
-    limpio = re.sub(r"^DR\.?\s*", "", limpio)
-    return f"DR. {limpio}"
+    limpio = re.sub(r"^DR\.?\s*A\.?\s+", "DRA. ", limpio)
+    match = re.match(r"^(DRA|DR)\.?\s+(.+)$", limpio)
+    if match:
+        prefix = "DRA." if match.group(1) == "DRA" else "DR."
+        limpio = match.group(2).strip()
+    else:
+        prefix = "DR."
+    return f"{prefix} {limpio}"
 
 
 def normalizar_patron(valor) -> str:
