@@ -2142,7 +2142,7 @@
                                 <div class="agenda-row-links">
                                     {% if perms.clinic.manage_agenda %}<a href="{% url 'clinic:encounter_edit' encounter.pk %}">Editar</a> |{% endif %}
                                     {% if perms.clinic.review_medically %}<a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Revision</a> |{% endif %}
-                                    {% if encounter.can_generate_report %}<a href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a>{% else %}<span class="muted" title="{{ encounter.report_block_reason }}">Imprimir no disponible</span>{% endif %} |
+                                    <span data-print-link>{% if encounter.can_print_result %}<a href="{{ encounter.print_url }}" target="_blank" rel="noopener">Imprimir</a>{% else %}<span class="muted" title="{{ encounter.print_block_reason }}">Imprimir no disponible</span>{% endif %}</span> |
                                     <a href="{% url 'clinic:patient_detail' encounter.patient.pk %}" data-history-link>Historia</a> |
                                     {% if perms.clinic.manage_agenda %}<form method="post" style="display:inline;" data-delete-form>
                                         {% csrf_token %}
@@ -2609,6 +2609,8 @@
             if (reportHelp) {
                 reportHelp.textContent = payload.report_block_reason || payload.message || "";
             }
+            const printLink = row.querySelector("[data-print-link]");
+
             if (reportLinks) {
                 if (payload.has_generated_reports) {
                     const links = [];
@@ -2624,6 +2626,13 @@
                     reportLinks.innerHTML = links.join("");
                 } else {
                     reportLinks.innerHTML = '<div class="muted" style="font-size:.82rem;">Todavia sin informe.</div>';
+                }
+            }
+            if (printLink) {
+                if (payload.can_print_result) {
+                    printLink.innerHTML = '<a href="' + escapeHtml(payload.print_url || "#") + '" target="_blank" rel="noopener">Imprimir</a>';
+                } else {
+                    printLink.innerHTML = '<span class="muted" title="' + escapeHtml(payload.print_block_reason || "") + '">Imprimir no disponible</span>';
                 }
             }
         }
@@ -3237,6 +3246,14 @@
                 links.innerHTML = htmlParts.join("");
             } else {
                 links.innerHTML = '<div class="muted" style="font-size:.82rem;">Todavia sin informe.</div>';
+            }
+            var printLink = row && row.querySelector ? row.querySelector("[data-print-link]") : null;
+            if (printLink) {
+                if (payload.can_print_result) {
+                    printLink.innerHTML = '<a href="' + escapeHtml(payload.print_url || "#") + '" target="_blank" rel="noopener">Imprimir</a>';
+                } else {
+                    printLink.innerHTML = '<span class="muted" title="' + escapeHtml(payload.print_block_reason || "") + '">Imprimir no disponible</span>';
+                }
             }
         }
 

@@ -29,10 +29,10 @@
         </div>
         <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;">
             <div class="pill">{{ encounter.status }}</div>
-            {% if can_generate_report %}
+            {% if can_print_result %}
                 <a class="button alt" href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a>
             {% else %}
-                <span class="encounter-pill-soft" title="{{ report_block_reason }}">Impresion no disponible</span>
+                <span class="encounter-pill-soft" title="{{ print_block_reason }}">Impresion no disponible</span>
             {% endif %}
             {% if perms.clinic.manage_agenda or perms.clinic.review_medically %}<form method="post" action="{% url 'clinic:encounter_generate_report' encounter.pk %}">
                 {% csrf_token %}

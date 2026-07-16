@@ -1940,6 +1940,18 @@ class PatientHistoryActionsTests(TestCase):
 
         self.assertRedirects(response, reverse("clinic:encounter_detail", args=[self.encounter.pk]))
 
+    def test_print_is_allowed_when_result_is_set_even_without_generated_report(self):
+        self.encounter.study_type = StudyType.ESPIROMETRIA
+        self.encounter.save(update_fields=["study_type", "updated_at"])
+        SpirometryResult.objects.create(encounter=self.encounter, respiratory_pattern="Normal")
+
+        response = self.client.get(reverse("clinic:encounter_print", args=[self.encounter.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn("Resultado Espirometria Computarizada", html)
+        self.assertIn("El paciente presenta resultados normales.", html)
+
     def test_patient_detail_can_upload_document_to_specific_encounter(self):
         upload = SimpleUploadedFile(
             "otro-estudio.pdf",

@@ -286,10 +286,10 @@
                             <div class="patient-action-stack">
                                 {% if perms.clinic.manage_agenda %}<a href="{% url 'clinic:encounter_edit' encounter.pk %}?next={% url 'clinic:patient_detail' patient.pk %}">Editar atencion</a>{% endif %}
                                 {% if perms.clinic.review_medically %}<a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Revision</a>{% endif %}
-                                {% if encounter.can_generate_report %}
+                                {% if encounter.can_print_result %}
                                     <a href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a>
                                 {% else %}
-                                    <span class="muted" title="{{ encounter.report_block_reason }}">Imprimir no disponible</span>
+                                    <span class="muted" title="{{ encounter.print_block_reason }}">Imprimir no disponible</span>
                                 {% endif %}
                                 {% if perms.clinic.manage_agenda or perms.clinic.review_medically %}
                                 <form method="post" data-patient-report-form data-inconsistency-message="{{ encounter.inconsistency_message }}">

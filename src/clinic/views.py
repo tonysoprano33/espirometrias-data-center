@@ -1010,6 +1010,7 @@ def parse_optional_time(raw_value):
 
 def get_row_state_payload(encounter):
     can_generate_report, report_block_reason = get_report_readiness(encounter)
+    can_print_result, print_block_reason = get_print_readiness(encounter)
     inconsistency_flags = get_encounter_inconsistencies(encounter)
     vital = getattr(encounter, "vital_signs", None)
     current_physician = getattr(encounter, "referring_physician", None)
@@ -1036,6 +1037,7 @@ def get_row_state_payload(encounter):
         "patient_dni": encounter.patient.dni or "",
         "patient_dni_display": formatear_dni(encounter.patient.dni) if encounter.patient.dni else "Completar DNI",
         "patient_url": reverse("clinic:patient_detail", args=[encounter.patient_id]),
+        "print_url": reverse("clinic:encounter_print", args=[encounter.pk]),
         "so2_rest": "" if getattr(vital, "so2_rest", None) is None else str(vital.so2_rest),
         "fc_rest": "" if getattr(vital, "fc_rest", None) is None else str(vital.fc_rest),
         "so2_post": "" if getattr(vital, "so2_post", None) is None else str(vital.so2_post),
@@ -1043,6 +1045,8 @@ def get_row_state_payload(encounter):
         "has_cycle_data": encounter_has_cycle_data(encounter),
         "can_generate_report": can_generate_report,
         "report_block_reason": report_block_reason,
+        "can_print_result": can_print_result,
+        "print_block_reason": print_block_reason,
         "inconsistencies": inconsistency_flags,
         "inconsistency_message": "Advertencias: " + " | ".join(inconsistency_flags) if inconsistency_flags else "",
         "has_generated_reports": encounter.generated_reports.exists(),
@@ -2647,6 +2651,26 @@ def get_report_readiness(encounter, *, ignore_attendance=False):
     return True, ""
 
 
+def get_print_readiness(encounter, *, ignore_attendance=False):
+    if encounter.no_show and not ignore_attendance:
+        return False, "No llego"
+
+    patient = encounter.patient
+    result_code = get_result_code_from_encounter(encounter)
+
+    missing = []
+    if not str(getattr(patient, "full_name", "") or "").strip():
+        missing.append("nombre")
+    if not str(getattr(patient, "dni", "") or "").strip():
+        missing.append("DNI")
+    if not result_code:
+        missing.append("resultado")
+
+    if missing:
+        return False, "Completar: " + ", ".join(missing)
+    return True, ""
+
+
 def build_print_context_for_encounter(encounter):
     patient = encounter.patient
     vital = getattr(encounter, "vital_signs", None)
@@ -2661,9 +2685,9 @@ def build_print_context_for_encounter(encounter):
     informe = construir_informe_espirometria(patron, grado_obst, grado_rest)
     broncodilatador_positivo = bool(getattr(result, "bronchodilator_positive", False))
 
-    so2 = limpiar_entero(getattr(vital, "so2_rest", "0"))
-    fc = limpiar_entero(getattr(vital, "fc_rest", "0"))
-    include_walk = encounter.study_type == "Ciclometria"
+    so2 = limpiar_entero(getattr(vital, "so2_rest", ""), default="") if vital else ""
+    fc = limpiar_entero(getattr(vital, "fc_rest", ""), default="") if vital else ""
+    include_walk = encounter.study_type == "Ciclometria" and (vital is not None or walk is not None)
     walk_rows = []
     if include_walk:
         walk_rows = build_walk_measurement_rows(vital, walk)
@@ -3630,6 +3654,7 @@ def patient_detail(request, pk):
         encounter.pdf_attachment_url = safe_attachment_url(encounter.pdf_attachment)
         encounter.progression = progression_map.get(encounter.pk, {"label": "Sin base", "tone": "muted", "detail": ""})
         encounter.suggestion = build_stored_suggestion_context(getattr(encounter, "spirometry_result", None))
+        encounter.can_print_result, encounter.print_block_reason = get_print_readiness(encounter, ignore_attendance=True)
         encounter.walk_assessment = build_walk_test_assessment(
             getattr(getattr(encounter, "vital_signs", None), "so2_rest", None),
             getattr(getattr(encounter, "vital_signs", None), "so2_post", None),
@@ -3646,6 +3671,10 @@ def patient_detail(request, pk):
         encounter.mutual_report_name = latest_report_info["mutual_report_name"]
         encounter.detail_url = latest_report_info["detail_url"]
         encounter.can_generate_report, encounter.report_block_reason = get_report_readiness(
+            encounter,
+            ignore_attendance=True,
+        )
+        encounter.can_print_result, encounter.print_block_reason = get_print_readiness(
             encounter,
             ignore_attendance=True,
         )
@@ -4303,6 +4332,7 @@ def encounter_detail(request, pk):
     for report in encounter.generated_reports.all():
         report.attachment_url = safe_attachment_url(report.attachment)
     can_generate_report, report_block_reason = get_report_readiness(encounter, ignore_attendance=True)
+    can_print_result, print_block_reason = get_print_readiness(encounter, ignore_attendance=True)
     return render(
         request,
         "clinic/encounter_detail.html",
@@ -4311,6 +4341,8 @@ def encounter_detail(request, pk):
             "inconsistency_flags": get_encounter_inconsistencies(encounter),
             "can_generate_report": can_generate_report,
             "report_block_reason": report_block_reason,
+            "can_print_result": can_print_result,
+            "print_block_reason": print_block_reason,
         },
     )
 
@@ -4327,7 +4359,7 @@ def encounter_print_view(request, pk):
         ).prefetch_related("attachments"),
         pk=pk,
     )
-    can_print, block_reason = get_report_readiness(encounter, ignore_attendance=True)
+    can_print, block_reason = get_print_readiness(encounter, ignore_attendance=True)
     if not can_print:
         messages.error(request, f"No se puede imprimir esta atencion. {block_reason}.")
         return redirect("clinic:encounter_detail", pk=encounter.pk)
@@ -4363,7 +4395,7 @@ def daily_print_view(request):
     printable = []
     blocked = []
     for encounter in encounters:
-        can_print, reason = get_report_readiness(encounter)
+        can_print, reason = get_print_readiness(encounter)
         if can_print:
             try:
                 printable.append(build_print_context_for_encounter(encounter))
