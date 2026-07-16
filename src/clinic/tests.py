@@ -707,6 +707,18 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertEqual(self.encounter.referring_physician.full_name, "DR. Pepito Perez")
         self.assertTrue(ReferringPhysician.objects.filter(full_name__iexact="DR. Pepito Perez").exists())
 
+    def test_dashboard_uses_explicit_save_for_physician_search(self):
+        with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
+            response = self.client.get(reverse("clinic:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn('data-physician-form', html)
+        self.assertIn('data-physician-suggestions', html)
+        self.assertIn('Escribi y elegi un doctor de la lista.', html)
+        self.assertNotIn('physician-save-button', html)
+        self.assertNotIn('data-inline-submit data-physician-search', html)
+
     def test_dashboard_renders_manual_save_buttons_for_vitals(self):
         with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
             response = self.client.get(reverse("clinic:dashboard"))
