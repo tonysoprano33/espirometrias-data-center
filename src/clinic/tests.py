@@ -1225,6 +1225,8 @@ class DoctorReviewViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Broncodilatador positivo")
         self.assertNotContains(response, "Marcar broncodilatador positivo en el informe")
+        self.assertNotContains(response, "Subir PDF o foto")
+        self.assertNotContains(response, "Nota breve para el medico")
 
         response = self.client.post(
             reverse("clinic:doctor_review_detail", args=[self.encounter.pk]),
