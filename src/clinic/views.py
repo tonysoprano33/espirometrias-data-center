@@ -2201,6 +2201,11 @@ def import_drapp_rows(rows, request_user):
             study_type=study_type,
             status=EncounterStatus.NO_LLEGO,
             coverage_type=infer_coverage_type(row.get("coverage_raw", "")),
+            coverage_name=(
+                collapse_spaces(row.get("coverage_raw", ""))
+                if infer_coverage_type(row.get("coverage_raw", "")) == CoverageType.MUTUAL
+                else ""
+            ),
             referring_physician=default_physician,
             attended=False,
             no_show=True,
@@ -2573,6 +2578,79 @@ def build_diagnosis_distribution(encounters):
             }
         )
     return rows
+
+
+def get_mutual_coverage_name(encounter) -> str:
+    direct_name = collapse_spaces(getattr(encounter, "coverage_name", ""))
+    if direct_name:
+        return direct_name
+
+    # Imports made before coverage_name existed still keep the original mutual
+    # in their traceability event. Reuse it so historical statistics remain useful.
+    events = getattr(encounter, "events", None)
+    if events is not None:
+        for event in events.all():
+            raw_name = collapse_spaces((event.metadata or {}).get("coverage_raw", ""))
+            if raw_name and infer_coverage_type(raw_name) == CoverageType.MUTUAL:
+                return raw_name
+    return "Mutual sin nombre"
+
+
+def build_mutual_coverage_rows(encounters):
+    """Summarize named mutual coverages without mixing them with particulares."""
+    mutual_encounters = [
+        encounter for encounter in encounters if encounter.coverage_type == CoverageType.MUTUAL
+    ]
+    grouped = {}
+    for encounter in mutual_encounters:
+        name = get_mutual_coverage_name(encounter)
+        bucket = grouped.setdefault(
+            name,
+            {"name": name, "total": 0, "attended": 0, "with_result": 0},
+        )
+        bucket["total"] += 1
+        bucket["attended"] += int(bool(encounter.attended))
+        bucket["with_result"] += int(bool(get_result_code_from_encounter(encounter)))
+
+    total_mutual = len(mutual_encounters)
+    rows = []
+    for bucket in grouped.values():
+        rows.append(
+            {
+                **bucket,
+                "share_percent": percent(bucket["total"], total_mutual),
+                "attendance_percent": percent(bucket["attended"], bucket["total"]),
+            }
+        )
+    return sorted(rows, key=lambda row: (-row["total"], row["name"]))
+
+
+def build_month_clinical_summary(encounters):
+    """Return descriptive monthly indicators; they never replace medical judgement."""
+    encounters = list(encounters)
+    attended = [encounter for encounter in encounters if encounter.attended]
+    coded = [encounter for encounter in encounters if get_result_code_from_encounter(encounter)]
+    normal = [encounter for encounter in coded if get_result_code_from_encounter(encounter) == "N"]
+    bronchodilator_positive = [
+        encounter
+        for encounter in encounters
+        if getattr(getattr(encounter, "spirometry_result", None), "bronchodilator_positive", False)
+    ]
+    comparable_so2 = []
+    for encounter in encounters:
+        vital = getattr(encounter, "vital_signs", None)
+        if vital and vital.so2_rest is not None and vital.so2_post is not None:
+            comparable_so2.append(vital.so2_rest - vital.so2_post)
+
+    return {
+        "with_result": len(coded),
+        "result_completion_percent": percent(len(coded), len(attended)),
+        "normal": len(normal),
+        "altered": max(len(coded) - len(normal), 0),
+        "bronchodilator_positive": len(bronchodilator_positive),
+        "with_so2_comparison": len(comparable_so2),
+        "so2_drop_4_or_more": sum(1 for drop in comparable_so2 if drop >= 4),
+    }
 
 
 def build_cohort_statistics(patients):
@@ -3322,7 +3400,6 @@ def calendar_view(request):
 def statistics_view(request):
     purge_expired_recycle_bin()
     today = timezone.localdate()
-    week_start = today - timedelta(days=today.weekday())
     month_param = (request.GET.get("month") or "").strip()
     current_month_start = today.replace(day=1)
 
@@ -3344,43 +3421,6 @@ def statistics_view(request):
     previous_month_start = (selected_month_start - timedelta(days=1)).replace(day=1)
     can_go_next_month = selected_month_start < current_month_start
 
-    periods = [
-        {
-            "key": "today",
-            "label": "Hoy",
-            "start": today,
-            "end": today,
-        },
-        {
-            "key": "week",
-            "label": "Semana",
-            "start": week_start,
-            "end": today,
-        },
-        {
-            "key": "month",
-            "label": "Mes",
-            "start": current_month_start,
-            "end": today,
-        },
-    ]
-
-    period_cards = []
-    for period in periods:
-        queryset = Encounter.objects.filter(encounter_date__range=(period["start"], period["end"]))
-        summary = get_period_summary(queryset)
-        summary.update(
-            {
-                "label": period["label"],
-                "range_label": (
-                    f"{period['start']:%d/%m/%Y}"
-                    if period["start"] == period["end"]
-                    else f"{period['start']:%d/%m/%Y} al {period['end']:%d/%m/%Y}"
-                ),
-            }
-        )
-        period_cards.append(summary)
-
     last_7_days = []
     for offset in range(6, -1, -1):
         day_value = today - timedelta(days=offset)
@@ -3394,7 +3434,17 @@ def statistics_view(request):
         last_7_days.append(summary)
 
     selected_month_qs = Encounter.objects.filter(encounter_date__range=(selected_month_start, selected_month_end))
-    current_month_summary = get_period_summary(selected_month_qs)
+    selected_month_encounters = unique_encounters_by_patient_day(
+        selected_month_qs.select_related("patient", "spirometry_result", "vital_signs").prefetch_related(
+            Prefetch(
+                "events",
+                queryset=EncounterEvent.objects.filter(event_type=EncounterEventType.IMPORT).only(
+                    "id", "encounter_id", "event_type", "metadata"
+                ),
+            )
+        )
+    )
+    current_month_summary = summarize_encounter_list(selected_month_encounters)
     current_month_alerts = get_operational_alerts(selected_month_qs)
     status_rows = []
     for value, label in EncounterStatus.choices:
@@ -3420,15 +3470,19 @@ def statistics_view(request):
             )
         )
     )
-    month_patient_ids = set(selected_month_qs.values_list("patient_id", flat=True).distinct())
+    month_patient_ids = {encounter.patient_id for encounter in selected_month_encounters}
     current_month_profiled_patients = [patient for patient in profiled_patients if patient.id in month_patient_ids]
     profile_summary = build_patient_profile_summary(profiled_patients)
     month_profile_summary = build_patient_profile_summary(current_month_profiled_patients)
     cohort_rows, diagnosis_rows = build_cohort_statistics(cohort_patients)
+    mutual_coverage_rows = build_mutual_coverage_rows(selected_month_encounters)
+    month_clinical_summary = build_month_clinical_summary(selected_month_encounters)
+    month_diagnosis_rows = build_diagnosis_distribution(
+        [encounter for encounter in selected_month_encounters if get_result_code_from_encounter(encounter)]
+    )
 
     context = {
         "today": today,
-        "period_cards": period_cards,
         "last_7_days": last_7_days,
         "month_label": format_month_label(selected_month_start),
         "selected_month_param": selected_month_start.strftime("%Y-%m"),
@@ -3440,6 +3494,9 @@ def statistics_view(request):
         "current_month_summary": current_month_summary,
         "current_month_alerts": current_month_alerts,
         "status_rows": status_rows,
+        "mutual_coverage_rows": mutual_coverage_rows,
+        "month_clinical_summary": month_clinical_summary,
+        "month_diagnosis_rows": month_diagnosis_rows,
         "profile_summary": profile_summary,
         "month_profile_summary": month_profile_summary,
         "latest_profiled_patients": profiled_patients[:10],

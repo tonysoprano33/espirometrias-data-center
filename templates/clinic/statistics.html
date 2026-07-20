@@ -327,6 +327,110 @@
         color: #12364d;
         font-weight: bold;
     }
+    .statistics-overview {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 18px;
+        align-items: end;
+        padding: 22px;
+        background:
+            radial-gradient(circle at 88% 10%, rgba(38, 151, 174, .16), transparent 27%),
+            radial-gradient(circle at 6% 100%, rgba(227, 139, 34, .13), transparent 25%),
+            linear-gradient(135deg, #ffffff, #f4fbfd);
+    }
+    .statistics-overview .statistics-title {
+        margin-bottom: 8px;
+    }
+    .statistics-overview .statistics-subtitle {
+        max-width: 720px;
+    }
+    .statistics-month-nav--hero {
+        padding: 5px;
+        border: 1px solid rgba(23,49,63,.10);
+        border-radius: 16px;
+        background: rgba(255,255,255,.78);
+    }
+    .statistics-month-nav--hero .statistics-month-link {
+        min-width: 46px;
+    }
+    .statistics-data-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 20px;
+    }
+    .statistics-data-card {
+        padding: 20px;
+    }
+    .statistics-data-card .statistics-card-title {
+        margin-bottom: 4px;
+    }
+    .statistics-card-description {
+        margin: 0 0 16px;
+        color: #5b7482;
+        font-size: .9rem;
+    }
+    .statistics-bars {
+        display: grid;
+        gap: 12px;
+    }
+    .statistics-bar-row {
+        display: grid;
+        grid-template-columns: minmax(110px, 1fr) minmax(110px, 2fr) auto;
+        align-items: center;
+        gap: 10px;
+    }
+    .statistics-bar-label {
+        min-width: 0;
+        color: #183e52;
+        font-size: .9rem;
+        font-weight: 800;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .statistics-bar-track {
+        height: 11px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #e3eef1;
+        box-shadow: inset 0 1px 2px rgba(16,43,60,.08);
+    }
+    .statistics-bar-fill {
+        display: block;
+        height: 100%;
+        min-width: 4px;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #1686a2, #50bfc2);
+    }
+    .statistics-bar-row:nth-child(2n) .statistics-bar-fill {
+        background: linear-gradient(90deg, #407ebc, #7eaef0);
+    }
+    .statistics-bar-row:nth-child(3n) .statistics-bar-fill {
+        background: linear-gradient(90deg, #d37a2d, #efaa62);
+    }
+    .statistics-bar-value {
+        min-width: 48px;
+        color: #12364d;
+        font-family: "Trebuchet MS", "Segoe UI", Tahoma, sans-serif;
+        font-size: .86rem;
+        font-variant-numeric: tabular-nums;
+        font-weight: 900;
+        text-align: right;
+    }
+    .coverage-summary-table td[data-label="Mutual"] {
+        color: #0f5a5f;
+        font-weight: 900;
+    }
+    .coverage-summary-table td[data-label="Asistencia"] {
+        color: #178a55;
+        font-weight: 900;
+    }
+    .clinical-disclaimer {
+        margin: 14px 0 0;
+        color: #667f8c;
+        font-size: .78rem;
+        line-height: 1.35;
+    }
     @media (max-width: 760px) {
         .statistics-page {
             gap: 14px;
@@ -381,10 +485,30 @@
             min-height: 24px;
             font-size: 1.16rem;
         }
+        .statistics-overview {
+            grid-template-columns: 1fr;
+            padding: 16px;
+        }
+        .statistics-month-nav--hero {
+            justify-self: start;
+        }
+        .statistics-data-grid {
+            gap: 14px;
+        }
     }
     @media (max-width: 560px) {
         .statistics-highlight-grid {
             grid-template-columns: 1fr;
+        }
+        .statistics-data-grid {
+            grid-template-columns: 1fr;
+        }
+        .statistics-data-card {
+            padding: 16px;
+        }
+        .statistics-bar-row {
+            grid-template-columns: minmax(88px, 1fr) minmax(80px, 1.4fr) auto;
+            gap: 8px;
         }
         .statistics-page .metric-row {
             grid-template-columns: 1fr 1fr;
@@ -401,103 +525,124 @@
 </style>
 
 <div class="statistics-page">
-<section class="card statistics-section">
-    <p class="pill">Estadistica</p>
-    <h1 class="section-title statistics-title">Mira rapido la operacion del dia y los datos clinicos que ya salieron de los PDFs.</h1>
-    <p class="muted statistics-subtitle">
-        Aca conviven dos cosas: la agenda diaria y el perfil de pacientes extraido automaticamente desde las espirometrias.
-    </p>
+<section class="card statistics-section statistics-overview">
+    <div>
+        <p class="pill">Tablero estadistico</p>
+        <h1 class="section-title statistics-title">{{ month_label }} en una sola vista</h1>
+        <p class="muted statistics-subtitle">
+            Actividad, cobertura y resultados finales del periodo elegido. Los datos clinicos son descriptivos y se basan solo en informacion ya guardada.
+        </p>
+        <p class="statistics-month-range">{{ selected_month_range_label }}</p>
+    </div>
+    <nav class="statistics-month-nav statistics-month-nav--hero" aria-label="Cambiar mes de estadisticas">
+        <a class="statistics-month-link" href="{% url 'clinic:statistics' %}?month={{ previous_month_param }}" aria-label="Mes anterior">Anterior</a>
+        <a class="statistics-month-link {% if not can_go_next_month %}is-disabled{% endif %}" href="{% url 'clinic:statistics' %}?month={{ next_month_param }}" aria-label="Mes siguiente">Siguiente</a>
+    </nav>
 </section>
 
 <section class="statistics-highlight-grid statistics-section" aria-label="Resumen rapido">
     <article class="statistics-insight statistics-insight--success">
-        <span class="label">Atencion del mes</span>
+        <span class="label">Pacientes del mes</span>
+        <strong>{{ current_month_summary.total }}</strong>
+        <p>{{ current_month_summary.attended }} atendidos y {{ current_month_summary.no_show }} no llegaron.</p>
+    </article>
+    <article class="statistics-insight statistics-insight--info">
+        <span class="label">Asistencia</span>
         <strong>{{ current_month_summary.attendance_percent }}%</strong>
         <p>Pacientes atendidos sobre el total cargado este mes.</p>
     </article>
-    <article class="statistics-insight statistics-insight--info">
-        <span class="label">Mutuales del mes</span>
-        <strong>{{ current_month_summary.mutual_percent }}%</strong>
-        <p>Porcentaje de estudios con cobertura mutual.</p>
+    <article class="statistics-insight statistics-insight--teal">
+        <span class="label">Resultados finales</span>
+        <strong>{{ month_clinical_summary.with_result }}</strong>
+        <p>{{ month_clinical_summary.result_completion_percent }}% de los atendidos ya tiene resultado cargado.</p>
     </article>
     <article class="statistics-insight statistics-insight--warning">
-        <span class="label">Listos para informe</span>
-        <strong>{{ current_month_alerts.ready_for_report }}</strong>
-        <p>Pacientes ya atendidos que conviene cerrar primero.</p>
-    </article>
-    <article class="statistics-insight statistics-insight--teal">
-        <span class="label">Perfiles completos</span>
-        <strong>{{ profile_summary.profile_completion_percent }}%</strong>
-        <p>Calidad de la base demografica que sale desde PDF.</p>
+        <span class="label">Cobertura mutual</span>
+        <strong>{{ current_month_summary.mutual }}</strong>
+        <p>{{ current_month_summary.mutual_percent }}% de las atenciones fueron por mutual.</p>
     </article>
 </section>
 
-<section class="grid-3 statistics-section">
-    {% for period in period_cards %}
-        <article class="card period-card">
-            <div>
-                <p class="pill">{{ period.label }}</p>
-                <h2 class="section-title statistics-card-title">{{ period.range_label }}</h2>
+<section class="statistics-data-grid statistics-section">
+    <article class="card statistics-data-card statistics-card--month">
+        <p class="pill">Mutuales del mes</p>
+        <h2 class="section-title statistics-card-title">Coberturas que mas se usaron</h2>
+        <p class="statistics-card-description">Se agrupan por el nombre guardado de la mutual, por ejemplo Grassi, PAMI o DOSEP.</p>
+        <div class="statistics-bars" aria-label="Distribucion por mutual">
+            {% for row in mutual_coverage_rows %}
+                <div class="statistics-bar-row">
+                    <span class="statistics-bar-label" title="{{ row.name }}">{{ row.name }}</span>
+                    <span class="statistics-bar-track"><span class="statistics-bar-fill" style="width: {{ row.share_percent }}%"></span></span>
+                    <span class="statistics-bar-value">{{ row.total }} · {{ row.share_percent }}%</span>
+                </div>
+            {% empty %}
+                <p class="muted">Todavia no hay atenciones mutuales en este periodo.</p>
+            {% endfor %}
+        </div>
+        {% if mutual_coverage_rows %}
+            <div class="responsive-table-wrap notebook-stack statistics-table-wrap" style="margin-top:16px;">
+                <table class="stats-table coverage-summary-table">
+                    <thead><tr><th>Mutual</th><th>Atenciones</th><th>Asistencia</th><th>Con resultado</th></tr></thead>
+                    <tbody>
+                        {% for row in mutual_coverage_rows %}
+                            <tr>
+                                <td data-label="Mutual">{{ row.name }}</td>
+                                <td data-label="Atenciones">{{ row.total }}</td>
+                                <td data-label="Asistencia">{{ row.attendance_percent }}%</td>
+                                <td data-label="Con resultado">{{ row.with_result }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
-            <div class="metric-row">
-                <div class="metric">
-                    <span>Pacientes</span>
-                    <strong>{{ period.total }}</strong>
+        {% endif %}
+    </article>
+
+    <article class="card statistics-data-card statistics-card--diagnosis">
+        <p class="pill">Resultados clinicos del mes</p>
+        <h2 class="section-title statistics-card-title">Distribucion de resultados finales</h2>
+        <p class="statistics-card-description">Solo incluye resultados que ya fueron guardados; no muestra sugerencias automaticas.</p>
+        <div class="statistics-bars" aria-label="Distribucion de resultados finales">
+            {% for row in month_diagnosis_rows %}
+                <div class="statistics-bar-row">
+                    <span class="statistics-bar-label" title="{{ row.label }}">{{ row.code }} · {{ row.label }}</span>
+                    <span class="statistics-bar-track"><span class="statistics-bar-fill" style="width: {{ row.percent }}%"></span></span>
+                    <span class="statistics-bar-value">{{ row.total }} · {{ row.percent }}%</span>
                 </div>
-                <div class="metric">
-                    <span>Mutuales</span>
-                    <strong>{{ period.mutual }}</strong>
-                </div>
-                <div class="metric">
-                    <span>Atendidos</span>
-                    <strong>{{ period.attended }}</strong>
-                </div>
-                <div class="metric">
-                    <span>No llego</span>
-                    <strong>{{ period.no_show }}</strong>
-                </div>
-                <div class="metric">
-                    <span>Ciclometrias</span>
-                    <strong>{{ period.cyclometry }}</strong>
-                </div>
-                <div class="metric">
-                    <span>Espirometrias</span>
-                    <strong>{{ period.spirometry }}</strong>
-                </div>
-            </div>
-        </article>
-    {% endfor %}
+            {% empty %}
+                <p class="muted">Todavia no hay resultados finales cargados en este periodo.</p>
+            {% endfor %}
+        </div>
+        <div class="metric-row" style="margin-top:16px;">
+            <div class="metric"><span>Normales</span><strong>{{ month_clinical_summary.normal }}</strong></div>
+            <div class="metric"><span>Con alteracion</span><strong>{{ month_clinical_summary.altered }}</strong></div>
+            <div class="metric"><span>Broncodilatador positivo</span><strong>{{ month_clinical_summary.bronchodilator_positive }}</strong></div>
+            <div class="metric"><span>Caida SO2 4+ pts</span><strong>{{ month_clinical_summary.so2_drop_4_or_more }}</strong></div>
+        </div>
+        <p class="clinical-disclaimer">La caida de SO2 compara reposo y post prueba cuando ambos valores fueron cargados. Es un indicador de control, no un diagnostico.</p>
+    </article>
 </section>
 
 <section class="grid-2 statistics-section">
     <article class="card statistics-card--month">
-        <div class="statistics-month-head">
-            <div>
-                <p class="pill">{% if is_current_month %}Mes actual{% else %}Mes elegido{% endif %}</p>
-                <h2 class="section-title statistics-card-title">{{ month_label }}</h2>
-                <p class="statistics-month-range">{{ selected_month_range_label }}</p>
-            </div>
-            <div class="statistics-month-nav">
-                <a class="statistics-month-link" href="{% url 'clinic:statistics' %}?month={{ previous_month_param }}" aria-label="Mes anterior">‹</a>
-                <a class="statistics-month-link {% if not can_go_next_month %}is-disabled{% endif %}" href="{% url 'clinic:statistics' %}?month={{ next_month_param }}" aria-label="Mes siguiente">›</a>
-            </div>
-        </div>
+        <p class="pill">Estado de agenda</p>
+        <h2 class="section-title statistics-card-title">Que paso con las atenciones</h2>
         <div class="metric-row" style="margin-bottom:18px;">
             <div class="metric">
-                <span>% mutual</span>
-                <strong>{{ current_month_summary.mutual_percent }}%</strong>
+                <span>Esperando</span>
+                <strong>{{ current_month_summary.pending }}</strong>
             </div>
             <div class="metric">
-                <span>% atendidos</span>
-                <strong>{{ current_month_summary.attendance_percent }}%</strong>
+                <span>Atendidos</span>
+                <strong>{{ current_month_summary.attended }}</strong>
+            </div>
+            <div class="metric">
+                <span>No llegaron</span>
+                <strong>{{ current_month_summary.no_show }}</strong>
             </div>
             <div class="metric">
                 <span>Particulares</span>
                 <strong>{{ current_month_summary.particular }}</strong>
-            </div>
-            <div class="metric">
-                <span>Pendientes</span>
-                <strong>{{ current_month_summary.pending }}</strong>
             </div>
         </div>
 

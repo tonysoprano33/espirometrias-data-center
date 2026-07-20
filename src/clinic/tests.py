@@ -2544,6 +2544,7 @@ class StatisticsMonthNavigationTests(TestCase):
             encounter_time=time(9, 0),
             study_type=StudyType.CICLOMETRIA,
             coverage_type=CoverageType.MUTUAL,
+            coverage_name="Grassi",
             status=EncounterStatus.PENDIENTE,
             created_by=self.user,
             updated_by=self.user,
@@ -2566,6 +2567,8 @@ class StatisticsMonthNavigationTests(TestCase):
         html = response.content.decode()
         self.assertIn("mayo 2026", html.lower())
         self.assertIn("Mes elegido", html)
+        self.assertIn("Coberturas que mas se usaron", html)
+        self.assertIn("Grassi", html)
 
     def test_statistics_caps_future_month_to_current(self):
         response = self.client.get(f"{reverse('clinic:statistics')}?month=2099-01")
