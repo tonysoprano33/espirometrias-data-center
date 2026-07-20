@@ -1357,15 +1357,20 @@ class TechnicianNotesTests(TestCase):
     def test_espirometrist_note_is_saved_and_visible_in_medical_review(self):
         response = self.client.post(
             reverse("clinic:encounter_technician_notes", args=[self.encounter.pk]),
-            {"technician_notes": "Paciente con tos durante la prueba."},
+            {
+                "technician_notes": "Paciente con tos durante la prueba.",
+                "medical_control_today": "on",
+            },
         )
 
         self.assertRedirects(response, reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
         self.encounter.refresh_from_db()
         self.assertEqual(self.encounter.technician_notes, "Paciente con tos durante la prueba.")
+        self.assertTrue(self.encounter.medical_control_today)
         detail_response = self.client.get(reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
         self.assertContains(detail_response, "Notas para el medico")
         self.assertContains(detail_response, "Paciente con tos durante la prueba.")
+        self.assertContains(detail_response, "CONTROL MEDICO HOY")
 
 
 class DrappImportDeduplicationTests(TestCase):

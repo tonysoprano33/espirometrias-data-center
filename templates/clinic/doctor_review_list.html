@@ -183,6 +183,25 @@
         letter-spacing: .01em;
         line-height: 1.05;
     }
+    .patient-name-row {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        flex-wrap: wrap;
+    }
+    .control-today-list-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 7px;
+        border: 1px solid #287db7;
+        border-radius: 7px;
+        background: #e6f4ff;
+        color: #075886;
+        font-size: .67rem;
+        font-weight: 900;
+        letter-spacing: .05em;
+        white-space: nowrap;
+    }
     .patient-meta {
         display: flex;
         gap: 8px;
@@ -489,7 +508,12 @@
                 </div>
 
                 <div class="patient-block">
-                    <h2 class="patient-name">{{ card.encounter.patient.full_name }}</h2>
+                    <div class="patient-name-row">
+                        <h2 class="patient-name">{{ card.encounter.patient.full_name }}</h2>
+                        {% if card.encounter.medical_control_today %}
+                            <span class="control-today-list-badge">CONTROL HOY</span>
+                        {% endif %}
+                    </div>
                     <div class="patient-meta">
                         <span class="meta-chip">{{ card.encounter.study_type }}</span>
                         <span class="meta-chip">{{ card.encounter.patient.dni|default:"-" }}</span>

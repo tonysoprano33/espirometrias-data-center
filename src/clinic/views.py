@@ -4359,19 +4359,24 @@ def encounter_detail(request, pk):
 def encounter_technician_notes(request, pk):
     encounter = get_object_or_404(Encounter, pk=pk)
     notes = str(request.POST.get("technician_notes", "") or "").strip()
+    medical_control_today = request.POST.get("medical_control_today") == "on"
     if len(notes) > 2000:
         messages.error(request, "La nota puede tener hasta 2000 caracteres.")
         return redirect("clinic:doctor_review_detail", pk=encounter.pk)
 
     encounter.technician_notes = notes
+    encounter.medical_control_today = medical_control_today
     encounter.updated_by = request.user
-    encounter.save(update_fields=["technician_notes", "updated_by", "updated_at"])
+    encounter.save(update_fields=["technician_notes", "medical_control_today", "updated_by", "updated_at"])
     record_encounter_event(
         encounter,
         EncounterEventType.UPDATED,
-        "Nota del espirometrista actualizada",
+        "Nota o aviso del espirometrista actualizado",
         actor=request.user,
-        details="Se actualizo la nota visible para la revision medica.",
+        details=(
+            "Se actualizo la nota visible para la revision medica. "
+            f"Control medico hoy: {'si' if medical_control_today else 'no'}."
+        ),
     )
     messages.success(request, "Nota para el medico guardada.")
     return redirect("clinic:doctor_review_detail", pk=encounter.pk)
