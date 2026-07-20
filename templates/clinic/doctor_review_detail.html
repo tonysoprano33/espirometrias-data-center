@@ -32,9 +32,73 @@
         flex-wrap: wrap;
         justify-content: flex-end;
     }
-    .doctor-review-actions .button {
-        padding: 9px 12px;
-        min-height: 0;
+    .review-file-options {
+        position: relative;
+    }
+    .review-file-options summary {
+        list-style: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 8px 11px;
+        border: 1px solid #cbd8df;
+        border-radius: 10px;
+        background: #f5f8fa;
+        color: #486371;
+        cursor: pointer;
+        font-size: .83rem;
+        font-weight: 800;
+    }
+    .review-file-options summary::-webkit-details-marker {
+        display: none;
+    }
+    .review-file-options summary::before {
+        content: "PDF";
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 5px;
+        border-radius: 5px;
+        background: #e2eaf0;
+        color: #47616e;
+        font-size: .66rem;
+        letter-spacing: .04em;
+    }
+    .review-file-options summary::after {
+        content: "+";
+        color: #6d8290;
+        font-size: 1rem;
+        line-height: 1;
+    }
+    .review-file-options[open] summary::after {
+        content: "-";
+    }
+    .review-file-menu {
+        position: absolute;
+        top: calc(100% + 7px);
+        right: 0;
+        z-index: 20;
+        display: grid;
+        gap: 6px;
+        min-width: 205px;
+        padding: 8px;
+        border: 1px solid #cbd8df;
+        border-radius: 12px;
+        background: #fff;
+        box-shadow: 0 14px 28px rgba(16,43,60,.14);
+    }
+    .review-file-link {
+        display: block;
+        padding: 8px 9px;
+        border-radius: 8px;
+        color: #456170;
+        font-size: .85rem;
+        font-weight: 800;
+    }
+    .review-file-link:hover {
+        background: #edf4f6;
+        color: #0d6f8a;
+        text-decoration: none;
     }
     .review-queue-banner {
         grid-column: 1 / -1;
@@ -496,6 +560,10 @@
         .doctor-review-actions {
             justify-content: flex-start;
         }
+        .review-file-menu {
+            left: 0;
+            right: auto;
+        }
         .review-queue-actions-bar {
             align-items: stretch;
         }
@@ -545,8 +613,13 @@
 
     <div class="doctor-review-actions">
         {% if pdf_attachment_url %}
-            <a class="button" href="{{ pdf_attachment_url }}" target="_blank" rel="noopener">Abrir archivo grande</a>
-            <a class="button alt" href="{{ pdf_attachment_url }}" download>Descargar archivo</a>
+            <details class="review-file-options">
+                <summary>Opciones del archivo</summary>
+                <div class="review-file-menu">
+                    <a class="review-file-link" href="{{ pdf_attachment_url }}" target="_blank" rel="noopener">Abrir archivo grande</a>
+                    <a class="review-file-link" href="{{ pdf_attachment_url }}" download>Descargar archivo</a>
+                </div>
+            </details>
         {% elif pdf_attachment %}
             <span class="muted">Archivo original no disponible</span>
         {% endif %}
