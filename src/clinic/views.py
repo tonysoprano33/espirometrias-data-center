@@ -102,6 +102,27 @@ SPANISH_MONTHS = [
     "Diciembre",
 ]
 SPANISH_WEEKDAYS = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"]
+WORK_MODES = {"secretaria", "medico", "espirometrista"}
+
+
+def get_work_mode(request):
+    saved_mode = str(request.session.get("clinic_work_mode", "") or "").strip()
+    return saved_mode if saved_mode in WORK_MODES else "espirometrista"
+
+
+@login_required
+@require_POST
+def set_work_mode(request):
+    work_mode = str(request.POST.get("work_mode", "") or "").strip()
+    if work_mode not in WORK_MODES:
+        messages.error(request, "Modo de trabajo no valido.")
+        return redirect("clinic:dashboard")
+
+    request.session["clinic_work_mode"] = work_mode
+    request.session.modified = True
+    if work_mode == "medico" and request.user.has_perm("clinic.review_medically"):
+        return redirect("clinic:doctor_review_list")
+    return redirect("clinic:dashboard")
 
 
 def require_any_clinic_permission(request, *permissions):
@@ -4358,6 +4379,9 @@ def encounter_detail(request, pk):
 @require_POST
 def encounter_technician_notes(request, pk):
     encounter = get_object_or_404(Encounter, pk=pk)
+    if get_work_mode(request) != "espirometrista":
+        messages.error(request, "Las notas para el medico solo se modifican en modo Espirometrista.")
+        return redirect("clinic:doctor_review_detail", pk=encounter.pk)
     notes = str(request.POST.get("technician_notes", "") or "").strip()
     medical_control_today = request.POST.get("medical_control_today") == "on"
     if len(notes) > 280:

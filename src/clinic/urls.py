@@ -7,6 +7,7 @@ app_name = "clinic"
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
+    path("modo-trabajo/", views.set_work_mode, name="set_work_mode"),
     path("agenda/estado/", views.dashboard_rows_state, name="dashboard_rows_state"),
     path("calendario/", views.calendar_view, name="calendar"),
     path("estadistica/", views.statistics_view, name="statistics"),

@@ -1372,6 +1372,22 @@ class TechnicianNotesTests(TestCase):
         self.assertContains(detail_response, "Paciente con tos durante la prueba.")
         self.assertContains(detail_response, "CONTROL MEDICO HOY")
 
+    def test_medical_mode_cannot_modify_technician_note(self):
+        mode_response = self.client.post(
+            reverse("clinic:set_work_mode"),
+            {"work_mode": "medico"},
+        )
+        self.assertRedirects(mode_response, reverse("clinic:doctor_review_list"))
+
+        response = self.client.post(
+            reverse("clinic:encounter_technician_notes", args=[self.encounter.pk]),
+            {"technician_notes": "No debe guardarse."},
+        )
+
+        self.assertRedirects(response, reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+        self.encounter.refresh_from_db()
+        self.assertEqual(self.encounter.technician_notes, "")
+
 
 class DrappImportDeduplicationTests(TestCase):
     def setUp(self):

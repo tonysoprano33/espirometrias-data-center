@@ -1187,12 +1187,16 @@
                 {% if request.user.is_authenticated %}
                     <div class="work-mode-control">
                         <label for="work-mode">Estoy en modo</label>
-                        <select id="work-mode" aria-label="Elegir vista de trabajo">
+                        <select id="work-mode" aria-label="Elegir vista de trabajo" data-server-mode="{{ request.session.clinic_work_mode|default:'' }}">
                             <option value="secretaria">Secretaría</option>
                             <option value="medico">Médico</option>
                             <option value="espirometrista">Espirometrista</option>
                         </select>
                     </div>
+                    <form id="work-mode-form" method="post" action="{% url 'clinic:set_work_mode' %}" hidden>
+                        {% csrf_token %}
+                        <input type="hidden" name="work_mode" value="espirometrista">
+                    </form>
                 {% endif %}
             </div>
             <nav class="nav">
@@ -1227,6 +1231,7 @@
             (() => {
                 const storageKey = "clinica-espiro-work-mode";
                 const modeSelect = document.getElementById("work-mode");
+                const modeForm = document.getElementById("work-mode-form");
                 if (!modeSelect) return;
 
                 const modeDestinations = {
@@ -1235,7 +1240,10 @@
                     espirometrista: "{% url 'clinic:dashboard' %}",
                 };
                 const savedMode = window.localStorage.getItem(storageKey);
-                const currentMode = ["secretaria", "medico", "espirometrista"].includes(savedMode)
+                const serverMode = modeSelect.dataset.serverMode;
+                const currentMode = ["secretaria", "medico", "espirometrista"].includes(serverMode)
+                    ? serverMode
+                    : ["secretaria", "medico", "espirometrista"].includes(savedMode)
                     ? savedMode
                     : "espirometrista";
 
@@ -1259,9 +1267,14 @@
                     const mode = modeSelect.value;
                     window.localStorage.setItem(storageKey, mode);
                     applyMode(mode);
-                    const destination = modeDestinations[mode];
-                    if (destination && window.location.pathname !== destination) {
-                        window.location.assign(destination);
+                    if (modeForm) {
+                        modeForm.querySelector('input[name="work_mode"]').value = mode;
+                        modeForm.submit();
+                    } else {
+                        const destination = modeDestinations[mode];
+                        if (destination && window.location.pathname !== destination) {
+                            window.location.assign(destination);
+                        }
                     }
                 });
             })();
