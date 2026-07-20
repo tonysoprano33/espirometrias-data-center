@@ -32,16 +32,18 @@
     .control-today-badge {
         display: inline-flex;
         align-items: center;
-        min-height: 34px;
-        padding: 7px 11px;
+        flex: 1 1 300px;
+        justify-content: center;
+        min-height: 40px;
+        padding: 9px 16px;
         border: 1px solid #1773b2;
         border-radius: 10px;
         background: linear-gradient(135deg, #e4f3ff, #f7fcff);
         box-shadow: 0 7px 15px rgba(23, 115, 178, .14);
         color: #075886;
-        font-size: .78rem;
+        font-size: .9rem;
         font-weight: 900;
-        letter-spacing: .06em;
+        letter-spacing: .08em;
         white-space: nowrap;
     }
     .doctor-review-header .pill {
@@ -702,7 +704,6 @@
 <div class="doctor-review-page">
 <section class="card doctor-review-header">
     <div>
-        <p class="pill">Revision facil</p>
         <div class="review-patient-title-row">
             <h1 class="section-title">{{ encounter.patient.full_name }}</h1>
             {% if encounter.medical_control_today %}
