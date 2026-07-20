@@ -30,12 +30,14 @@
         flex-wrap: wrap;
     }
     .control-today-badge {
-        display: inline-flex;
+        display: flex;
         align-items: center;
-        flex: 1 1 300px;
         justify-content: center;
-        min-height: 40px;
-        padding: 9px 16px;
+        grid-column: 1 / -1;
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 44px;
+        padding: 10px 16px;
         border: 1px solid #1773b2;
         border-radius: 10px;
         background: linear-gradient(135deg, #e4f3ff, #f7fcff);
@@ -706,9 +708,6 @@
     <div>
         <div class="review-patient-title-row">
             <h1 class="section-title">{{ encounter.patient.full_name }}</h1>
-            {% if encounter.medical_control_today %}
-                <span class="control-today-badge">CONTROL MEDICO HOY</span>
-            {% endif %}
         </div>
         <p class="muted" style="margin:0;">
             {{ encounter.encounter_date|date:"d/m/Y" }} | {{ encounter.study_type }} | {{ encounter.coverage_type }}
@@ -821,6 +820,10 @@
                 <strong>{{ encounter.patient.bmi|default:"-" }}</strong>
             </div>
         </div>
+    {% endif %}
+
+    {% if encounter.medical_control_today %}
+        <div class="control-today-badge" role="status">CONTROL MEDICO HOY</div>
     {% endif %}
 
     {% if inconsistency_flags %}
