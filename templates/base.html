@@ -127,6 +127,44 @@
             flex-wrap: wrap;
             align-items: center;
         }
+        [data-work-mode-visible][hidden] {
+            display: none !important;
+        }
+        .topbar[data-work-mode="medico"] .topbar-inner,
+        .topbar[data-work-mode="secretaria"] .topbar-inner {
+            display: grid;
+            grid-template-columns: minmax(260px, 1fr) auto minmax(260px, 1fr);
+        }
+        .topbar[data-work-mode="medico"] .brand-block,
+        .topbar[data-work-mode="secretaria"] .brand-block {
+            grid-column: 1;
+        }
+        .topbar[data-work-mode="medico"] .nav,
+        .topbar[data-work-mode="secretaria"] .nav {
+            grid-column: 2;
+            justify-self: center;
+            flex-wrap: nowrap;
+        }
+        .topbar[data-work-mode="medico"] .nav a,
+        .topbar[data-work-mode="secretaria"] .nav a {
+            min-width: 230px;
+            padding: 14px 28px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #087994, #0d9ab8);
+            border-color: #087994;
+            box-shadow: 0 10px 22px rgba(13,111,138,.22);
+            color: #fff;
+            font-size: 1.04rem;
+            text-align: center;
+        }
+        .topbar[data-work-mode="medico"] .nav a:hover,
+        .topbar[data-work-mode="secretaria"] .nav a:hover {
+            background: linear-gradient(135deg, #076680, #087f99);
+        }
+        .topbar[data-work-mode="medico"] .nav a.current,
+        .topbar[data-work-mode="secretaria"] .nav a.current {
+            color: #fff;
+        }
         .nav a {
             display: inline-block;
             padding: 9px 12px;
@@ -1054,6 +1092,20 @@
             body { font-size: 14px; }
             .topbar-inner { align-items: flex-start; flex-direction: column; gap: 10px; }
             .brand-block { width: 100%; justify-content: space-between; }
+            .topbar[data-work-mode="medico"] .topbar-inner,
+            .topbar[data-work-mode="secretaria"] .topbar-inner {
+                display: flex;
+            }
+            .topbar[data-work-mode="medico"] .nav,
+            .topbar[data-work-mode="secretaria"] .nav {
+                align-self: center;
+                width: min(100%, 340px);
+            }
+            .topbar[data-work-mode="medico"] .nav a,
+            .topbar[data-work-mode="secretaria"] .nav a {
+                min-width: 0;
+                width: 100%;
+            }
             .shell, .topbar-inner { padding-left: 12px; padding-right: 12px; }
             .shell { padding-top: 12px; padding-bottom: 20px; }
             .brand { font-size: .94rem; line-height: 1.05; }
@@ -1125,7 +1177,7 @@
     </style>
 </head>
 <body>
-    <header class="topbar">
+    <header class="topbar" id="site-topbar">
         <div class="topbar-inner">
             <div class="brand-block">
                 <div class="brand">
@@ -1152,7 +1204,7 @@
                     {% if perms.clinic.manage_agenda %}<a href="{% url 'clinic:recycle_bin' %}" data-work-mode-visible="espirometrista" class="{% if request.resolver_match and request.resolver_match.url_name == 'recycle_bin' %}current{% endif %}">Papelera</a>{% endif %}
                     {% if perms.clinic.review_medically %}<a href="{% url 'clinic:doctor_review_list' %}" data-work-mode-visible="medico espirometrista" class="{% if request.resolver_match and request.resolver_match.url_name == 'doctor_review_list' %}current{% endif %}">Revision medica</a>{% endif %}
                     {% if request.user.is_staff %}<a href="{% url 'admin:index' %}" data-work-mode-visible="espirometrista" class="{% if request.resolver_match and 'admin' in request.path %}current{% endif %}">Admin</a>{% endif %}
-                    <form method="post" action="{% url 'logout' %}">
+                    <form method="post" action="{% url 'logout' %}" data-work-mode-visible="espirometrista">
                         {% csrf_token %}
                         <button class="button alt" type="submit">Salir</button>
                     </form>
@@ -1189,6 +1241,7 @@
 
                 const applyMode = (mode) => {
                     modeSelect.value = mode;
+                    document.getElementById("site-topbar").dataset.workMode = mode;
                     document.querySelectorAll("[data-work-mode-visible]").forEach((element) => {
                         const visibleModes = element.dataset.workModeVisible.split(" ");
                         element.hidden = !visibleModes.includes(mode);

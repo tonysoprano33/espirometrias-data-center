@@ -758,6 +758,8 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertIn('value="medico"', html)
         self.assertIn('value="espirometrista"', html)
         self.assertIn('data-work-mode-visible="secretaria espirometrista"', html)
+        self.assertIn('[data-work-mode-visible][hidden]', html)
+        self.assertIn('id="site-topbar"', html)
 
     def test_dashboard_renders_manual_save_buttons_for_vitals(self):
         with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
