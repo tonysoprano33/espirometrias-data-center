@@ -1900,37 +1900,6 @@
         .secretary-mode-table.notebook-stack .attendance-cell { grid-area: attendance; }
     }
 </style>
-{% if current_work_mode != "secretaria" %}
-<section class="stats-strip">
-    {% for item in status_cards %}
-        <article class="stat {{ item.css_class }}">
-            <span class="muted">{{ item.label }}</span>
-            <strong>{{ item.total }}</strong>
-        </article>
-    {% endfor %}
-</section>
-
-<section class="ops-strip">
-    <article class="ops-card pending">
-        <span class="muted">Pendientes de revisión</span>
-        <strong>{{ operation_alerts.pending_review }}</strong>
-    </article>
-    <article class="ops-card report">
-        <span class="muted">Listos para informe</span>
-        <strong>{{ operation_alerts.ready_for_report }}</strong>
-    </article>
-    <article class="ops-card pdf">
-        <span class="muted">Espirometrías sin PDF</span>
-        <strong>{{ operation_alerts.missing_pdf }}</strong>
-    </article>
-    <article class="ops-card noshow">
-        <span class="muted">No llegaron hoy</span>
-        <strong>{{ operation_alerts.no_show }}</strong>
-    </article>
-</section>
-
-{% endif %}
-
 <section class="card agenda-card{% if current_work_mode == 'secretaria' %} secretary-agenda{% endif %}">
     <div class="agenda-head">
         <div>
