@@ -4117,6 +4117,10 @@ def doctor_review_detail(request, pk):
     )
 
     current_result = get_result_code_from_encounter(encounter)
+    can_edit_bronchodilator = (
+        get_work_mode(request) == "espirometrista"
+        and request.user.has_perm("clinic.manage_agenda")
+    )
 
     if request.method == "POST":
         form = DoctorReviewForm(request.POST, request.FILES)
@@ -4204,8 +4208,9 @@ def doctor_review_detail(request, pk):
                 )
                 return redirect("clinic:doctor_review_detail", pk=encounter.pk)
             spirometry_result = apply_result_code_to_spirometry(encounter, result_code)
-            spirometry_result.bronchodilator_positive = bool(form.cleaned_data.get("bronchodilator_positive"))
-            spirometry_result.save(update_fields=["bronchodilator_positive", "updated_at"])
+            if can_edit_bronchodilator:
+                spirometry_result.bronchodilator_positive = bool(form.cleaned_data.get("bronchodilator_positive"))
+                spirometry_result.save(update_fields=["bronchodilator_positive", "updated_at"])
             previous_attendance_label = get_attendance_label(encounter)
             encounter.attended = True
             if encounter.attended_at is None:
@@ -4288,6 +4293,10 @@ def doctor_review_detail(request, pk):
             "encounter": encounter,
             "form": form,
             "current_result": current_result,
+            "can_edit_bronchodilator": can_edit_bronchodilator,
+            "bronchodilator_positive": bool(
+                getattr(getattr(encounter, "spirometry_result", None), "bronchodilator_positive", False)
+            ),
             "pdf_attachment": pdf_attachment,
             "pdf_attachment_url": pdf_attachment_url,
             "pdf_preview_pages": pdf_preview_pages,

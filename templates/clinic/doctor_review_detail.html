@@ -591,6 +591,15 @@
         margin: 0;
         accent-color: #1f9bc2;
     }
+    .bronchodilator-readonly {
+        margin-top: 8px;
+        padding: 10px 12px;
+        border: 1px solid #55b983;
+        border-radius: 12px;
+        background: #e9faef;
+        color: #17653a;
+        font-weight: 900;
+    }
     .doctor-result-field.has-value {
         border-color: #d3a900;
         background: linear-gradient(180deg, #fff8de, #fff3bf);
@@ -915,15 +924,19 @@
                         <div class="muted">{{ form.respiratory_result.errors }}</div>
                     {% endif %}
                 </div>
-                <div class="field bronchodilator-field">
-                    <label for="{{ form.bronchodilator_positive.id_for_label }}">
-                        {{ form.bronchodilator_positive }}
-                        <span>Marcar broncodilatador positivo en el informe</span>
-                    </label>
-                    {% if form.bronchodilator_positive.errors %}
-                        <div class="muted">{{ form.bronchodilator_positive.errors }}</div>
-                    {% endif %}
-                </div>
+                {% if can_edit_bronchodilator %}
+                    <div class="field bronchodilator-field">
+                        <label for="{{ form.bronchodilator_positive.id_for_label }}">
+                            {{ form.bronchodilator_positive }}
+                            <span>Marcar broncodilatador positivo en el informe</span>
+                        </label>
+                        {% if form.bronchodilator_positive.errors %}
+                            <div class="muted">{{ form.bronchodilator_positive.errors }}</div>
+                        {% endif %}
+                    </div>
+                {% elif bronchodilator_positive %}
+                    <div class="bronchodilator-readonly">Broncodilatador positivo</div>
+                {% endif %}
             </div>
             <p class="muted" style="margin:8px 0 0;font-size:.82rem;">
                 Codigos: N, OL, OM, OMS, OS, RL, RM, RMS, RS o mixto tipo RLOMS.

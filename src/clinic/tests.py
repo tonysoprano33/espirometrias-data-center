@@ -1193,7 +1193,11 @@ class DoctorReviewViewTests(TestCase):
         self.assertEqual(str(self.patient.bmi), "23.14")
 
     def test_save_review_persists_manual_bronchodilator_flag(self):
+        grant_clinic_permissions(self.user, "manage_agenda")
         self.client.force_login(self.user)
+        session = self.client.session
+        session["clinic_work_mode"] = "espirometrista"
+        session.save()
 
         response = self.client.post(
             reverse("clinic:doctor_review_detail", args=[self.encounter.pk]),
@@ -1203,6 +1207,28 @@ class DoctorReviewViewTests(TestCase):
                 "bronchodilator_positive": "on",
                 "analysis_payload_json": "",
             },
+        )
+
+        self.assertRedirects(response, reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+        self.encounter.refresh_from_db()
+        self.assertTrue(self.encounter.spirometry_result.bronchodilator_positive)
+
+    def test_medico_sees_bronchodilator_as_read_only_and_preserves_value(self):
+        SpirometryResult.objects.create(encounter=self.encounter, bronchodilator_positive=True)
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["clinic_work_mode"] = "medico"
+        session.save()
+
+        response = self.client.get(reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Broncodilatador positivo")
+        self.assertNotContains(response, "Marcar broncodilatador positivo en el informe")
+
+        response = self.client.post(
+            reverse("clinic:doctor_review_detail", args=[self.encounter.pk]),
+            {"pdf_file": "", "respiratory_result": "RM", "analysis_payload_json": ""},
         )
 
         self.assertRedirects(response, reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
