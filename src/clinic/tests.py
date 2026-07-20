@@ -13,7 +13,7 @@ from docx import Document
 from PIL import Image
 
 from .forms import DrappImportForm, validate_clinical_upload
-from .models import Attachment, AttachmentKind, CoverageType, Encounter, EncounterStatus, GeneratedReport, Patient, ReferringPhysician, ReportType, SpirometryResult, StudyType, VitalSigns, WalkTest
+from .models import Attachment, AttachmentKind, CoverageType, Encounter, EncounterStatus, GeneratedReport, Patient, ReferringPhysician, ReportType, SpirometryResult, StudyType, VitalSigns, WalkTest, attachment_upload_to, safe_attachment_filename
 from .pdf_intake import (
     build_analysis_from_text,
     build_spirometry_analysis,
@@ -77,6 +77,22 @@ class ClinicalUploadValidationTests(SimpleTestCase):
             image_open.return_value.size = (50_000, 50_000)
             with self.assertRaisesMessage(ValidationError, "dimensiones demasiado grandes"):
                 validate_clinical_upload(uploaded)
+
+
+class AttachmentFilenameTests(SimpleTestCase):
+    def test_attachment_storage_filename_removes_spaces_and_non_ascii_characters(self):
+        self.assertEqual(
+            safe_attachment_filename("Espirometría ñ paciente final.pdf"),
+            "Espirometria_n_paciente_final.pdf",
+        )
+
+    def test_attachment_upload_path_uses_safe_filename_but_keeps_encounter_folder(self):
+        dummy_attachment = Attachment(encounter_id=123)
+
+        self.assertEqual(
+            attachment_upload_to(dummy_attachment, "resultado con ñ y espacios.pdf"),
+            "encounters/123/resultado_con_n_y_espacios.pdf",
+        )
 
 
 class PhysicianNameFormattingTests(SimpleTestCase):
@@ -1009,7 +1025,7 @@ class DoctorReviewViewTests(TestCase):
 
     def test_upload_suggestion_does_not_become_medical_result(self):
         self.client.force_login(self.user)
-        pdf_file = SimpleUploadedFile("felisa.pdf", b"%PDF-1.4 fake", content_type="application/pdf")
+        pdf_file = SimpleUploadedFile("felisa ñ resultado final.pdf", b"%PDF-1.4 fake", content_type="application/pdf")
         analysis = {
             "source": "browser-pdf-text",
             "code": "RM",
@@ -1043,6 +1059,11 @@ class DoctorReviewViewTests(TestCase):
         self.assertEqual(self.encounter.spirometry_result.respiratory_pattern, "")
         self.assertTrue(self.encounter.spirometry_result.suggested_bronchodilator_positive)
         self.assertFalse(self.encounter.spirometry_result.bronchodilator_positive)
+        attachment = Attachment.objects.get(encounter=self.encounter, file_kind=AttachmentKind.PDF_RESULTADO)
+        self.assertEqual(attachment.original_name, "felisa ñ resultado final.pdf")
+        self.assertIn("felisa_n_resultado_final", attachment.file.name)
+        self.assertNotIn("ñ", attachment.file.name)
+        self.assertNotIn(" ", attachment.file.name)
 
     def test_upload_autofills_missing_document_profile_and_replaces_random_name(self):
         self.client.force_login(self.user)

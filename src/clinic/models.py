@@ -1,6 +1,8 @@
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils import timezone
+import re
+import unicodedata
 import uuid
 
 
@@ -332,9 +334,27 @@ class SpirometryResult(TimeStampedModel):
         return f"Resultado de {self.encounter}"
 
 
+def safe_attachment_filename(filename):
+    raw_name = str(filename or "").strip().replace("\\", "/").split("/")[-1]
+    if "." in raw_name:
+        stem, extension = raw_name.rsplit(".", 1)
+        extension = "." + re.sub(r"[^A-Za-z0-9]", "", extension.lower())
+    else:
+        stem, extension = raw_name, ""
+    ascii_stem = (
+        unicodedata.normalize("NFKD", stem or "archivo")
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
+    safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", ascii_stem).strip("._-")
+    if not safe_stem:
+        safe_stem = "archivo"
+    return f"{safe_stem[:90]}{extension or ''}"
+
+
 def attachment_upload_to(instance, filename):
     encounter_id = instance.encounter_id or "sin-atencion"
-    return f"encounters/{encounter_id}/{filename}"
+    return f"encounters/{encounter_id}/{safe_attachment_filename(filename)}"
 
 
 class Attachment(TimeStampedModel):
