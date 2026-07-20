@@ -1246,6 +1246,12 @@
                         const visibleModes = element.dataset.workModeVisible.split(" ");
                         element.hidden = !visibleModes.includes(mode);
                     });
+                    document.querySelectorAll("[data-work-mode-edit-only]").forEach((element) => {
+                        element.hidden = mode !== "espirometrista";
+                    });
+                    document.querySelectorAll("[data-work-mode-read-only]").forEach((element) => {
+                        element.hidden = mode === "espirometrista";
+                    });
                 };
 
                 applyMode(currentMode);

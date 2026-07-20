@@ -263,6 +263,47 @@
         font-size: .86rem;
         font-weight: 900;
     }
+    .technician-note-card {
+        grid-column: 1 / -1;
+        margin: 0;
+        padding: 12px 14px;
+        border: 1px solid #b9dce5;
+        border-left: 5px solid #1685a0;
+        border-radius: 14px;
+        background: linear-gradient(90deg, #effaff, #fbfdfe);
+    }
+    .technician-note-heading {
+        margin: 0 0 4px;
+        color: #0c5269;
+        font-size: .96rem;
+        font-weight: 900;
+        letter-spacing: .02em;
+    }
+    .technician-note-copy {
+        margin: 0;
+        color: #294d5c;
+        white-space: pre-wrap;
+    }
+    .technician-note-form {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: end;
+    }
+    .technician-note-form textarea {
+        width: 100%;
+        min-height: 74px;
+        resize: vertical;
+        border: 1px solid #9ccbd7;
+        border-radius: 10px;
+        padding: 9px 10px;
+        color: #173a4a;
+        font: inherit;
+    }
+    .technician-note-form button {
+        min-width: 142px;
+        min-height: 42px;
+    }
     .doctor-profile-strip {
         display: grid;
         grid-template-columns: repeat(6, minmax(96px, 1fr));
@@ -574,6 +615,12 @@
         .review-navigation-stack {
             justify-items: stretch;
         }
+        .technician-note-form {
+            grid-template-columns: 1fr;
+        }
+        .technician-note-form button {
+            width: 100%;
+        }
         .review-prev-caption,
         .review-next-caption {
             text-align: left;
@@ -689,6 +736,30 @@
             </div>
         </div>
     </div>
+
+    <section class="technician-note-card" aria-labelledby="technician-note-heading">
+        <h2 class="technician-note-heading" id="technician-note-heading">Notas para el medico</h2>
+        {% if perms.clinic.manage_agenda %}
+            <form class="technician-note-form" method="post" action="{% url 'clinic:encounter_technician_notes' encounter.pk %}" data-work-mode-edit-only>
+                {% csrf_token %}
+                <textarea name="technician_notes" maxlength="2000" placeholder="Ej.: paciente con dificultad para completar la maniobra, repetir control...">{{ encounter.technician_notes }}</textarea>
+                <button class="button" type="submit">Guardar nota</button>
+            </form>
+            <div data-work-mode-read-only>
+                {% if encounter.technician_notes %}
+                    <p class="technician-note-copy">{{ encounter.technician_notes }}</p>
+                {% else %}
+                    <p class="technician-note-copy muted">No hay notas del espirometrista para esta atencion.</p>
+                {% endif %}
+            </div>
+        {% else %}
+            {% if encounter.technician_notes %}
+                <p class="technician-note-copy">{{ encounter.technician_notes }}</p>
+            {% else %}
+                <p class="technician-note-copy muted">No hay notas del espirometrista para esta atencion.</p>
+            {% endif %}
+        {% endif %}
+    </section>
 
     {% if patient_profile_available %}
         <div class="doctor-profile-strip" style="grid-column:1/-1;">

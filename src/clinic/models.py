@@ -201,6 +201,7 @@ class Encounter(TimeStampedModel):
     attended = models.BooleanField("Atendido", default=False)
     attended_at = models.DateTimeField("Atendido el", blank=True, null=True)
     no_show = models.BooleanField("No llego", default=False)
+    technician_notes = models.TextField("Notas del espirometrista", blank=True)
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, blank=True, null=True, related_name="encounters_created"
     )

@@ -19,6 +19,7 @@ urlpatterns = [
     path("atenciones/nueva/", views.encounter_create, name="encounter_create"),
     path("atenciones/<int:pk>/", views.encounter_detail, name="encounter_detail"),
     path("atenciones/<int:pk>/editar/", views.encounter_edit, name="encounter_edit"),
+    path("atenciones/<int:pk>/notas-espirometrista/", views.encounter_technician_notes, name="encounter_technician_notes"),
     path("atenciones/<int:pk>/imprimir/", views.encounter_print_view, name="encounter_print"),
     path("atenciones/<int:pk>/generar-informe/", views.encounter_generate_report, name="encounter_generate_report"),
     path("imprimir-dia/", views.daily_print_view, name="daily_print"),

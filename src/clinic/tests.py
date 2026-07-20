@@ -1339,6 +1339,35 @@ class DoctorReviewNavigationTests(TestCase):
         self.assertEqual(final_state["next_encounter_id"], self.next_encounter.pk)
 
 
+class TechnicianNotesTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="technician-notes", password="secret123")
+        grant_clinic_permissions(self.user, "manage_agenda", "review_medically")
+        self.client.force_login(self.user)
+        self.patient = Patient.objects.create(full_name="NOTAS, PACIENTE", dni="44555666")
+        self.encounter = Encounter.objects.create(
+            patient=self.patient,
+            encounter_date=date(2026, 7, 20),
+            study_type=StudyType.CICLOMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+
+    def test_espirometrist_note_is_saved_and_visible_in_medical_review(self):
+        response = self.client.post(
+            reverse("clinic:encounter_technician_notes", args=[self.encounter.pk]),
+            {"technician_notes": "Paciente con tos durante la prueba."},
+        )
+
+        self.assertRedirects(response, reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+        self.encounter.refresh_from_db()
+        self.assertEqual(self.encounter.technician_notes, "Paciente con tos durante la prueba.")
+        detail_response = self.client.get(reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+        self.assertContains(detail_response, "Notas para el medico")
+        self.assertContains(detail_response, "Paciente con tos durante la prueba.")
+
+
 class DrappImportDeduplicationTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="dedupe-test", password="secret123")

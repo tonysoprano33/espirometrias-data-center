@@ -27,6 +27,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_POST
 
 from .forms import (
     DoctorReviewForm,
@@ -4350,6 +4351,30 @@ def encounter_detail(request, pk):
             "print_block_reason": print_block_reason,
         },
     )
+
+
+@login_required
+@permission_required("clinic.manage_agenda", raise_exception=True)
+@require_POST
+def encounter_technician_notes(request, pk):
+    encounter = get_object_or_404(Encounter, pk=pk)
+    notes = str(request.POST.get("technician_notes", "") or "").strip()
+    if len(notes) > 2000:
+        messages.error(request, "La nota puede tener hasta 2000 caracteres.")
+        return redirect("clinic:doctor_review_detail", pk=encounter.pk)
+
+    encounter.technician_notes = notes
+    encounter.updated_by = request.user
+    encounter.save(update_fields=["technician_notes", "updated_by", "updated_at"])
+    record_encounter_event(
+        encounter,
+        EncounterEventType.UPDATED,
+        "Nota del espirometrista actualizada",
+        actor=request.user,
+        details="Se actualizo la nota visible para la revision medica.",
+    )
+    messages.success(request, "Nota para el medico guardada.")
+    return redirect("clinic:doctor_review_detail", pk=encounter.pk)
 
 
 @login_required
