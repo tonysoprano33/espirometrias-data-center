@@ -920,14 +920,10 @@
                 <div class="suggestion-box">
                     <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
                         <div>
-                            <div class="muted" style="font-weight:bold;">Orientacion automatica por valores del PDF</div>
                             <span class="suggestion-code" data-suggested-code>{{ spirometry_suggestion.code }}</span>
                         </div>
                         <button class="button small alt" type="button" data-use-suggestion>Usar sugerido</button>
                     </div>
-                    {% if spirometry_suggestion.probability_phrase %}
-                        <p style="margin:7px 0 0;"><strong>{{ spirometry_suggestion.probability_phrase }}</strong></p>
-                    {% endif %}
                     <p class="muted" style="margin:6px 0 0;line-height:1.25;">{{ spirometry_suggestion.reason }}</p>
                     <div class="measurement-grid">
                         <div>
@@ -955,9 +951,6 @@
                             <p class="muted" style="margin:6px 0 0;">{{ spirometry_suggestion.bronchodilator_reason }}</p>
                         {% endif %}
                     {% endif %}
-                    <p class="muted" style="font-size:.76rem;margin:6px 0 0;line-height:1.25;">
-                        La calidad indicada corresponde a la lectura de los datos, no a certeza diagnostica. La decision final es del medico.
-                    </p>
                 </div>
             {% endif %}
             <div class="form-grid" style="grid-template-columns:1fr;">
