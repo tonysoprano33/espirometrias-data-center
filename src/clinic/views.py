@@ -4360,8 +4360,8 @@ def encounter_technician_notes(request, pk):
     encounter = get_object_or_404(Encounter, pk=pk)
     notes = str(request.POST.get("technician_notes", "") or "").strip()
     medical_control_today = request.POST.get("medical_control_today") == "on"
-    if len(notes) > 2000:
-        messages.error(request, "La nota puede tener hasta 2000 caracteres.")
+    if len(notes) > 280:
+        messages.error(request, "La nota breve puede tener hasta 280 caracteres.")
         return redirect("clinic:doctor_review_detail", pk=encounter.pk)
 
     encounter.technician_notes = notes

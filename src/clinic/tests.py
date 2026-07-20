@@ -1368,7 +1368,7 @@ class TechnicianNotesTests(TestCase):
         self.assertEqual(self.encounter.technician_notes, "Paciente con tos durante la prueba.")
         self.assertTrue(self.encounter.medical_control_today)
         detail_response = self.client.get(reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
-        self.assertContains(detail_response, "Notas para el medico")
+        self.assertContains(detail_response, "Nota breve para el medico")
         self.assertContains(detail_response, "Paciente con tos durante la prueba.")
         self.assertContains(detail_response, "CONTROL MEDICO HOY")
 
