@@ -775,6 +775,23 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertIn('title="Guardar SO2 y FC en reposo"', html)
         self.assertIn('title="Guardar SO2 y FC post"', html)
 
+    def test_secretary_mode_prioritizes_attendance_and_hides_clinical_controls(self):
+        session = self.client.session
+        session["clinic_work_mode"] = "secretaria"
+        session.save()
+
+        with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
+            response = self.client.get(reverse("clinic:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn("secretary-mode-table", html)
+        self.assertIn("Asistencia", html)
+        self.assertIn("No llego", html)
+        self.assertNotIn("Pegar Drapp", html)
+        self.assertNotIn('name="action" value="save_vitals_group"', html)
+        self.assertNotIn("Resultado rapido:", html)
+
     def test_dashboard_ignores_missing_storage_files_in_latest_report(self):
         result = SpirometryResult.objects.create(
             encounter=self.encounter,

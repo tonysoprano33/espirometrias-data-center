@@ -1700,7 +1700,77 @@
     .agenda-readonly [data-inline-edit] button {
         opacity: .78;
     }
+    .secretary-agenda {
+        display: flex;
+        flex-direction: column;
+    }
+    .secretary-agenda .agenda-head { order: 1; }
+    .secretary-agenda .secretary-mode-table { order: 2; }
+    .secretary-agenda .agenda-entry-panel {
+        order: 3;
+        margin-top: 14px;
+    }
+    .secretary-mode-table .attendance-cell {
+        min-width: 180px;
+    }
+    .secretary-mode-table .attendance-button {
+        width: 100%;
+        min-height: 56px;
+        padding: 12px 18px;
+        font-size: 1rem;
+        font-weight: 900;
+        letter-spacing: .02em;
+    }
+    @media (max-width: 1680px) and (min-width: 901px) {
+        .secretary-mode-table.notebook-stack {
+            overflow-x: hidden;
+        }
+        .secretary-mode-table.notebook-stack .table {
+            min-width: 0;
+        }
+        .secretary-mode-table.notebook-stack .encounter-summary-head,
+        .secretary-mode-table.notebook-stack .encounter-summary-cell {
+            display: none !important;
+        }
+        .secretary-mode-table.notebook-stack thead tr,
+        .secretary-mode-table.notebook-stack [data-encounter-row],
+        .secretary-mode-table.notebook-stack [data-encounter-row].is-collapsed {
+            grid-template-columns: 82px minmax(190px, 1.75fr) 112px 105px 118px minmax(170px, .8fr);
+        }
+        .secretary-mode-table.notebook-stack .time-cell { grid-column: 1; }
+        .secretary-mode-table.notebook-stack .patient-cell { grid-column: 2; }
+        .secretary-mode-table.notebook-stack .vitals-cell[data-label="DNI"] { grid-column: 3; }
+        .secretary-mode-table.notebook-stack .study-cell { grid-column: 4; }
+        .secretary-mode-table.notebook-stack .coverage-cell[data-label="Cobertura"] { grid-column: 5; }
+        .secretary-mode-table.notebook-stack .attendance-cell { grid-column: 6; }
+        .secretary-mode-table.notebook-stack .attendance-button {
+            min-height: 50px;
+            font-size: .92rem;
+        }
+    }
+    @media (max-width: 900px) {
+        .secretary-mode-table.notebook-stack .encounter-summary-head,
+        .secretary-mode-table.notebook-stack .encounter-summary-cell {
+            display: none !important;
+        }
+        .secretary-mode-table.notebook-stack [data-encounter-row],
+        .secretary-mode-table.notebook-stack [data-encounter-row].is-collapsed {
+            grid-template-columns: 86px minmax(0, 1fr);
+            grid-template-areas:
+                "time attendance"
+                "patient patient"
+                "dni study"
+                "coverage coverage";
+        }
+        .secretary-mode-table.notebook-stack .time-cell { grid-area: time; }
+        .secretary-mode-table.notebook-stack .patient-cell { grid-area: patient; }
+        .secretary-mode-table.notebook-stack .vitals-cell[data-label="DNI"] { grid-area: dni; }
+        .secretary-mode-table.notebook-stack .study-cell { grid-area: study; }
+        .secretary-mode-table.notebook-stack .coverage-cell[data-label="Cobertura"] { grid-area: coverage; }
+        .secretary-mode-table.notebook-stack .attendance-cell { grid-area: attendance; }
+    }
 </style>
+{% if current_work_mode != "secretaria" %}
 <section class="stats-strip">
     {% for item in status_cards %}
         <article class="stat {{ item.css_class }}">
@@ -1729,13 +1799,17 @@
     </article>
 </section>
 
-<section class="card agenda-card">
+{% endif %}
+
+<section class="card agenda-card{% if current_work_mode == 'secretaria' %} secretary-agenda{% endif %}">
     <div class="agenda-head">
         <div>
             <p class="pill">Agenda {{ today|date:"d/m/Y" }}</p>
             <h1 class="section-title">Pacientes del dia</h1>
         </div>
-        <a class="button alt" href="{% url 'clinic:daily_print' %}" target="_blank" rel="noopener">Imprimir todo el dia</a>
+        {% if current_work_mode != "secretaria" %}
+            <a class="button alt" href="{% url 'clinic:daily_print' %}" target="_blank" rel="noopener">Imprimir todo el dia</a>
+        {% endif %}
     </div>
 
     {% if perms.clinic.manage_agenda %}
@@ -1791,50 +1865,52 @@
                                 <span class="physician-search-hint" data-physician-hint>Escribí un doctor. Si no existe, se guarda como nuevo.</span>
                             </div>
                         </div>
-                        <div class="field">
-                            <label for="{{ quick_form.so2_rest.id_for_label }}">{{ quick_form.so2_rest.label }}</label>
-                            {{ quick_form.so2_rest }}
-                        </div>
-                        <div class="field">
-                            <label for="{{ quick_form.fc_rest.id_for_label }}">{{ quick_form.fc_rest.label }}</label>
-                            {{ quick_form.fc_rest }}
-                        </div>
-                        <div class="field">
-                            <label for="{{ quick_form.so2_post.id_for_label }}">{{ quick_form.so2_post.label }}</label>
-                            {{ quick_form.so2_post }}
-                        </div>
-                        <div class="field">
-                            <label for="{{ quick_form.fc_post.id_for_label }}">{{ quick_form.fc_post.label }}</label>
-                            {{ quick_form.fc_post }}
-                        </div>
-                        <div class="field">
-                            <label for="{{ quick_form.distance_meters.id_for_label }}">{{ quick_form.distance_meters.label }}</label>
-                            {{ quick_form.distance_meters }}
-                        </div>
-                        <div class="field">
-                            <label for="{{ quick_form.borg_final.id_for_label }}">{{ quick_form.borg_final.label }}</label>
-                            {{ quick_form.borg_final }}
-                        </div>
-                        <div class="field">
-                            <label for="{{ quick_form.respiratory_result.id_for_label }}">{{ quick_form.respiratory_result.label }}</label>
-                            {{ quick_form.respiratory_result }}
-                        </div>
-                        <div class="field">
-                            <label for="{{ quick_form.bronchodilator_positive.id_for_label }}">{{ quick_form.bronchodilator_positive.label }}</label>
-                            {{ quick_form.bronchodilator_positive }}
-                        </div>
-                        <div class="field">
-                            <label for="{{ quick_form.completed.id_for_label }}">{{ quick_form.completed.label }}</label>
-                            {{ quick_form.completed }}
-                        </div>
-                        <div class="field">
-                            <label for="{{ quick_form.attended.id_for_label }}">{{ quick_form.attended.label }}</label>
-                            {{ quick_form.attended }}
-                        </div>
-                        <div class="field">
-                            <label for="{{ quick_form.no_show.id_for_label }}">{{ quick_form.no_show.label }}</label>
-                            {{ quick_form.no_show }}
-                        </div>
+                        {% if current_work_mode != "secretaria" %}
+                            <div class="field">
+                                <label for="{{ quick_form.so2_rest.id_for_label }}">{{ quick_form.so2_rest.label }}</label>
+                                {{ quick_form.so2_rest }}
+                            </div>
+                            <div class="field">
+                                <label for="{{ quick_form.fc_rest.id_for_label }}">{{ quick_form.fc_rest.label }}</label>
+                                {{ quick_form.fc_rest }}
+                            </div>
+                            <div class="field">
+                                <label for="{{ quick_form.so2_post.id_for_label }}">{{ quick_form.so2_post.label }}</label>
+                                {{ quick_form.so2_post }}
+                            </div>
+                            <div class="field">
+                                <label for="{{ quick_form.fc_post.id_for_label }}">{{ quick_form.fc_post.label }}</label>
+                                {{ quick_form.fc_post }}
+                            </div>
+                            <div class="field">
+                                <label for="{{ quick_form.distance_meters.id_for_label }}">{{ quick_form.distance_meters.label }}</label>
+                                {{ quick_form.distance_meters }}
+                            </div>
+                            <div class="field">
+                                <label for="{{ quick_form.borg_final.id_for_label }}">{{ quick_form.borg_final.label }}</label>
+                                {{ quick_form.borg_final }}
+                            </div>
+                            <div class="field">
+                                <label for="{{ quick_form.respiratory_result.id_for_label }}">{{ quick_form.respiratory_result.label }}</label>
+                                {{ quick_form.respiratory_result }}
+                            </div>
+                            <div class="field">
+                                <label for="{{ quick_form.bronchodilator_positive.id_for_label }}">{{ quick_form.bronchodilator_positive.label }}</label>
+                                {{ quick_form.bronchodilator_positive }}
+                            </div>
+                            <div class="field">
+                                <label for="{{ quick_form.completed.id_for_label }}">{{ quick_form.completed.label }}</label>
+                                {{ quick_form.completed }}
+                            </div>
+                            <div class="field">
+                                <label for="{{ quick_form.attended.id_for_label }}">{{ quick_form.attended.label }}</label>
+                                {{ quick_form.attended }}
+                            </div>
+                            <div class="field">
+                                <label for="{{ quick_form.no_show.id_for_label }}">{{ quick_form.no_show.label }}</label>
+                                {{ quick_form.no_show }}
+                            </div>
+                        {% endif %}
                     </div>
                 </details>
             </form>
@@ -1864,6 +1940,7 @@
             </details>
         </div>
 
+        {% if current_work_mode != "secretaria" %}
         <div class="drapp-box">
             <h2 class="mini-title">Pegar Drapp</h2>
             <form method="post" enctype="multipart/form-data">
@@ -1960,26 +2037,31 @@
                 </div>
             {% endif %}
         </div>
+        {% endif %}
     </div>
     {% endif %}
 
-    <div class="table-wrap responsive-table-wrap notebook-stack{% if not perms.clinic.manage_agenda %} agenda-readonly{% endif %}">
+    <div class="table-wrap responsive-table-wrap notebook-stack{% if not perms.clinic.manage_agenda %} agenda-readonly{% endif %}{% if current_work_mode == 'secretaria' %} secretary-mode-table{% endif %}">
         <table class="table">
             <thead>
                 <tr>
-                    <th class="encounter-summary-head"></th>
+                    {% if current_work_mode != "secretaria" %}<th class="encounter-summary-head"></th>{% endif %}
                     <th class="col-time">Hora</th>
                     <th class="col-patient">Paciente</th>
                     <th>DNI</th>
                     <th><span class="wide-label">Estudio</span><span class="compact-label">Estd.</span></th>
                     <th><span class="wide-label">Cobertura</span><span class="compact-label">Cob.</span></th>
-                    <th>Dr. deriva</th>
-                    <th class="col-vitals">SO2 / FC reposo</th>
-                    <th class="col-vitals">SO2 / FC post</th>
-                    <th class="col-result">Resultado</th>
+                    {% if current_work_mode != "secretaria" %}
+                        <th>Dr. deriva</th>
+                        <th class="col-vitals">SO2 / FC reposo</th>
+                        <th class="col-vitals">SO2 / FC post</th>
+                        <th class="col-result">Resultado</th>
+                    {% endif %}
                     <th class="col-attendance">Asistencia</th>
-                    <th class="col-status">Estado</th>
-                    <th></th>
+                    {% if current_work_mode != "secretaria" %}
+                        <th class="col-status">Estado</th>
+                        <th></th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -1995,6 +2077,7 @@
                         data-has-cycle-data="{% if encounter.has_cycle_data %}1{% else %}0{% endif %}"
                         data-auto-collapse="{% if encounter.attended or encounter.no_show %}1{% else %}0{% endif %}"
                     >
+                        {% if current_work_mode != "secretaria" %}
                         <td class="encounter-summary-cell" data-label="">
                             <div class="encounter-summary-shell">
                                 <div class="encounter-summary-top">
@@ -2017,6 +2100,7 @@
                                 </div>
                             </div>
                         </td>
+                        {% endif %}
                         <td class="time-cell" data-label="Hora">
                             <form method="post" class="inline-cell-form" data-inline-ajax>
                                 {% csrf_token %}
@@ -2076,6 +2160,7 @@
                                 </select>
                             </form>
                         </td>
+                        {% if current_work_mode != "secretaria" %}
                         <td class="coverage-cell" data-label="Dr. deriva">
                             <form method="post" class="inline-cell-form physician-inline-form" data-inline-ajax data-physician-form>
                                 {% csrf_token %}
@@ -2145,6 +2230,7 @@
                                 >
                             </form>
                         </td>
+                        {% endif %}
                         <td class="attendance-cell" data-label="Asistencia" data-attendance-label>
                             <form method="post" class="inline-cell-form" data-inline-ajax data-attendance-form>
                                 {% csrf_token %}
@@ -2161,6 +2247,7 @@
                                 </button>
                             </form>
                         </td>
+                        {% if current_work_mode != "secretaria" %}
                         <td class="status-cell" data-label="Estado" data-status-label><span class="status-badge {{ encounter.status_css_class }}">{{ encounter.status }}</span></td>
                         <td class="td-actions" data-label="Acciones">
                             <div style="display:grid; gap:8px; min-width:150px;">
@@ -2207,19 +2294,22 @@
                                 <div class="muted" style="font-size:.82rem;" data-report-help>{% if not encounter.can_generate_report %}{{ encounter.report_block_reason }}{% elif encounter.inconsistency_message %}{{ encounter.inconsistency_message }}{% endif %}</div>
                             </div>
                         </td>
+                        {% endif %}
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="13">Todavia no hay pacientes cargados para hoy.</td>
+                        <td colspan="{% if current_work_mode == 'secretaria' %}6{% else %}13{% endif %}">Todavia no hay pacientes cargados para hoy.</td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </section>
-<p class="muted" style="margin:12px 4px 20px;">
-    Resultado rapido: N, OL, OM, OMS, OS, RL, RM, RMS, RS o mixto tipo RLOMS.
-</p>
+{% if current_work_mode != "secretaria" %}
+    <p class="muted" style="margin:12px 4px 20px;">
+        Resultado rapido: N, OL, OM, OMS, OS, RL, RM, RMS, RS o mixto tipo RLOMS.
+    </p>
+{% endif %}
 <datalist id="result-code-options">
     {% for value, label in result_code_suggestions %}
         <option value="{{ value }}">{{ label }}</option>
