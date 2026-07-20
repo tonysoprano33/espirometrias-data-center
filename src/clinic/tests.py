@@ -747,6 +747,18 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertNotIn('physician-save-button', html)
         self.assertNotIn('data-inline-submit data-physician-search', html)
 
+    def test_global_work_mode_selector_is_available_for_authenticated_users(self):
+        with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
+            response = self.client.get(reverse("clinic:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn('id="work-mode"', html)
+        self.assertIn('value="secretaria"', html)
+        self.assertIn('value="medico"', html)
+        self.assertIn('value="espirometrista"', html)
+        self.assertIn('data-work-mode-visible="secretaria espirometrista"', html)
+
     def test_dashboard_renders_manual_save_buttons_for_vitals(self):
         with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
             response = self.client.get(reverse("clinic:dashboard"))

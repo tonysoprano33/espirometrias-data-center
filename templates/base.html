@@ -82,6 +82,45 @@
             color: var(--muted);
             letter-spacing: .1em;
         }
+        .brand-block {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 0;
+        }
+        .work-mode-control {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 6px 8px 6px 10px;
+            border: 1px solid rgba(13,111,138,.20);
+            border-radius: 12px;
+            background: linear-gradient(135deg, #edfaff, #fff9e9);
+            box-shadow: 0 5px 14px rgba(16,43,60,.06);
+        }
+        .work-mode-control label {
+            color: #31596b;
+            font-size: .7rem;
+            font-weight: 900;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .work-mode-control select {
+            min-width: 144px;
+            border: 0;
+            border-radius: 8px;
+            background: #fff;
+            color: #0c5269;
+            padding: 6px 8px;
+            font: inherit;
+            font-size: .83rem;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .work-mode-control select:focus {
+            outline: 3px solid rgba(13,111,138,.18);
+        }
         .nav {
             display: flex;
             gap: 10px;
@@ -1014,6 +1053,7 @@
             .hero, .grid-2, .grid-3, .form-grid, .detail-list, .panel-grid, .agenda-entry-panel, .compact-form-grid, .measurement-grid { grid-template-columns: 1fr; }
             body { font-size: 14px; }
             .topbar-inner { align-items: flex-start; flex-direction: column; gap: 10px; }
+            .brand-block { width: 100%; justify-content: space-between; }
             .shell, .topbar-inner { padding-left: 12px; padding-right: 12px; }
             .shell { padding-top: 12px; padding-bottom: 20px; }
             .brand { font-size: .94rem; line-height: 1.05; }
@@ -1064,6 +1104,9 @@
             }
         }
         @media (max-width: 560px) {
+            .brand-block { align-items: flex-start; flex-direction: column; gap: 7px; }
+            .work-mode-control { width: 100%; justify-content: space-between; }
+            .work-mode-control select { flex: 1; min-width: 0; }
             .nav {
                 grid-template-columns: repeat(3, minmax(0, 1fr));
             }
@@ -1084,19 +1127,31 @@
 <body>
     <header class="topbar">
         <div class="topbar-inner">
-            <div class="brand">
-                Clinica Espiro
-                <small>Agenda respiratoria e informes</small>
+            <div class="brand-block">
+                <div class="brand">
+                    Clinica Espiro
+                    <small>Agenda respiratoria e informes</small>
+                </div>
+                {% if request.user.is_authenticated %}
+                    <div class="work-mode-control">
+                        <label for="work-mode">Estoy en modo</label>
+                        <select id="work-mode" aria-label="Elegir vista de trabajo">
+                            <option value="secretaria">Secretaría</option>
+                            <option value="medico">Médico</option>
+                            <option value="espirometrista">Espirometrista</option>
+                        </select>
+                    </div>
+                {% endif %}
             </div>
             <nav class="nav">
                 {% if request.user.is_authenticated %}
-                    <a href="{% url 'clinic:dashboard' %}" class="{% if request.resolver_match and request.resolver_match.url_name == 'dashboard' %}current{% endif %}">Inicio</a>
-                    <a href="{% url 'clinic:calendar' %}" class="{% if request.resolver_match and request.resolver_match.url_name == 'calendar' %}current{% endif %}">Calendario</a>
-                    {% if perms.clinic.view_clinical_statistics %}<a href="{% url 'clinic:statistics' %}" class="{% if request.resolver_match and request.resolver_match.url_name == 'statistics' %}current{% endif %}">Estadistica</a>{% endif %}
-                    <a href="{% url 'clinic:patient_list' %}" class="{% if request.resolver_match and request.resolver_match.url_name == 'patient_list' %}current{% endif %}">Pacientes</a>
-                    {% if perms.clinic.manage_agenda %}<a href="{% url 'clinic:recycle_bin' %}" class="{% if request.resolver_match and request.resolver_match.url_name == 'recycle_bin' %}current{% endif %}">Papelera</a>{% endif %}
-                    {% if perms.clinic.review_medically %}<a href="{% url 'clinic:doctor_review_list' %}" class="{% if request.resolver_match and request.resolver_match.url_name == 'doctor_review_list' %}current{% endif %}">Revision medica</a>{% endif %}
-                    {% if request.user.is_staff %}<a href="{% url 'admin:index' %}" class="{% if request.resolver_match and 'admin' in request.path %}current{% endif %}">Admin</a>{% endif %}
+                    <a href="{% url 'clinic:dashboard' %}" data-work-mode-visible="secretaria espirometrista" class="{% if request.resolver_match and request.resolver_match.url_name == 'dashboard' %}current{% endif %}">Inicio</a>
+                    <a href="{% url 'clinic:calendar' %}" data-work-mode-visible="espirometrista" class="{% if request.resolver_match and request.resolver_match.url_name == 'calendar' %}current{% endif %}">Calendario</a>
+                    {% if perms.clinic.view_clinical_statistics %}<a href="{% url 'clinic:statistics' %}" data-work-mode-visible="espirometrista" class="{% if request.resolver_match and request.resolver_match.url_name == 'statistics' %}current{% endif %}">Estadistica</a>{% endif %}
+                    <a href="{% url 'clinic:patient_list' %}" data-work-mode-visible="espirometrista" class="{% if request.resolver_match and request.resolver_match.url_name == 'patient_list' %}current{% endif %}">Pacientes</a>
+                    {% if perms.clinic.manage_agenda %}<a href="{% url 'clinic:recycle_bin' %}" data-work-mode-visible="espirometrista" class="{% if request.resolver_match and request.resolver_match.url_name == 'recycle_bin' %}current{% endif %}">Papelera</a>{% endif %}
+                    {% if perms.clinic.review_medically %}<a href="{% url 'clinic:doctor_review_list' %}" data-work-mode-visible="medico espirometrista" class="{% if request.resolver_match and request.resolver_match.url_name == 'doctor_review_list' %}current{% endif %}">Revision medica</a>{% endif %}
+                    {% if request.user.is_staff %}<a href="{% url 'admin:index' %}" data-work-mode-visible="espirometrista" class="{% if request.resolver_match and 'admin' in request.path %}current{% endif %}">Admin</a>{% endif %}
                     <form method="post" action="{% url 'logout' %}">
                         {% csrf_token %}
                         <button class="button alt" type="submit">Salir</button>
@@ -1115,5 +1170,43 @@
         {% endif %}
         {% block content %}{% endblock %}
     </main>
+    {% if request.user.is_authenticated %}
+        <script>
+            (() => {
+                const storageKey = "clinica-espiro-work-mode";
+                const modeSelect = document.getElementById("work-mode");
+                if (!modeSelect) return;
+
+                const modeDestinations = {
+                    secretaria: "{% url 'clinic:dashboard' %}",
+                    medico: "{% url 'clinic:doctor_review_list' %}",
+                    espirometrista: "{% url 'clinic:dashboard' %}",
+                };
+                const savedMode = window.localStorage.getItem(storageKey);
+                const currentMode = ["secretaria", "medico", "espirometrista"].includes(savedMode)
+                    ? savedMode
+                    : "espirometrista";
+
+                const applyMode = (mode) => {
+                    modeSelect.value = mode;
+                    document.querySelectorAll("[data-work-mode-visible]").forEach((element) => {
+                        const visibleModes = element.dataset.workModeVisible.split(" ");
+                        element.hidden = !visibleModes.includes(mode);
+                    });
+                };
+
+                applyMode(currentMode);
+                modeSelect.addEventListener("change", () => {
+                    const mode = modeSelect.value;
+                    window.localStorage.setItem(storageKey, mode);
+                    applyMode(mode);
+                    const destination = modeDestinations[mode];
+                    if (destination && window.location.pathname !== destination) {
+                        window.location.assign(destination);
+                    }
+                });
+            })();
+        </script>
+    {% endif %}
 </body>
 </html>
