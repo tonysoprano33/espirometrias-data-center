@@ -2777,6 +2777,16 @@ def render_dashboard_response(
     import_preview=None,
     import_preview_token="",
 ):
+    attendance_summary = {
+        "total": len(today_encounters),
+        "attended": sum(1 for encounter in today_encounters if encounter.attended),
+        "no_show": sum(1 for encounter in today_encounters if encounter.no_show),
+    }
+    attendance_summary["waiting"] = (
+        attendance_summary["total"]
+        - attendance_summary["attended"]
+        - attendance_summary["no_show"]
+    )
     context = {
         "today": today,
         "today_encounters": today_encounters,
@@ -2789,6 +2799,7 @@ def render_dashboard_response(
         "physician_choices": ReferringPhysician.objects.filter(active=True).order_by("full_name"),
         "result_code_suggestions": RESULT_CODE_SUGGESTIONS,
         "operation_alerts": operation_alerts,
+        "attendance_summary": attendance_summary,
         "import_preview": import_preview or [],
         "import_preview_token": import_preview_token,
     }

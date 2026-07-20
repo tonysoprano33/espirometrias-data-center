@@ -346,6 +346,56 @@
     .quick-secondary[open] summary::before {
         content: "-";
     }
+    .agenda-attendance-summary {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        margin: 2px 0 14px;
+    }
+    .agenda-attendance-summary .agenda-count {
+        display: flex;
+        align-items: baseline;
+        gap: 7px;
+        min-width: 0;
+        padding: 8px 11px;
+        border: 1px solid rgba(23, 49, 63, .1);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, .78);
+        color: #5b7482;
+        font-size: .76rem;
+        font-weight: 800;
+    }
+    .agenda-attendance-summary .agenda-count strong {
+        color: #123f54;
+        font-size: 1.25rem;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+    }
+    .agenda-attendance-summary .agenda-count.attended {
+        background: #e9faef;
+        border-color: #b9e7c9;
+    }
+    .agenda-attendance-summary .agenda-count.attended strong { color: #1d7c49; }
+    .agenda-attendance-summary .agenda-count.no-show {
+        background: #fff1ed;
+        border-color: #f6cbbf;
+    }
+    .agenda-attendance-summary .agenda-count.no-show strong { color: #b94d32; }
+    .agenda-attendance-summary .agenda-count.waiting {
+        background: #fff8df;
+        border-color: #f4dfa2;
+    }
+    .agenda-attendance-summary .agenda-count.waiting strong { color: #9b6700; }
+    @media (max-width: 680px) {
+        .agenda-attendance-summary {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px;
+        }
+        .agenda-attendance-summary .agenda-count {
+            padding: 8px 9px;
+            font-size: .7rem;
+        }
+    }
     .patient-inline-form {
         display: block;
         width: 100%;
@@ -1910,6 +1960,12 @@
             <a class="button alt" href="{% url 'clinic:daily_print' %}" target="_blank" rel="noopener">Imprimir todo el dia</a>
         {% endif %}
     </div>
+    <section class="agenda-attendance-summary" aria-label="Resumen de pacientes de hoy">
+        <div class="agenda-count total"><strong data-agenda-count="total">{{ attendance_summary.total }}</strong><span>Pacientes hoy</span></div>
+        <div class="agenda-count attended"><strong data-agenda-count="attended">{{ attendance_summary.attended }}</strong><span>Atendidos</span></div>
+        <div class="agenda-count no-show"><strong data-agenda-count="no_show">{{ attendance_summary.no_show }}</strong><span>No llegaron</span></div>
+        <div class="agenda-count waiting"><strong data-agenda-count="waiting">{{ attendance_summary.waiting }}</strong><span>Esperando</span></div>
+    </section>
 
     {% if perms.clinic.manage_agenda %}
     <div class="agenda-entry-panel">
@@ -3578,6 +3634,28 @@
             }
         }
 
+        function refreshAgendaAttendanceSummary() {
+            var rows = document.querySelectorAll ? document.querySelectorAll("[data-encounter-row]") : [];
+            var counts = { total: rows.length, attended: 0, no_show: 0, waiting: 0 };
+            var i;
+            var button;
+            var keys = ["total", "attended", "no_show", "waiting"];
+            for (i = 0; i < rows.length; i += 1) {
+                button = rows[i].querySelector ? rows[i].querySelector("[data-attendance-button]") : null;
+                if (button && button.classList.contains("attended")) {
+                    counts.attended += 1;
+                } else if (button && button.classList.contains("no-show")) {
+                    counts.no_show += 1;
+                } else {
+                    counts.waiting += 1;
+                }
+            }
+            for (i = 0; i < keys.length; i += 1) {
+                var target = document.querySelector ? document.querySelector('[data-agenda-count="' + keys[i] + '"]') : null;
+                if (target) target.textContent = String(counts[keys[i]]);
+            }
+        }
+
         function updateRow(row, payload) {
             var statusCell;
             var historyLink;
@@ -3621,6 +3699,7 @@
             setInlineValue(row, "fc_post", payload.fc_post);
             setDniValue(row, payload);
             updateAttendance(row, payload);
+            refreshAgendaAttendanceSummary();
             updateReport(row, payload);
             if (window.espiroAgendaCollapse && typeof window.espiroAgendaCollapse.syncRow === "function") {
                 window.espiroAgendaCollapse.syncRow(row);
@@ -4448,6 +4527,7 @@
         installVitalAutosave();
         installDrappPasteZone();
         installDrappBrowserOcr();
+        refreshAgendaAttendanceSummary();
 
         window.setInterval(pollRows, 60000);
         window.setTimeout(pollRows, 3000);
