@@ -1187,7 +1187,7 @@
                 {% if request.user.is_authenticated %}
                     <div class="work-mode-control">
                         <label for="work-mode">Estoy en modo</label>
-                        <select id="work-mode" aria-label="Elegir vista de trabajo" data-server-mode="{{ request.session.clinic_work_mode|default:'' }}">
+                        <select id="work-mode" aria-label="Elegir vista de trabajo" data-server-mode="{{ current_work_mode }}">
                             <option value="secretaria">Secretaría</option>
                             <option value="medico">Médico</option>
                             <option value="espirometrista">Espirometrista</option>

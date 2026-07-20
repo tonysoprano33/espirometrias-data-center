@@ -961,7 +961,7 @@
         </form>
         <section class="technician-note-card" aria-labelledby="technician-note-heading">
             <h2 class="technician-note-heading" id="technician-note-heading">Nota breve para el medico</h2>
-            {% if perms.clinic.manage_agenda %}
+            {% if perms.clinic.manage_agenda and current_work_mode == "espirometrista" %}
                 <form class="technician-note-form" method="post" action="{% url 'clinic:encounter_technician_notes' encounter.pk %}" data-work-mode-edit-only>
                     {% csrf_token %}
                     <textarea name="technician_notes" maxlength="280" placeholder="Ej.: refiere dolor al respirar.">{{ encounter.technician_notes }}</textarea>
@@ -973,13 +973,6 @@
                         <button class="button" type="submit">Guardar nota</button>
                     </div>
                 </form>
-                <div data-work-mode-read-only>
-                    {% if encounter.technician_notes %}
-                        <p class="technician-note-copy">{{ encounter.technician_notes }}</p>
-                    {% else %}
-                        <p class="technician-note-copy muted">Sin nota.</p>
-                    {% endif %}
-                </div>
             {% else %}
                 {% if encounter.technician_notes %}
                     <p class="technician-note-copy">{{ encounter.technician_notes }}</p>

@@ -1388,6 +1388,19 @@ class TechnicianNotesTests(TestCase):
         self.encounter.refresh_from_db()
         self.assertEqual(self.encounter.technician_notes, "")
 
+    def test_medical_mode_renders_note_as_read_only_without_edit_controls(self):
+        self.encounter.technician_notes = "Refiere dolor al respirar."
+        self.encounter.medical_control_today = True
+        self.encounter.save(update_fields=["technician_notes", "medical_control_today", "updated_at"])
+        self.client.post(reverse("clinic:set_work_mode"), {"work_mode": "medico"})
+
+        response = self.client.get(reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+
+        self.assertContains(response, "Refiere dolor al respirar.")
+        self.assertNotContains(response, 'name="technician_notes"')
+        self.assertNotContains(response, "Guardar nota")
+        self.assertNotContains(response, 'name="medical_control_today"')
+
 
 class DrappImportDeduplicationTests(TestCase):
     def setUp(self):
