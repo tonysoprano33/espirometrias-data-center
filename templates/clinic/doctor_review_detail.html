@@ -793,35 +793,6 @@
         </div>
     </div>
 
-    {% if patient_profile_available %}
-        <div class="doctor-profile-strip" style="grid-column:1/-1;">
-            <div class="metric">
-                <span>Doc / cod</span>
-                <strong>{{ encounter.patient.dni|default:encounter.patient.patient_code|default:"-" }}</strong>
-            </div>
-            <div class="metric">
-                <span>Apellido</span>
-                <strong>{{ encounter.patient.last_name|default:"-" }}</strong>
-            </div>
-            <div class="metric">
-                <span>Nombre</span>
-                <strong>{{ encounter.patient.first_name|default:"-" }}</strong>
-            </div>
-            <div class="metric">
-                <span>Nacimiento</span>
-                <strong>{% if encounter.patient.birth_date %}{{ encounter.patient.birth_date|date:"d/m/Y" }}{% else %}-{% endif %}</strong>
-            </div>
-            <div class="metric">
-                <span>Genero</span>
-                <strong>{{ encounter.patient.gender|default:"-" }}</strong>
-            </div>
-            <div class="metric">
-                <span>BMI</span>
-                <strong>{{ encounter.patient.bmi|default:"-" }}</strong>
-            </div>
-        </div>
-    {% endif %}
-
     {% if encounter.medical_control_today %}
         <div class="control-today-badge" role="status">CONTROL MEDICO HOY</div>
     {% endif %}
