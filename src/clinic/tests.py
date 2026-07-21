@@ -2578,6 +2578,35 @@ class StatisticsMonthNavigationTests(TestCase):
         self.assertIn("Mes actual", html)
 
 
+class ClinicalPatientSearchTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="clinical-search", password="secret123")
+        self.client.force_login(self.user)
+        self.matched_patient = Patient.objects.create(full_name="BUSQUEDA, CLINICA", dni="32455323")
+        self.other_patient = Patient.objects.create(full_name="OTRO, PACIENTE", dni="11222333")
+        encounter = Encounter.objects.create(
+            patient=self.matched_patient,
+            encounter_date=date(2026, 7, 14),
+            study_type=StudyType.ESPIROMETRIA,
+            coverage_type=CoverageType.MUTUAL,
+            coverage_name="Grassi",
+            attended=True,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        SpirometryResult.objects.create(encounter=encounter, respiratory_pattern="Normal")
+
+    def test_clinical_search_finds_mutual_dni_date_and_result(self):
+        for query in ("Grassi", "32.455.323", "14/07/2026", "Normal"):
+            with self.subTest(query=query):
+                response = self.client.get(reverse("clinic:patient_list"), {"q": query})
+
+                self.assertEqual(response.status_code, 200)
+                html = response.content.decode()
+                self.assertIn("BUSQUEDA, CLINICA", html)
+                self.assertNotIn("OTRO, PACIENTE", html)
+
+
 class ClinicalAccessControlTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="read-only", password="secret123")

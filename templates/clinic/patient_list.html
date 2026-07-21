@@ -25,6 +25,82 @@
     .patient-filter-card {
         padding-top: 8px;
     }
+    .clinical-search-form {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: end;
+        padding: 16px;
+        border: 1px solid rgba(13,111,138,.14);
+        border-radius: 18px;
+        background:
+            radial-gradient(circle at right top, rgba(13,111,138,.09), transparent 28%),
+            linear-gradient(135deg, #f7fdff, #ffffff);
+    }
+    .clinical-search-field {
+        margin: 0;
+    }
+    .clinical-search-field label {
+        color: #0c5d76;
+        font-size: .78rem;
+        font-weight: 900;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+    .clinical-search-input {
+        min-height: 50px;
+        margin-top: 6px;
+        border: 2px solid rgba(13,111,138,.24) !important;
+        border-radius: 14px !important;
+        background: rgba(255,255,255,.96) !important;
+        color: #12364d;
+        font-size: 1rem;
+        font-weight: 700;
+        box-shadow: 0 8px 20px rgba(13,111,138,.06);
+    }
+    .clinical-search-input:focus {
+        border-color: #0d8aa8 !important;
+        box-shadow: 0 0 0 4px rgba(13,138,168,.12) !important;
+    }
+    .clinical-search-button {
+        min-height: 50px;
+        min-width: 132px;
+        border-radius: 14px;
+    }
+    .clinical-search-hint {
+        grid-column: 1 / -1;
+        margin: -4px 0 0;
+        color: #627985;
+        font-size: .83rem;
+    }
+    .advanced-filters {
+        margin-top: 14px;
+        border-top: 1px dashed rgba(23,49,63,.16);
+        padding-top: 12px;
+    }
+    .advanced-filters summary {
+        width: fit-content;
+        color: #28637b;
+        font-weight: 800;
+        cursor: pointer;
+        list-style: none;
+    }
+    .advanced-filters summary::-webkit-details-marker {
+        display: none;
+    }
+    .advanced-filters summary::before {
+        content: "+";
+        display: inline-grid;
+        place-items: center;
+        width: 20px;
+        height: 20px;
+        margin-right: 7px;
+        border-radius: 50%;
+        background: #e3f3f6;
+        color: #0d6f8a;
+    }
+    .advanced-filters[open] summary::before { content: "-"; }
+    .advanced-filters .patient-filter-grid { margin-top: 14px; }
     .patient-filter-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
@@ -223,6 +299,13 @@
         }
     }
     @media (max-width: 900px) {
+        .clinical-search-form {
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+        .clinical-search-button {
+            width: 100%;
+        }
         .patient-filter-grid {
             grid-template-columns: 1fr;
         }
@@ -250,11 +333,17 @@
 
 <section class="card patient-filter-card">
     <form method="get" style="margin:0 0 4px;">
-        <div class="form-grid patient-filter-grid">
-            <div class="field">
-                <label for="q">Buscar por nombre o DNI</label>
-                <input type="text" id="q" name="q" value="{{ query }}">
+        <div class="clinical-search-form">
+            <div class="field clinical-search-field">
+                <label for="q">Buscador clinico</label>
+                <input class="clinical-search-input" type="search" id="q" name="q" value="{{ query }}" placeholder="Nombre, DNI, mutual, fecha o resultado..." autocomplete="off">
             </div>
+            <button class="button clinical-search-button" type="submit">Buscar</button>
+            <p class="clinical-search-hint">Ejemplos: <strong>Grassi</strong>, <strong>32.455.323</strong>, <strong>14/07/2026</strong>, <strong>RLOMS</strong> o <strong>Normal</strong>.</p>
+        </div>
+        <details class="advanced-filters"{% if filters.date or filters.coverage or filters.diagnosis or filters.status or filters.physician %} open{% endif %}>
+            <summary>Filtros detallados</summary>
+        <div class="form-grid patient-filter-grid">
             <div class="field">
                 <label for="date">Fecha</label>
                 <input type="date" id="date" name="date" value="{{ filters.date }}">
@@ -292,9 +381,10 @@
             </div>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
-            <button class="button" type="submit">Filtrar</button>
+            <button class="button" type="submit">Aplicar filtros</button>
             <a class="button alt" href="{% url 'clinic:patient_list' %}">Limpiar</a>
         </div>
+        </details>
     </form>
 </section>
 

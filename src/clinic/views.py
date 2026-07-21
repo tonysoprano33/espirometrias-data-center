@@ -3527,9 +3527,52 @@ def patient_list(request):
         ),
     )
     if query:
-        patients = patients.filter(
-            Q(full_name__icontains=query) | Q(dni__icontains=query) | Q(patient_code__icontains=query)
+        normalized_document = normalize_document_number(query)
+        identity_match = (
+            Q(full_name__icontains=query)
+            | Q(dni__icontains=query)
+            | Q(patient_code__icontains=query)
         )
+        if normalized_document and normalized_document != query:
+            identity_match |= Q(dni__icontains=normalized_document) | Q(patient_code__icontains=normalized_document)
+
+        encounter_match = (
+            Q(encounters__coverage_name__icontains=query)
+            | Q(encounters__coverage_type__icontains=query)
+            | Q(encounters__spirometry_result__respiratory_pattern__icontains=query)
+            | Q(encounters__spirometry_result__obstruction_grade__icontains=query)
+            | Q(encounters__spirometry_result__restriction_grade__icontains=query)
+        )
+        parsed_result = parse_result_code(query)
+        if parsed_result:
+            result_match = Q(encounters__spirometry_result__respiratory_pattern=parsed_result["pattern"])
+            if parsed_result["obstruction_grade"]:
+                result_match &= Q(
+                    encounters__spirometry_result__obstruction_grade=parsed_result["obstruction_grade"]
+                )
+            if parsed_result["restriction_grade"]:
+                result_match &= Q(
+                    encounters__spirometry_result__restriction_grade=parsed_result["restriction_grade"]
+                )
+            encounter_match |= result_match
+
+        parsed_search_date = None
+        for date_format in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+            try:
+                parsed_search_date = datetime.strptime(query, date_format).date()
+                break
+            except ValueError:
+                continue
+        if parsed_search_date:
+            encounter_match |= Q(encounters__encounter_date=parsed_search_date)
+
+        encounter_match &= Q(encounters__deleted_at__isnull=True)
+        historical_import_match = Q(
+            events__event_type=EncounterEventType.IMPORT,
+            events__encounter__deleted_at__isnull=True,
+            events__metadata__coverage_raw__icontains=query,
+        )
+        patients = patients.filter(identity_match | encounter_match | historical_import_match)
     if date_filter:
         try:
             parsed_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
