@@ -188,13 +188,46 @@
     }
     .quick-core-grid {
         display: grid;
-        grid-template-columns: minmax(0, 1.45fr) minmax(160px, .72fr) minmax(160px, .72fr) minmax(126px, max-content);
+        grid-template-columns: minmax(0, 1.45fr) minmax(150px, .68fr) minmax(150px, .68fr) minmax(170px, .72fr) minmax(126px, max-content);
         gap: 10px;
         align-items: end;
     }
     .quick-core-grid > .button {
         width: 100%;
         min-width: 0;
+    }
+    .quick-control-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 42px;
+        padding: 0 12px;
+        border: 1px solid rgba(13,111,138,.18);
+        border-radius: 12px;
+        background: #eef8fb;
+        color: #0d5269;
+        font-size: .86rem;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+    .quick-control-toggle input { width: auto; margin: 0; }
+    .secretary-control-form { margin-top: 8px; }
+    .secretary-control-button {
+        width: 100%;
+        min-height: 34px;
+        border: 1px solid #d6a005;
+        border-radius: 10px;
+        background: #fff6cf;
+        color: #805600;
+        font: inherit;
+        font-size: .78rem;
+        font-weight: 900;
+        cursor: pointer;
+    }
+    .secretary-control-button.is-active {
+        border-color: #0b7b90;
+        background: #dff4fa;
+        color: #07586c;
     }
     .quick-secondary {
         margin-top: 8px;
@@ -1956,7 +1989,9 @@
             <p class="pill">Agenda {{ today|date:"d/m/Y" }}</p>
             <h1 class="section-title">Pacientes del dia</h1>
         </div>
-        {% if current_work_mode != "secretaria" %}
+        {% if current_work_mode == "secretaria" %}
+            <a class="button" href="#agregar-paciente">+ Agregar paciente</a>
+        {% else %}
             <a class="button alt" href="{% url 'clinic:daily_print' %}" target="_blank" rel="noopener">Imprimir todo el dia</a>
         {% endif %}
     </div>
@@ -1969,7 +2004,7 @@
 
     {% if perms.clinic.manage_agenda %}
     <div class="agenda-entry-panel">
-        <div class="quick-add-box">
+        <div class="quick-add-box" id="agregar-paciente">
             <div class="quick-add-heading">
                 <span class="quick-add-mark" aria-hidden="true">+</span>
                 <div>
@@ -1996,6 +2031,10 @@
                         <label for="{{ quick_form.coverage_type.id_for_label }}">{{ quick_form.coverage_type.label }}</label>
                         {{ quick_form.coverage_type }}
                     </div>
+                    <label class="quick-control-toggle" for="{{ quick_form.medical_control_today.id_for_label }}">
+                        {{ quick_form.medical_control_today }}
+                        Control medico hoy
+                    </label>
                     <button class="button" type="submit">Agregar paciente</button>
                 </div>
 
@@ -2407,6 +2446,21 @@
                                     {% endif %}
                                 </button>
                             </form>
+                            {% if current_work_mode == "secretaria" %}
+                            <form method="post" class="secretary-control-form" data-inline-ajax data-medical-control-form>
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="toggle_medical_control">
+                                <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                <button
+                                    type="submit"
+                                    class="secretary-control-button{% if encounter.medical_control_today %} is-active{% endif %}"
+                                    data-medical-control-button
+                                    aria-pressed="{% if encounter.medical_control_today %}true{% else %}false{% endif %}"
+                                >
+                                    {% if encounter.medical_control_today %}Control hoy marcado{% else %}+ Marcar control hoy{% endif %}
+                                </button>
+                            </form>
+                            {% endif %}
                         </td>
                         {% if current_work_mode != "secretaria" %}
                         <td class="status-cell" data-label="Estado" data-status-label><span class="status-badge {{ encounter.status_css_class }}">{{ encounter.status }}</span></td>
@@ -3036,6 +3090,15 @@
             }
             if (payload.attendance_label && attendanceButton) {
                 updateAttendanceButton(attendanceButton, payload);
+            }
+            if (typeof payload.medical_control_today !== "undefined") {
+                const controlButton = row.querySelector("[data-medical-control-button]");
+                if (controlButton) {
+                    const active = Boolean(payload.medical_control_today);
+                    controlButton.classList.toggle("is-active", active);
+                    controlButton.setAttribute("aria-pressed", active ? "true" : "false");
+                    controlButton.textContent = active ? "Control hoy marcado" : "+ Marcar control hoy";
+                }
             }
             if (payload.patient_dni_display && inlineDisplay) {
                 const dniInput = inlineEdit ? inlineEdit.querySelector('input[name="patient_dni"]') : null;

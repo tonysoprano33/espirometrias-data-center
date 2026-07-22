@@ -351,6 +351,13 @@
                             <span>Si lo marcás, en la primera página del informe aparece abajo de SO2 / FC como aviso clínico.</span>
                         </span>
                     </label>
+                    <label class="toggle-card" for="{{ form.medical_control_today.id_for_label }}">
+                        {{ form.medical_control_today }}
+                        <span class="toggle-copy">
+                            <strong>Control medico hoy</strong>
+                            <span>Lo destaca en la revision para que el medico lo vea antes de informar.</span>
+                        </span>
+                    </label>
                     <label class="toggle-card success" for="{{ form.attended.id_for_label }}">
                         {{ form.attended }}
                         <span class="toggle-copy">

@@ -1063,6 +1063,7 @@ def get_row_state_payload(encounter):
         "patient_name": encounter.patient.full_name,
         "patient_dni": encounter.patient.dni or "",
         "patient_dni_display": formatear_dni(encounter.patient.dni) if encounter.patient.dni else "Completar DNI",
+        "medical_control_today": encounter.medical_control_today,
         "patient_url": reverse("clinic:patient_detail", args=[encounter.patient_id]),
         "print_url": reverse("clinic:encounter_print", args=[encounter.pk]),
         "so2_rest": "" if getattr(vital, "so2_rest", None) is None else str(vital.so2_rest),
@@ -1374,6 +1375,7 @@ def save_quick_encounter(form: QuickEncounterForm, request_user, encounter=None)
     encounter.referring_physician = selected_physician
     encounter.attended = attended
     encounter.no_show = no_show
+    encounter.medical_control_today = bool(form.cleaned_data.get("medical_control_today"))
     if attended and encounter.attended_at is None:
         encounter.attended_at = timezone.now()
     elif not attended:
@@ -2897,6 +2899,7 @@ def dashboard(request):
         "completed": True,
         "borg_final": 1,
         "bronchodilator_positive": False,
+        "medical_control_today": False,
         "attended": False,
         "no_show": True,
     }
@@ -3165,6 +3168,28 @@ def dashboard(request):
             cycle_attendance(encounter, request.user)
             if is_ajax_request(request):
                 payload = {"ok": True, "attended": encounter.attended, "no_show": encounter.no_show}
+                payload.update(get_row_state_payload(encounter))
+                return JsonResponse(payload)
+            return redirect("clinic:dashboard")
+        elif action == "toggle_medical_control":
+            physician_form = ReferringPhysicianForm(initial={"active": True})
+            encounter = get_object_or_404(
+                Encounter.objects.select_related("patient", "spirometry_result", "vital_signs", "walk_test")
+                .prefetch_related("generated_reports"),
+                pk=request.POST.get("encounter_id"),
+            )
+            encounter.medical_control_today = not encounter.medical_control_today
+            encounter.updated_by = request.user
+            encounter.save(update_fields=["medical_control_today", "updated_by", "updated_at"])
+            record_encounter_event(
+                encounter,
+                EncounterEventType.UPDATED,
+                "Control medico actualizado",
+                actor=request.user,
+                details=f"Control medico hoy: {'si' if encounter.medical_control_today else 'no'}.",
+            )
+            if is_ajax_request(request):
+                payload = {"ok": True, "medical_control_today": encounter.medical_control_today}
                 payload.update(get_row_state_payload(encounter))
                 return JsonResponse(payload)
             return redirect("clinic:dashboard")
@@ -4022,6 +4047,7 @@ def encounter_create(request):
                 "stopped": False,
                 "symptoms": False,
                 "borg_final": 1,
+                "medical_control_today": False,
                 "attended": False,
                 "no_show": True,
             }
@@ -4080,6 +4106,7 @@ def encounter_edit(request, pk):
                 "borg_final": getattr(walk, "borg_final", 1),
                 "respiratory_result": current_result,
                 "bronchodilator_positive": bool(getattr(spirometry, "bronchodilator_positive", False)),
+                "medical_control_today": encounter.medical_control_today,
                 "attended": encounter.attended,
                 "no_show": encounter.no_show,
             }

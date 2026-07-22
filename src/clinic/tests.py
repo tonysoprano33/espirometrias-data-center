@@ -614,6 +614,18 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertEqual(payload["value"], "15:30")
         self.assertEqual(payload["encounter_time"], "15:30")
 
+    def test_secretary_can_toggle_medical_control_from_dashboard(self):
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {"action": "toggle_medical_control", "encounter_id": self.encounter.pk},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.encounter.refresh_from_db()
+        self.assertTrue(self.encounter.medical_control_today)
+        self.assertTrue(response.json()["medical_control_today"])
+
     def test_dni_owned_by_another_patient_never_reassigns_encounter(self):
         other_patient = Patient.objects.create(full_name="OTRO, PACIENTE", dni="99888777")
 
@@ -795,6 +807,9 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertNotIn("Pegar Drapp", html)
         self.assertNotIn('name="action" value="save_vitals_group"', html)
         self.assertNotIn("Resultado rapido:", html)
+        self.assertIn('href="#agregar-paciente"', html)
+        self.assertIn('name="medical_control_today"', html)
+        self.assertIn('name="action" value="toggle_medical_control"', html)
 
     def test_dashboard_ignores_missing_storage_files_in_latest_report(self):
         result = SpirometryResult.objects.create(
@@ -868,6 +883,25 @@ class DashboardQuickAddTests(TestCase):
         self.assertEqual(encounter.encounter_time, time(9, 15))
         self.assertTrue(encounter.no_show)
 
+    def test_quick_add_can_mark_medical_control_today(self):
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "patient_name": "Paciente Control Hoy",
+                "study_type": StudyType.CICLOMETRIA,
+                "coverage_type": CoverageType.PARTICULAR,
+                "distance_meters": "200",
+                "borg_final": "1",
+                "completed": "on",
+                "no_show": "on",
+                "medical_control_today": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:dashboard"))
+        encounter = Encounter.objects.get(patient__full_name="PACIENTE CONTROL HOY")
+        self.assertTrue(encounter.medical_control_today)
+
     def test_quick_add_with_incomplete_rest_vitals_stays_not_attended(self):
         response = self.client.post(
             reverse("clinic:dashboard"),
@@ -932,8 +966,8 @@ class DashboardQuickAddTests(TestCase):
         self.assertRedirects(response, reverse("clinic:dashboard"))
         encounter = Encounter.objects.select_related("referring_physician").get(patient__full_name="PACIENTE CON DOCTOR LIBRE")
         self.assertIsNotNone(encounter.referring_physician)
-        self.assertEqual(encounter.referring_physician.full_name, "DR. Nueva Propuesta")
-        self.assertTrue(ReferringPhysician.objects.filter(full_name__iexact="DR. Nueva Propuesta").exists())
+        self.assertEqual(encounter.referring_physician.full_name, "DRA. Nueva Propuesta")
+        self.assertTrue(ReferringPhysician.objects.filter(full_name__iexact="DRA. Nueva Propuesta").exists())
 
     def test_existing_dni_never_overwrites_canonical_patient_name(self):
         patient = Patient.objects.create(full_name="PEREZ, JUAN", dni="30111222")
