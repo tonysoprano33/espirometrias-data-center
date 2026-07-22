@@ -3,6 +3,36 @@
 {% block title %}{{ form_title|default:"Paciente" }} | Clinica Espiro{% endblock %}
 
 {% block content %}
+<style>
+    .patient-duplicate-warning {
+        display: grid;
+        gap: 10px;
+        margin-top: 18px;
+        padding: 14px;
+        border: 1px solid rgba(219,135,10,.35);
+        border-radius: 14px;
+        background: linear-gradient(135deg, #fff7df, #fffdf7);
+    }
+    .patient-duplicate-warning h2,
+    .patient-duplicate-warning p { margin: 0; }
+    .patient-duplicate-warning h2 { color: #8c5000; font-size: 1.05rem; }
+    .patient-duplicate-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px;
+        border-radius: 10px;
+        background: rgba(255,255,255,.78);
+        border: 1px solid rgba(143,94,11,.16);
+    }
+    .patient-duplicate-row strong,
+    .patient-duplicate-row span { display: block; }
+    .patient-duplicate-row span { margin-top: 3px; color: #756041; font-size: .82rem; }
+    @media (max-width: 650px) {
+        .patient-duplicate-row { align-items: flex-start; flex-direction: column; }
+    }
+</style>
 <section class="card">
     <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;">
         <div>
@@ -28,7 +58,26 @@
                 </div>
             {% endfor %}
         </div>
-        <button class="button" type="submit" style="margin-top:18px;">{{ submit_label|default:"Guardar paciente" }}</button>
+        {% if possible_duplicates %}
+            <section class="patient-duplicate-warning" aria-live="polite">
+                <h2>Posible paciente existente</h2>
+                <p>Revisa estas historias antes de crear otra. Si es otra persona, podes continuar solo cuando el DNI no coincide.</p>
+                {% for candidate in possible_duplicates %}
+                    <div class="patient-duplicate-row">
+                        <div>
+                            <strong>{{ candidate.patient.full_name }}</strong>
+                            <span>{{ candidate.reason }}{% if candidate.patient.dni %} - DNI {{ candidate.patient.dni }}{% endif %}{% if candidate.patient.deleted_at %} - En papelera{% endif %}</span>
+                        </div>
+                        <button class="button alt" type="submit" name="duplicate_action" value="open_existing:{{ candidate.patient.pk }}">Abrir historia</button>
+                    </div>
+                {% endfor %}
+                {% if not possible_duplicates.0.same_dni %}
+                    <button class="button secondary" type="submit" name="duplicate_action" value="create_new">Es otra persona, crear igual</button>
+                {% endif %}
+            </section>
+        {% else %}
+            <button class="button" type="submit" style="margin-top:18px;">{{ submit_label|default:"Guardar paciente" }}</button>
+        {% endif %}
     </form>
 </section>
 {% endblock %}

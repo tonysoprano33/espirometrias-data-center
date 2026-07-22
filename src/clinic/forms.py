@@ -3,6 +3,7 @@ import re
 import zipfile
 
 from django import forms
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from PIL import Image, UnidentifiedImageError
 
@@ -83,6 +84,10 @@ class TimeInput(forms.TimeInput):
 
 
 class PatientForm(forms.ModelForm):
+    def __init__(self, *args, confirm_duplicate_dni=False, **kwargs):
+        self.confirm_duplicate_dni = confirm_duplicate_dni
+        super().__init__(*args, **kwargs)
+
     class Meta:
         model = Patient
         fields = ["full_name", "dni", "phone", "notes"]
@@ -96,6 +101,18 @@ class PatientForm(forms.ModelForm):
     def clean_dni(self):
         digits = re.sub(r"\D", "", self.cleaned_data.get("dni") or "")
         return digits or None
+
+    def validate_unique(self):
+        if not self.confirm_duplicate_dni:
+            return super().validate_unique()
+        # The view confirms an existing DNI explicitly instead of failing before
+        # the operator can choose the correct clinical history.
+        exclude = self._get_validation_exclusions()
+        exclude.add("dni")
+        try:
+            self.instance.validate_unique(exclude=exclude)
+        except ValidationError as error:
+            self._update_errors(error)
 
 
 class ReferringPhysicianForm(forms.ModelForm):

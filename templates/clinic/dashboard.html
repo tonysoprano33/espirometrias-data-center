@@ -307,6 +307,62 @@
         font-size: .92rem;
         line-height: 1.4;
     }
+    .possible-duplicate-panel {
+        display: grid;
+        gap: 10px;
+        padding: 13px;
+        border: 1px solid rgba(219,135,10,.36);
+        border-radius: 14px;
+        background: linear-gradient(135deg, #fff8e5, #fffdf7);
+        box-shadow: 0 10px 22px rgba(152,95,0,.08);
+    }
+    .possible-duplicate-panel h3,
+    .possible-duplicate-panel p {
+        margin: 0;
+    }
+    .possible-duplicate-panel h3 {
+        color: #8c5000;
+        font-size: 1rem;
+    }
+    .possible-duplicate-panel p {
+        color: #735b3b;
+        font-size: .86rem;
+        line-height: 1.35;
+    }
+    .possible-duplicate-list {
+        display: grid;
+        gap: 8px;
+    }
+    .possible-duplicate-choice {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 11px;
+        border: 1px solid rgba(143,94,11,.18);
+        border-radius: 11px;
+        background: rgba(255,255,255,.8);
+    }
+    .possible-duplicate-choice strong,
+    .possible-duplicate-choice span {
+        display: block;
+    }
+    .possible-duplicate-choice strong { color: #304759; }
+    .possible-duplicate-choice span {
+        margin-top: 2px;
+        color: #756041;
+        font-size: .77rem;
+    }
+    .possible-duplicate-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .possible-duplicate-actions .button {
+        min-height: 36px;
+        padding: 8px 11px;
+        font-size: .82rem;
+    }
     .quick-core-grid {
         gap: 12px;
         padding: 12px;
@@ -2013,6 +2069,7 @@
             <p class="quick-hint">Carga rápida de recepción: con el nombre ya alcanza. Estudio y cobertura ya quedan listos con sus valores por defecto.</p>
             <form method="post">
                 {% csrf_token %}
+                <input type="hidden" name="action" value="quick_add">
                 <div class="quick-core-grid">
                     <div class="field">
                         <label for="{{ quick_form.patient_name.id_for_label }}">{{ quick_form.patient_name.label }}</label>
@@ -2111,6 +2168,33 @@
                         {% endif %}
                     </div>
                 </details>
+                {% if quick_duplicate_candidates %}
+                    <section class="possible-duplicate-panel" aria-live="polite">
+                        <h3>Posible paciente existente</h3>
+                        <p>Antes de agendar, elegi una historia existente o confirma que se trata de otra persona.</p>
+                        <div class="possible-duplicate-list">
+                            {% for candidate in quick_duplicate_candidates %}
+                                <div class="possible-duplicate-choice">
+                                    <div>
+                                        <strong>{{ candidate.patient.full_name }}</strong>
+                                        <span>{{ candidate.reason }}{% if candidate.patient.dni %} - DNI {{ candidate.patient.dni|dni_format }}{% endif %}{% if candidate.patient.deleted_at %} - En papelera{% endif %}</span>
+                                    </div>
+                                    {% if candidate.can_use %}
+                                        <button class="button alt" type="submit" name="duplicate_action" value="use_existing:{{ candidate.patient.pk }}">Usar esta historia</button>
+                                    {% else %}
+                                        <span>El DNI ingresado no coincide</span>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <div class="possible-duplicate-actions">
+                            {% if not quick_duplicate_has_same_dni %}
+                                <button class="button secondary" type="submit" name="duplicate_action" value="create_new">Es otra persona, crear igual</button>
+                            {% endif %}
+                            <a class="button secondary" href="{% url 'clinic:dashboard' %}">Cancelar</a>
+                        </div>
+                    </section>
+                {% endif %}
             </form>
 
             <details class="doctor-mini-panel">

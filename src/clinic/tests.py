@@ -23,6 +23,7 @@ from .pdf_intake import (
 )
 from .services import build_reports_for_encounter, construir_informe_espirometria, normalizar_medico
 from .views import (
+    build_drapp_import_preview,
     extract_drapp_rows_from_browser_ocr,
     extract_drapp_rows_from_ocr_lines,
     extract_drapp_rows_from_text,
@@ -1045,6 +1046,83 @@ class DashboardQuickAddTests(TestCase):
         self.assertIsNotNone(old_encounter.deleted_at)
         self.assertEqual(Encounter.objects.filter(patient=patient).count(), 1)
 
+    def test_quick_add_requires_a_choice_for_existing_dni(self):
+        patient = Patient.objects.create(full_name="PEREZ, JUAN", dni="30111222")
+        payload = {
+            "action": "quick_add",
+            "patient_name": "NOMBRE OCR EQUIVOCADO",
+            "patient_dni": "30.111.222",
+            "encounter_time": "12:00",
+            "study_type": StudyType.CICLOMETRIA,
+            "coverage_type": CoverageType.PARTICULAR,
+        }
+
+        response = self.client.post(reverse("clinic:dashboard"), payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Encounter.objects.count(), 0)
+        self.assertContains(response, "Posible paciente existente")
+        self.assertContains(response, "PEREZ, JUAN")
+
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {**payload, "duplicate_action": f"use_existing:{patient.pk}"},
+        )
+
+        self.assertRedirects(response, reverse("clinic:dashboard"))
+        patient.refresh_from_db()
+        self.assertEqual(patient.full_name, "PEREZ, JUAN")
+        self.assertEqual(Encounter.objects.get().patient_id, patient.pk)
+
+    def test_quick_add_allows_creating_a_different_patient_with_similar_name(self):
+        Patient.objects.create(full_name="PEREZ, JUAN")
+        payload = {
+            "action": "quick_add",
+            "patient_name": "Perez Juan",
+            "encounter_time": "12:15",
+            "study_type": StudyType.CICLOMETRIA,
+            "coverage_type": CoverageType.PARTICULAR,
+        }
+
+        response = self.client.post(reverse("clinic:dashboard"), payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Nombre muy parecido")
+        self.assertEqual(Patient.objects.count(), 1)
+
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {**payload, "duplicate_action": "create_new"},
+        )
+
+        self.assertRedirects(response, reverse("clinic:dashboard"))
+        self.assertEqual(Patient.objects.filter(full_name="PEREZ JUAN").count(), 1)
+
+
+class PatientCreateDuplicateWarningTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="patient-create-duplicate", password="secret123")
+        grant_clinic_permissions(self.user, "manage_agenda")
+        self.client.force_login(self.user)
+
+    def test_patient_create_offers_existing_history_for_matching_dni(self):
+        patient = Patient.objects.create(full_name="LOPEZ, ANA", dni="28123456")
+        payload = {"full_name": "ANA OCR", "dni": "28.123.456", "phone": "", "notes": ""}
+
+        response = self.client.post(reverse("clinic:patient_create"), payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Posible paciente existente")
+        self.assertEqual(Patient.objects.count(), 1)
+
+        response = self.client.post(
+            reverse("clinic:patient_create"),
+            {**payload, "duplicate_action": f"open_existing:{patient.pk}"},
+        )
+
+        self.assertRedirects(response, reverse("clinic:patient_detail", args=[patient.pk]))
+        self.assertEqual(Patient.objects.count(), 1)
+
 
 
 class DoctorReviewViewTests(TestCase):
@@ -1594,6 +1672,27 @@ class DrappImportDeduplicationTests(TestCase):
         self.assertTrue(imported.no_show)
         self.assertFalse(imported.attended)
         self.assertEqual(imported.status, EncounterStatus.NO_LLEGO)
+
+    def test_preview_warns_about_existing_history_without_blocking_another_day(self):
+        self.create_encounter(full_name="ORUETTA, RAMONA", dni="42999801")
+
+        preview, _ = build_drapp_import_preview(
+            [
+                {
+                    "patient_name": "ORUETTA, RAMONA",
+                    "dni": "42.999.801",
+                    "phone": "",
+                    "coverage_raw": "Particular",
+                    "practice_raw": "Cicloespirometria",
+                    "datetime_raw": "15:00",
+                    "agenda_date": date(2026, 6, 5),
+                }
+            ]
+        )
+
+        self.assertTrue(preview[0]["valid"])
+        self.assertFalse(preview[0]["duplicate"])
+        self.assertIn("Posible historia existente", preview[0]["warning"])
 
     def test_import_reuses_deleted_patient_identity_without_restoring_old_encounters(self):
         old_encounter = self.create_encounter(full_name="ORUETTA, RAMONA", dni="42999801")

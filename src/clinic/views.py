@@ -1317,14 +1317,23 @@ def cycle_attendance(encounter, request_user):
 
 
 @transaction.atomic
-def save_quick_encounter(form: QuickEncounterForm, request_user, encounter=None):
+def save_quick_encounter(
+    form: QuickEncounterForm,
+    request_user,
+    encounter=None,
+    selected_patient=None,
+    force_new_patient=False,
+):
     default_physician = get_default_physician()
     full_name = form.cleaned_data["patient_name"].strip().upper()
     patient_dni = (form.cleaned_data.get("patient_dni") or "").strip()
     selected_physician = resolve_or_create_physician(form.cleaned_data.get("referring_physician")) or default_physician
 
-    patient = encounter.patient if encounter is not None else None
-    matched_existing_by_dni = False
+    patient = encounter.patient if encounter is not None else selected_patient
+    selected_existing_patient = selected_patient is not None
+    matched_existing_by_dni = selected_existing_patient
+    if selected_existing_patient and patient.deleted_at:
+        patient.restore(restore_batch=False)
     if encounter is not None and patient_dni:
         conflicting_patient = Patient.all_objects.filter(dni=patient_dni).exclude(pk=patient.pk).first()
         if conflicting_patient:
@@ -1337,7 +1346,7 @@ def save_quick_encounter(form: QuickEncounterForm, request_user, encounter=None)
         if patient is not None and patient.deleted_at:
             patient.restore(restore_batch=False)
         matched_existing_by_dni = patient is not None
-    if patient is None and full_name:
+    if patient is None and full_name and not force_new_patient:
         patient = Patient.objects.filter(full_name=full_name).order_by("-updated_at").first()
     if patient is None:
         patient = Patient.objects.create(full_name=full_name, dni=patient_dni or None)
@@ -1522,6 +1531,61 @@ def normalize_document_number(raw_value: str) -> str:
 
 def normalize_patient_identity_name(raw_name: str) -> str:
     return normalize_for_match(normalize_imported_name(raw_name))
+
+
+def find_possible_patient_duplicates(full_name: str, dni: str = "", *, exclude_pk=None, limit: int = 4):
+    """Return conservative duplicate hints without deciding the patient's identity automatically."""
+    normalized_dni = normalize_document_number(dni)
+    name_key = normalize_patient_identity_name(full_name)
+    base_queryset = Patient.all_objects.all()
+    if exclude_pk:
+        base_queryset = base_queryset.exclude(pk=exclude_pk)
+
+    matches = []
+    seen_ids = set()
+
+    def add_match(patient, reason, *, same_dni=False):
+        if patient.pk in seen_ids or len(matches) >= limit:
+            return
+        existing_dni = normalize_document_number(patient.dni or "")
+        compatible_with_entered_dni = not normalized_dni or not existing_dni or existing_dni == normalized_dni
+        matches.append(
+            {
+                "patient": patient,
+                "reason": reason,
+                "same_dni": same_dni,
+                "can_use": compatible_with_entered_dni,
+            }
+        )
+        seen_ids.add(patient.pk)
+
+    if normalized_dni:
+        for patient in base_queryset.filter(dni=normalized_dni).order_by("full_name")[:limit]:
+            add_match(patient, "Mismo DNI", same_dni=True)
+
+    def identity_tokens(value):
+        normalized = unicodedata.normalize("NFKD", normalize_imported_name(value))
+        ascii_value = normalized.encode("ascii", "ignore").decode("ascii").upper()
+        return set(re.findall(r"[A-Z0-9]{3,}", ascii_value))
+
+    if name_key:
+        for patient in base_queryset.filter(full_name__iexact=full_name.strip()).order_by("full_name")[:limit]:
+            add_match(patient, "Mismo nombre")
+
+        name_tokens = identity_tokens(full_name)
+        if len(name_tokens) >= 2 and len(matches) < limit:
+            token_query = Q()
+            for token in sorted(name_tokens)[:3]:
+                token_query |= Q(full_name__icontains=token)
+            possible_patients = Patient.objects.filter(token_query).only("id", "full_name", "dni", "deleted_at")[:40]
+            input_token_set = set(name_tokens)
+            for patient in possible_patients:
+                candidate_tokens = identity_tokens(patient.full_name)
+                common_tokens = input_token_set & candidate_tokens
+                if len(common_tokens) >= 2 or len(common_tokens) == len(input_token_set):
+                    add_match(patient, "Nombre muy parecido")
+
+    return matches
 
 
 def is_plausible_imported_patient_name(raw_name: str) -> bool:
@@ -2275,7 +2339,14 @@ def build_drapp_import_preview(rows):
             if patient_name and date_detected
             else False
         )
+        possible_duplicates = find_possible_patient_duplicates(patient_name, parsed_dni)
         valid_name = is_plausible_imported_patient_name(patient_name)
+        possible_duplicate_warning = ""
+        if possible_duplicates and not duplicate:
+            first_match = possible_duplicates[0]
+            possible_duplicate_warning = (
+                f"Posible historia existente: {first_match['patient'].full_name} ({first_match['reason'].lower()})."
+            )
         preview.append(
             {
                 "index": index,
@@ -2290,6 +2361,7 @@ def build_drapp_import_preview(rows):
                 "agenda_date": agenda_date,
                 "date_detected": date_detected,
                 "duplicate": duplicate,
+                "possible_duplicates": possible_duplicates,
                 "valid": valid_name and date_detected and not duplicate,
                 "warning": (
                     "Ya existe en esa fecha"
@@ -2297,7 +2369,11 @@ def build_drapp_import_preview(rows):
                     else (
                         "Fecha no detectada: completala y marca la fila"
                         if not date_detected
-                        else ("Nombre invalido: revisalo antes de importar" if not valid_name else "")
+                        else (
+                            "Nombre invalido: revisalo antes de importar"
+                            if not valid_name
+                            else possible_duplicate_warning
+                        )
                     )
                 ),
             }
@@ -2856,7 +2932,9 @@ def render_dashboard_response(
     operation_alerts,
     import_preview=None,
     import_preview_token="",
+    quick_duplicate_candidates=None,
 ):
+    quick_duplicate_candidates = quick_duplicate_candidates or []
     attendance_summary = {
         "total": len(today_encounters),
         "attended": sum(1 for encounter in today_encounters if encounter.attended),
@@ -2882,6 +2960,8 @@ def render_dashboard_response(
         "attendance_summary": attendance_summary,
         "import_preview": import_preview or [],
         "import_preview_token": import_preview_token,
+        "quick_duplicate_candidates": quick_duplicate_candidates,
+        "quick_duplicate_has_same_dni": any(candidate["same_dni"] for candidate in quick_duplicate_candidates),
     }
     return render(request, "clinic/dashboard.html", context)
 
@@ -3222,8 +3302,87 @@ def dashboard(request):
             import_form = DrappImportForm()
             physician_form = ReferringPhysicianForm(initial={"active": True})
             if quick_form.is_valid():
+                duplicate_candidates = []
+                selected_patient = None
+                force_new_patient = False
+                is_duplicate_aware_submit = action == "quick_add"
+                if is_duplicate_aware_submit:
+                    duplicate_candidates = find_possible_patient_duplicates(
+                        quick_form.cleaned_data["patient_name"],
+                        quick_form.cleaned_data.get("patient_dni", ""),
+                    )
+                    duplicate_action = request.POST.get("duplicate_action", "")
+                    if duplicate_candidates and not duplicate_action:
+                        messages.warning(
+                            request,
+                            "Encontramos una historia que podria pertenecer a este paciente. Elegi como continuar antes de agendar.",
+                        )
+                        return render_dashboard_response(
+                            request,
+                            today=today,
+                            quick_form=quick_form,
+                            import_form=import_form,
+                            physician_form=physician_form,
+                            today_encounters=today_encounters,
+                            status_cards=status_cards,
+                            operation_alerts=operation_alerts,
+                            quick_duplicate_candidates=duplicate_candidates,
+                        )
+                    if duplicate_action.startswith("use_existing:"):
+                        try:
+                            selected_patient_id = int(duplicate_action.rsplit(":", 1)[1])
+                        except (TypeError, ValueError):
+                            selected_patient_id = None
+                        selected_match = next(
+                            (
+                                candidate
+                                for candidate in duplicate_candidates
+                                if candidate["patient"].pk == selected_patient_id and candidate["can_use"]
+                            ),
+                            None,
+                        )
+                        if selected_match is None:
+                            quick_form.add_error(
+                                "patient_name",
+                                "La historia elegida no coincide con los datos ingresados. Revisalos y volve a intentar.",
+                            )
+                            return render_dashboard_response(
+                                request,
+                                today=today,
+                                quick_form=quick_form,
+                                import_form=import_form,
+                                physician_form=physician_form,
+                                today_encounters=today_encounters,
+                                status_cards=status_cards,
+                                operation_alerts=operation_alerts,
+                                quick_duplicate_candidates=duplicate_candidates,
+                            )
+                        selected_patient = selected_match["patient"]
+                    elif duplicate_action == "create_new":
+                        if any(candidate["same_dni"] for candidate in duplicate_candidates):
+                            quick_form.add_error(
+                                "patient_dni",
+                                "Ese DNI ya pertenece a una historia existente. Elegi esa historia para no duplicar al paciente.",
+                            )
+                            return render_dashboard_response(
+                                request,
+                                today=today,
+                                quick_form=quick_form,
+                                import_form=import_form,
+                                physician_form=physician_form,
+                                today_encounters=today_encounters,
+                                status_cards=status_cards,
+                                operation_alerts=operation_alerts,
+                                quick_duplicate_candidates=duplicate_candidates,
+                            )
+                        force_new_patient = True
                 try:
-                    encounter = save_quick_encounter(quick_form, request.user)
+                    encounter = save_quick_encounter(
+                        quick_form,
+                        request.user,
+                        selected_patient=selected_patient,
+                        force_new_patient=force_new_patient,
+                    )
                 except ValueError as error:
                     quick_form.add_error("patient_dni", str(error))
                 else:
@@ -3903,12 +4062,45 @@ def patient_detail(request, pk):
 @login_required
 @permission_required("clinic.manage_agenda", raise_exception=True)
 def patient_create(request):
+    possible_duplicates = []
     if request.method == "POST":
-        form = PatientForm(request.POST)
+        form = PatientForm(request.POST, confirm_duplicate_dni=True)
         if form.is_valid():
-            patient = form.save()
-            messages.success(request, "Paciente creado correctamente.")
-            return redirect("clinic:patient_detail", pk=patient.pk)
+            possible_duplicates = find_possible_patient_duplicates(
+                form.cleaned_data["full_name"],
+                form.cleaned_data.get("dni", ""),
+            )
+            duplicate_action = request.POST.get("duplicate_action", "")
+            if possible_duplicates and not duplicate_action:
+                messages.warning(request, "Encontramos una historia que podria coincidir. Confirma antes de crear un paciente nuevo.")
+            elif duplicate_action.startswith("open_existing:"):
+                try:
+                    selected_patient_id = int(duplicate_action.rsplit(":", 1)[1])
+                except (TypeError, ValueError):
+                    selected_patient_id = None
+                selected_match = next(
+                    (candidate for candidate in possible_duplicates if candidate["patient"].pk == selected_patient_id),
+                    None,
+                )
+                if selected_match is None:
+                    form.add_error("full_name", "La historia elegida ya no coincide con los datos ingresados.")
+                else:
+                    patient = selected_match["patient"]
+                    if patient.deleted_at:
+                        patient.restore(restore_batch=False)
+                    messages.info(request, f"Se abrio la historia existente de {patient.full_name}.")
+                    return redirect("clinic:patient_detail", pk=patient.pk)
+            elif duplicate_action == "create_new":
+                if any(candidate["same_dni"] for candidate in possible_duplicates):
+                    form.add_error("dni", "Ese DNI ya pertenece a una historia existente. No se puede duplicar.")
+                else:
+                    patient = form.save()
+                    messages.success(request, "Paciente creado correctamente.")
+                    return redirect("clinic:patient_detail", pk=patient.pk)
+            elif not possible_duplicates:
+                patient = form.save()
+                messages.success(request, "Paciente creado correctamente.")
+                return redirect("clinic:patient_detail", pk=patient.pk)
     else:
         form = PatientForm()
     return render(
@@ -3919,6 +4111,7 @@ def patient_create(request):
             "form_title": "Nuevo paciente",
             "form_pill": "Alta de paciente",
             "submit_label": "Guardar paciente",
+            "possible_duplicates": possible_duplicates,
         },
     )
 
