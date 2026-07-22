@@ -906,6 +906,25 @@ class DashboardQuickAddTests(TestCase):
         encounter = Encounter.objects.get(patient__full_name="PACIENTE CONTROL HOY")
         self.assertTrue(encounter.medical_control_today)
 
+    def test_secretary_quick_add_works_without_hidden_clinical_fields(self):
+        session = self.client.session
+        session["clinic_work_mode"] = "secretaria"
+        session.save()
+
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {
+                "patient_name": "LAUTARO",
+                "study_type": StudyType.CICLOMETRIA,
+                "coverage_type": CoverageType.PARTICULAR,
+            },
+        )
+
+        self.assertRedirects(response, reverse("clinic:dashboard"))
+        encounter = Encounter.objects.get(patient__full_name="LAUTARO")
+        self.assertEqual(encounter.walk_test.distance_meters, 200)
+        self.assertEqual(encounter.walk_test.borg_final, 1)
+
     def test_quick_add_with_incomplete_rest_vitals_stays_not_attended(self):
         response = self.client.post(
             reverse("clinic:dashboard"),

@@ -4746,7 +4746,6 @@
         function installEncounterCollapse() {
             var rows = document.querySelectorAll ? document.querySelectorAll("[data-encounter-row]") : [];
             var i;
-            reorderAgendaRows();
             for (i = 0; i < rows.length; i += 1) {
                 (function (row) {
                     var toggle = row.querySelector ? row.querySelector("[data-encounter-toggle]") : null;

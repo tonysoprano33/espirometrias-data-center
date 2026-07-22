@@ -269,11 +269,23 @@ class QuickEncounterForm(forms.Form):
     fc_rest = forms.IntegerField(label="FC en reposo", required=False, min_value=0, max_value=300)
     so2_post = forms.IntegerField(label="SO2 despues de caminata", required=False, min_value=0, max_value=100)
     fc_post = forms.IntegerField(label="FC despues de caminata", required=False, min_value=0, max_value=300)
-    distance_meters = forms.ChoiceField(label="Distancia caminata", choices=((100, "100"), (200, "200")), initial=200)
+    # Secretaria only sees reception fields. These clinical defaults are filled
+    # when omitted, so they must not make the short intake form invalid.
+    distance_meters = forms.ChoiceField(
+        label="Distancia caminata",
+        choices=((100, "100"), (200, "200")),
+        initial=200,
+        required=False,
+    )
     completed = forms.BooleanField(label="Completada con exito", required=False, initial=True)
     stopped = forms.BooleanField(label="Se detuvo durante la marcha", required=False, initial=False)
     symptoms = forms.BooleanField(label="Presento sintomas al final", required=False, initial=False)
-    borg_final = forms.ChoiceField(label="Borg final", choices=[(value, str(value)) for value in range(0, 11)], initial=1)
+    borg_final = forms.ChoiceField(
+        label="Borg final",
+        choices=[(value, str(value)) for value in range(0, 11)],
+        initial=1,
+        required=False,
+    )
     respiratory_result = forms.CharField(label="Resultado", required=False, max_length=24)
     bronchodilator_positive = forms.BooleanField(label="Broncodilatador positivo", required=False, initial=False)
     medical_control_today = forms.BooleanField(label="Control medico hoy", required=False, initial=False)
