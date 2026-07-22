@@ -45,6 +45,7 @@ from .forms import (
 from .file_utils import local_field_file_path
 from .models import (
     Attachment,
+    AttachmentAnalysisStatus,
     AttachmentKind,
     CoverageType,
     Encounter,
@@ -296,6 +297,91 @@ def build_analysis_for_uploaded_result(attachment, analysis_payload_json: str = 
                     analysis["source"] = "server-pdf-ocr"
             return analysis
     return {}
+
+
+def analysis_has_detected_data(analysis: dict) -> bool:
+    """Only call a file read when we actually extracted usable clinical data."""
+    analysis = analysis or {}
+    return bool(analysis.get("code") or analysis.get("values") or analysis.get("snapshot"))
+
+
+def get_result_file_status(encounter, attachment=None) -> dict:
+    """Return one unambiguous file state for review screens and API-free templates."""
+    attachment = attachment or get_latest_result_attachment(encounter)
+    if not attachment:
+        return {
+            "key": "missing",
+            "label": "Sin archivo",
+            "detail": "Todavía no se cargó el PDF o la foto del estudio.",
+            "can_retry": False,
+        }
+
+    result = getattr(encounter, "spirometry_result", None)
+    has_stored_reading = bool(
+        result
+        and (
+            result.suggested_code
+            or result.measured_values
+            or result.extracted_source
+        )
+    )
+    if attachment.analysis_status == AttachmentAnalysisStatus.FAILED:
+        return {
+            "key": "failed",
+            "label": "Falló la lectura",
+            "detail": attachment.analysis_error or "No se detectaron datos legibles. Podés reintentar la lectura.",
+            "can_retry": True,
+        }
+    if get_result_code_from_encounter(encounter):
+        return {
+            "key": "resolved",
+            "label": "Resultado médico guardado",
+            "detail": "El archivo y el resultado final ya quedaron registrados.",
+            "can_retry": False,
+        }
+    if attachment.analysis_status == AttachmentAnalysisStatus.DETECTED or has_stored_reading:
+        return {
+            "key": "detected",
+            "label": "Datos detectados",
+            "detail": "Datos leídos. Falta que el médico confirme el resultado final.",
+            "can_retry": False,
+        }
+    return {
+        "key": "uploaded",
+        "label": "Archivo subido",
+        "detail": "El archivo está guardado y todavía no tiene datos detectados.",
+        "can_retry": True,
+    }
+
+
+def save_attachment_analysis_status(attachment, status, error_message=""):
+    attachment.analysis_status = status
+    attachment.analysis_error = error_message[:280]
+    attachment.analysis_attempted_at = timezone.now()
+    attachment.save(update_fields=["analysis_status", "analysis_error", "analysis_attempted_at", "updated_at"])
+
+
+def analyze_result_attachment(encounter, attachment, analysis_payload_json=""):
+    """Read an already-persisted upload without ever risking deletion of the source file."""
+    try:
+        analysis = build_analysis_for_uploaded_result(attachment, analysis_payload_json=analysis_payload_json)
+        if not analysis_has_detected_data(analysis):
+            save_attachment_analysis_status(
+                attachment,
+                AttachmentAnalysisStatus.FAILED,
+                "No se detectaron datos clínicos legibles. Verificá el archivo y reintentá la lectura.",
+            )
+            return {}, {}, [], False, "No se detectaron datos clínicos legibles."
+
+        snapshot, changed_fields, patient_identity_mismatch = apply_profile_analysis_to_encounter(encounter, analysis)
+        if analysis_has_detected_data(analysis):
+            store_spirometry_analysis(encounter, analysis)
+        save_attachment_analysis_status(attachment, AttachmentAnalysisStatus.DETECTED)
+        return analysis, snapshot, changed_fields, patient_identity_mismatch, ""
+    except Exception:
+        error_message = "No se pudieron leer datos automáticamente. El archivo quedó guardado y podés reintentar."
+        save_attachment_analysis_status(attachment, AttachmentAnalysisStatus.FAILED, error_message)
+        return {}, {}, [], False, error_message
 
 
 def apply_result_code_to_spirometry(encounter, result_code: str):
@@ -4378,6 +4464,7 @@ def doctor_review_list(request):
 
     for encounter in encounters_qs:
         pdf_attachment = get_latest_result_attachment(encounter)
+        file_status = get_result_file_status(encounter, pdf_attachment)
         result_code = get_result_code_from_encounter(encounter)
         has_pdf = bool(pdf_attachment)
         is_done = encounter.status in done_statuses
@@ -4405,6 +4492,7 @@ def doctor_review_list(request):
             {
                 "encounter": encounter,
                 "pdf_attachment": pdf_attachment,
+                "file_status": file_status,
                 "result_code": result_code,
                 "review_state": review_state,
                 "state_label": state_label,
@@ -4460,6 +4548,33 @@ def doctor_review_detail(request, pk):
         and request.user.has_perm("clinic.manage_agenda")
     )
 
+    if request.method == "POST" and request.POST.get("action") == "retry_pdf_analysis":
+        if not can_edit_bronchodilator:
+            messages.error(request, "La relectura del archivo solo está disponible en modo Espirometrista.")
+            return redirect("clinic:doctor_review_detail", pk=encounter.pk)
+        pdf_attachment = get_latest_result_attachment(encounter)
+        if not pdf_attachment:
+            messages.error(request, "No hay un PDF o foto cargada para releer.")
+            return redirect("clinic:doctor_review_detail", pk=encounter.pk)
+
+        analysis, snapshot, changed_fields, patient_identity_mismatch, reading_error = analyze_result_attachment(
+            encounter,
+            pdf_attachment,
+        )
+        if reading_error:
+            messages.warning(request, reading_error)
+        elif patient_identity_mismatch:
+            messages.warning(
+                request,
+                "Se leyeron datos para sugerencia, pero no se actualizaron porque el archivo parece corresponder a otra persona.",
+            )
+        else:
+            detail = "Lectura del archivo actualizada."
+            if changed_fields:
+                detail += f" Datos actualizados: {', '.join(changed_fields)}."
+            messages.success(request, detail)
+        return redirect("clinic:doctor_review_detail", pk=encounter.pk)
+
     if request.method == "POST":
         form = DoctorReviewForm(request.POST, request.FILES)
         if form.is_valid():
@@ -4475,17 +4590,16 @@ def doctor_review_detail(request, pk):
                     original_name=pdf_file.name,
                     mime_type=mime_type,
                     uploaded_by=request.user,
+                    analysis_status=AttachmentAnalysisStatus.UPLOADED,
                 )
                 attachment.file.save(pdf_file.name, pdf_file, save=True)
-                snapshot, changed_fields = {}, []
-                patient_identity_mismatch = False
-                try:
-                    analysis = build_analysis_for_uploaded_result(attachment, analysis_payload_json=analysis_payload_json)
-                    snapshot, changed_fields, patient_identity_mismatch = apply_profile_analysis_to_encounter(encounter, analysis)
-                    if analysis.get("values"):
-                        store_spirometry_analysis(encounter, analysis)
-                except Exception as error:
-                    messages.warning(request, f"El archivo se subio, pero no se pudieron leer datos automaticos: {error}")
+                analysis, snapshot, changed_fields, patient_identity_mismatch, reading_error = analyze_result_attachment(
+                    encounter,
+                    attachment,
+                    analysis_payload_json=analysis_payload_json,
+                )
+                if reading_error:
+                    messages.warning(request, reading_error)
                 record_encounter_event(
                     encounter,
                     EncounterEventType.DOCUMENT,
@@ -4524,19 +4638,19 @@ def doctor_review_detail(request, pk):
             else:
                 pdf_attachment = get_latest_result_attachment(encounter)
                 if pdf_attachment:
-                    try:
-                        analysis = build_analysis_for_uploaded_result(pdf_attachment, analysis_payload_json=analysis_payload_json)
-                        snapshot, changed_fields, patient_identity_mismatch = apply_profile_analysis_to_encounter(encounter, analysis)
-                        if analysis.get("values"):
-                            store_spirometry_analysis(encounter, analysis)
-                        if snapshot and not patient_identity_mismatch:
-                            extracted_name = snapshot.get("full_name") or encounter.patient.full_name
-                            extracted_code = snapshot.get("patient_code") or snapshot.get("dni") or "-"
-                            extraction_message = f" PDF revisado: {extracted_name} / doc {extracted_code}."
-                            if changed_fields:
-                                extraction_message += f" Datos actualizados: {', '.join(changed_fields)}."
-                    except Exception as error:
-                        messages.warning(request, f"No se pudieron releer los datos del PDF ya cargado: {error}")
+                    analysis, snapshot, changed_fields, patient_identity_mismatch, reading_error = analyze_result_attachment(
+                        encounter,
+                        pdf_attachment,
+                        analysis_payload_json=analysis_payload_json,
+                    )
+                    if reading_error:
+                        messages.warning(request, reading_error)
+                    elif snapshot and not patient_identity_mismatch:
+                        extracted_name = snapshot.get("full_name") or encounter.patient.full_name
+                        extracted_code = snapshot.get("patient_code") or snapshot.get("dni") or "-"
+                        extraction_message = f" PDF revisado: {extracted_name} / doc {extracted_code}."
+                        if changed_fields:
+                            extraction_message += f" Datos actualizados: {', '.join(changed_fields)}."
 
             result_code = form.cleaned_data.get("respiratory_result") or current_result or ""
             if not result_code:
@@ -4620,10 +4734,17 @@ def doctor_review_detail(request, pk):
                 if generated_suggestion.get("code"):
                     spirometry_suggestion = generated_suggestion
                     store_spirometry_analysis(encounter, {**spirometry_suggestion, "source": "server-pdf-text"})
+                    save_attachment_analysis_status(pdf_attachment, AttachmentAnalysisStatus.DETECTED)
             except Exception as error:
+                save_attachment_analysis_status(
+                    pdf_attachment,
+                    AttachmentAnalysisStatus.FAILED,
+                    "No se pudieron leer datos automáticamente. El archivo quedó guardado y podés reintentar.",
+                )
                 if not preview_error:
                     preview_error = str(error)
     inconsistency_flags = get_encounter_inconsistencies(encounter)
+    file_status = get_result_file_status(encounter, pdf_attachment)
     return render(
         request,
         "clinic/doctor_review_detail.html",
@@ -4636,6 +4757,7 @@ def doctor_review_detail(request, pk):
                 getattr(getattr(encounter, "spirometry_result", None), "bronchodilator_positive", False)
             ),
             "pdf_attachment": pdf_attachment,
+            "file_status": file_status,
             "pdf_attachment_url": pdf_attachment_url,
             "pdf_preview_pages": pdf_preview_pages,
             "preview_error": preview_error,

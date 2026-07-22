@@ -125,6 +125,50 @@
         color: #0d6f8a;
         text-decoration: none;
     }
+    .file-reading-status {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 9px;
+        align-items: center;
+        margin: 0 0 10px;
+        padding: 9px 10px;
+        border: 1px solid #cbd8df;
+        border-radius: 11px;
+        background: #f8fbfc;
+    }
+    .file-reading-status strong {
+        color: #173f50;
+        font-size: .83rem;
+    }
+    .file-reading-status p {
+        margin: 0;
+        color: #52707c;
+        font-size: .78rem;
+        line-height: 1.28;
+    }
+    .file-reading-status.failed { background: #fff5f2; border-color: #f0b9aa; }
+    .file-reading-status.detected { background: #effaf5; border-color: #9ed9bd; }
+    .file-reading-status.resolved { background: #effaf5; border-color: #82c9a0; }
+    .file-reading-status.uploaded { background: #f0f8fb; border-color: #a8cfde; }
+    .file-reading-status.missing { background: #f5f7f8; border-color: #d4dde2; }
+    .file-status-label {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 7px;
+        border-radius: 999px;
+        background: #e2e8f0;
+        color: #40596a;
+        font-size: .68rem;
+        font-weight: 900;
+        letter-spacing: .03em;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+    .file-reading-status.failed .file-status-label { background: #fee2e2; color: #a33422; }
+    .file-reading-status.detected .file-status-label { background: #d8f3e4; color: #17653f; }
+    .file-reading-status.resolved .file-status-label { background: #ccefd9; color: #12623c; }
+    .file-reading-status.uploaded .file-status-label { background: #d9eff8; color: #14617b; }
+    .file-reading-status .button { min-height: 31px; padding: 6px 9px; font-size: .74rem; }
     .review-queue-banner {
         grid-column: 1 / -1;
         display: grid;
@@ -858,6 +902,20 @@
     </article>
 
     <aside class="card review-panel review-panel-compact">
+        <section class="file-reading-status {{ file_status.key }}" aria-label="Estado del archivo">
+            <span class="file-status-label">{{ file_status.label }}</span>
+            <div>
+                <strong>Estado del PDF o foto</strong>
+                <p>{{ file_status.detail }}</p>
+            </div>
+            {% if file_status.can_retry and can_edit_bronchodilator %}
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="retry_pdf_analysis">
+                    <button class="button alt" type="submit">Reintentar lectura</button>
+                </form>
+            {% endif %}
+        </section>
         <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
             {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}

@@ -31,6 +31,7 @@ from .views import (
     infer_coverage_type,
     import_drapp_rows,
     get_patient_age_value,
+    get_result_file_status,
     save_generated_report_artifacts,
     sort_dashboard_encounters,
     unique_encounters_by_patient_day,
@@ -1234,6 +1235,108 @@ class DoctorReviewViewTests(TestCase):
         self.assertIn("felisa_n_resultado_final", attachment.file.name)
         self.assertNotIn("ñ", attachment.file.name)
         self.assertNotIn(" ", attachment.file.name)
+        self.assertEqual(attachment.analysis_status, "detected")
+        self.assertEqual(attachment.analysis_error, "")
+
+    def test_failed_file_read_keeps_original_upload_and_marks_retryable(self):
+        self.client.force_login(self.user)
+        pdf_file = SimpleUploadedFile("estudio.pdf", b"%PDF-1.4 fake", content_type="application/pdf")
+
+        with patch("clinic.views.build_analysis_for_uploaded_result", side_effect=RuntimeError("OCR unavailable")):
+            response = self.client.post(
+                reverse("clinic:doctor_review_detail", args=[self.encounter.pk]),
+                {"pdf_file": pdf_file, "respiratory_result": "", "analysis_payload_json": "{}"},
+            )
+
+        self.assertRedirects(response, reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+        attachment = Attachment.objects.get(encounter=self.encounter, file_kind=AttachmentKind.PDF_RESULTADO)
+        self.assertTrue(bool(attachment.file.name))
+        self.assertEqual(attachment.analysis_status, "failed")
+        self.assertIn("archivo qued", attachment.analysis_error.lower())
+
+        response = self.client.get(reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+        self.assertContains(response, "Falló la lectura")
+
+    def test_file_status_distinguishes_missing_uploaded_detected_and_resolved(self):
+        self.assertEqual(get_result_file_status(self.encounter)["key"], "missing")
+        attachment = Attachment.objects.create(
+            encounter=self.encounter,
+            file_kind=AttachmentKind.PDF_RESULTADO,
+            original_name="resultado.pdf",
+            file="encounters/test/resultado.pdf",
+            mime_type="application/pdf",
+            uploaded_by=self.user,
+            analysis_status="uploaded",
+        )
+        self.assertEqual(get_result_file_status(self.encounter, attachment)["key"], "uploaded")
+
+        attachment.analysis_status = "detected"
+        attachment.save(update_fields=["analysis_status", "updated_at"])
+        self.assertEqual(get_result_file_status(self.encounter, attachment)["key"], "detected")
+
+        SpirometryResult.objects.create(encounter=self.encounter, respiratory_pattern="Normal")
+        self.assertEqual(get_result_file_status(self.encounter, attachment)["key"], "resolved")
+
+    def test_retry_read_updates_file_state_without_saving_medical_result(self):
+        grant_clinic_permissions(self.user, "manage_agenda")
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["clinic_work_mode"] = "espirometrista"
+        session.save()
+        attachment = Attachment.objects.create(
+            encounter=self.encounter,
+            file_kind=AttachmentKind.PDF_RESULTADO,
+            original_name="resultado.pdf",
+            file="encounters/test/resultado.pdf",
+            mime_type="application/pdf",
+            uploaded_by=self.user,
+            analysis_status="failed",
+            analysis_error="No se detectaron datos clínicos legibles.",
+        )
+        analysis = {
+            "source": "server-pdf-text",
+            "code": "RM",
+            "probability": 95,
+            "summary": "Sugerencia disponible.",
+            "values": {"fvc": {"best": 1.2}},
+        }
+
+        with patch("clinic.views.build_analysis_for_uploaded_result", return_value=analysis):
+            response = self.client.post(
+                reverse("clinic:doctor_review_detail", args=[self.encounter.pk]),
+                {"action": "retry_pdf_analysis"},
+            )
+
+        self.assertRedirects(response, reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+        attachment.refresh_from_db()
+        self.encounter.refresh_from_db()
+        self.assertEqual(attachment.analysis_status, "detected")
+        self.assertEqual(attachment.analysis_error, "")
+        self.assertEqual(self.encounter.spirometry_result.suggested_code, "RM")
+        self.assertEqual(self.encounter.spirometry_result.respiratory_pattern, "")
+
+    def test_review_list_shows_file_read_state(self):
+        self.client.force_login(self.user)
+        self.encounter.attended = True
+        self.encounter.status = EncounterStatus.CARGADA
+        self.encounter.save(update_fields=["attended", "status", "updated_at"])
+        Attachment.objects.create(
+            encounter=self.encounter,
+            file_kind=AttachmentKind.PDF_RESULTADO,
+            original_name="resultado.pdf",
+            file="encounters/test/resultado.pdf",
+            mime_type="application/pdf",
+            uploaded_by=self.user,
+            analysis_status="failed",
+            analysis_error="No se detectaron datos clínicos legibles.",
+        )
+
+        response = self.client.get(
+            reverse("clinic:doctor_review_list"),
+            {"date": self.encounter.encounter_date.isoformat()},
+        )
+
+        self.assertContains(response, "Falló la lectura")
 
     def test_upload_autofills_missing_document_profile_and_replaces_random_name(self):
         self.client.force_login(self.user)

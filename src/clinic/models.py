@@ -63,6 +63,12 @@ class AttachmentKind(models.TextChoices):
     OTRO = "otro", "Otro"
 
 
+class AttachmentAnalysisStatus(models.TextChoices):
+    UPLOADED = "uploaded", "Archivo subido"
+    DETECTED = "detected", "Datos detectados"
+    FAILED = "failed", "Falló la lectura"
+
+
 class ReportType(models.TextChoices):
     ESPIROMETRIA = "Espirometria", "Espirometria"
     COMPLETO = "Completo", "Completo"
@@ -366,6 +372,15 @@ class Attachment(TimeStampedModel):
     file = models.FileField("Archivo", upload_to=attachment_upload_to)
     mime_type = models.CharField("Mime type", max_length=120, blank=True)
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, null=True)
+    analysis_status = models.CharField(
+        "Estado de lectura",
+        max_length=20,
+        choices=AttachmentAnalysisStatus.choices,
+        blank=True,
+        default="",
+    )
+    analysis_error = models.CharField("Detalle de lectura", max_length=280, blank=True)
+    analysis_attempted_at = models.DateTimeField("Ultimo intento de lectura", blank=True, null=True)
 
     class Meta:
         ordering = ["-created_at"]
