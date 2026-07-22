@@ -6,35 +6,79 @@
 <style>
     .calendar-page {
         display: grid;
-        gap: 20px;
-    }
-    .calendar-hero {
-        background:
-            radial-gradient(circle at top left, rgba(214,124,50,.16), transparent 32%),
-            radial-gradient(circle at top right, rgba(15,90,95,.12), transparent 28%),
-            rgba(255,255,255,.92);
-    }
-    .calendar-hero .section-title {
-        font-size: 2.1rem;
-        max-width: 860px;
-        line-height: 1.02;
+        gap: 14px;
     }
     .calendar-shell {
         display: grid;
-        gap: 18px;
+        gap: 14px;
+        padding: 16px;
     }
     .calendar-shell .calendar-toolbar {
-        align-items: flex-start;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 2px 2px 12px;
+        border-bottom: 1px solid rgba(23,49,63,.09);
     }
-    .calendar-subtitle {
-        margin: 10px 0 0;
-        max-width: 780px;
+    .calendar-month-kicker {
+        margin: 0 0 4px;
+        color: #14738b;
+        font-size: .72rem;
+        font-weight: 900;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+    }
+    .calendar-month-title {
+        margin: 0;
+        color: #123d53;
+        font-size: clamp(1.35rem, 2vw, 1.85rem);
+        line-height: 1;
+    }
+    .calendar-month-note {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: .82rem;
+    }
+    .calendar-toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    .calendar-nav {
+        display: inline-flex;
+        gap: 6px;
+    }
+    .calendar-nav a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 38px;
+        padding: 0 13px;
+        border-radius: 10px;
+        border: 1px solid rgba(19,93,115,.18);
+        background: rgba(255,255,255,.9);
+        color: #105d72;
+        font-size: .84rem;
+        font-weight: 800;
+        text-decoration: none;
+    }
+    .calendar-nav a:nth-child(2) {
+        background: #0f7e98;
+        border-color: #0f7e98;
+        color: #fff;
+    }
+    .calendar-nav a:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 12px rgba(15,90,95,.12);
     }
     .calendar-legend {
         display: flex;
         flex-wrap: wrap;
         gap: 10px;
-        margin-top: 16px;
+        margin: 0;
     }
     .calendar-legend-item {
         display: inline-flex;
@@ -58,9 +102,9 @@
     .swatch-offday { background: #d67c32; }
     .swatch-empty { background: #d9e1e5; }
     .calendar-board {
-        padding: 18px;
-        border-radius: 20px;
-        background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(247,243,235,.96));
+        padding: 14px;
+        border-radius: 16px;
+        background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(246,250,249,.96));
         border: 1px solid rgba(23,49,63,.08);
     }
     .calendar-month-scroller {
@@ -68,7 +112,7 @@
         gap: 10px;
     }
     .calendar-grid {
-        gap: 12px;
+        gap: 8px;
     }
     .calendar-weekday {
         font-size: .8rem;
@@ -76,9 +120,9 @@
         letter-spacing: .08em;
     }
     .calendar-day {
-        min-height: 136px;
-        border-radius: 20px;
-        padding: 14px 12px 12px;
+        min-height: 118px;
+        border-radius: 16px;
+        padding: 11px 10px 10px;
         overflow: hidden;
         position: relative;
     }
@@ -94,7 +138,7 @@
         background:
             radial-gradient(circle at top right, rgba(15,90,95,.12), transparent 34%),
             linear-gradient(180deg, rgba(230,245,244,.95), rgba(255,255,255,.98));
-        box-shadow: 0 14px 30px rgba(15,90,95,.08);
+        box-shadow: 0 8px 18px rgba(15,90,95,.07);
     }
     .calendar-day.has-encounters.is-default-offday {
         background:
@@ -109,7 +153,7 @@
     }
     .calendar-day.selected {
         border-color: rgba(15,90,95,.5);
-        box-shadow: 0 18px 36px rgba(15,90,95,.12);
+        box-shadow: 0 0 0 3px rgba(15,90,95,.1), 0 10px 22px rgba(15,90,95,.1);
     }
     .calendar-day.today {
         border-width: 2px;
@@ -121,14 +165,14 @@
         gap: 10px;
     }
     .calendar-day-number {
-        font-size: 1.1rem;
+        font-size: 1rem;
     }
     .calendar-day-chip {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 28px;
-        height: 28px;
+        min-width: 26px;
+        height: 26px;
         padding: 0 8px;
         border-radius: 999px;
         font-size: .8rem;
@@ -143,7 +187,7 @@
         color: #a95f1d;
     }
     .calendar-day-meta {
-        gap: 6px;
+        gap: 5px;
     }
     .calendar-day-flags {
         display: flex;
@@ -154,9 +198,9 @@
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        padding: 4px 8px;
+        padding: 3px 7px;
         border-radius: 999px;
-        font-size: .72rem;
+        font-size: .68rem;
         font-weight: bold;
         background: rgba(255,255,255,.85);
         border: 1px solid rgba(23,49,63,.08);
@@ -356,11 +400,8 @@
     }
     @media (max-width: 1280px) {
         .calendar-day {
-            min-height: 122px;
-            padding: 12px 10px 10px;
-        }
-        .calendar-hero .section-title {
-            font-size: 1.9rem;
+            min-height: 108px;
+            padding: 10px 8px 8px;
         }
         .calendar-detail-head {
             flex-direction: column;
@@ -370,11 +411,12 @@
         }
     }
     @media (max-width: 900px) {
-        .calendar-day {
-            min-height: 122px;
+        .calendar-shell .calendar-toolbar {
+            align-items: flex-start;
+            flex-direction: column;
         }
-        .calendar-hero .section-title {
-            font-size: 1.8rem;
+        .calendar-toolbar-actions {
+            justify-content: flex-start;
         }
     }
     @media (max-width: 760px) {
@@ -457,17 +499,6 @@
         }
     }
     @media (max-width: 560px) {
-        .calendar-hero .section-title {
-            font-size: 1.34rem;
-            line-height: 1.04;
-        }
-        .calendar-subtitle {
-            margin-top: 6px;
-            font-size: .9rem;
-        }
-        .calendar-toolbar .section-title {
-            font-size: 1.08rem;
-        }
         .calendar-month-scroller {
             min-width: 690px;
         }
@@ -475,27 +506,21 @@
 </style>
 
 <div class="calendar-page">
-    <section class="card calendar-hero">
-        <p class="pill">Calendario inteligente</p>
-        <h1 class="section-title">Mira rápido qué días tienen pacientes, cuáles están completos y cuáles necesitan atención.</h1>
-        <p class="muted calendar-subtitle">
-            Dejé esta vista más parecida al Inicio: con color, prioridades claras y lectura rápida. Los días normalmente no laborales siguen visibles para que, si aparece un lunes o un sábado trabajado, salte enseguida.
-        </p>
-    </section>
-
     <section class="card calendar-shell">
         <div class="calendar-toolbar">
             <div>
-                <p class="pill">Mes activo</p>
-                <h2 class="section-title" style="margin-top:10px;">{{ current_month_label }}</h2>
-                <p class="muted" style="margin:10px 0 0;">
-                    Días normalmente no laborales: {{ default_offday_labels|join:", " }}.
+                <p class="calendar-month-kicker">Agenda mensual</p>
+                <h1 class="calendar-month-title">{{ current_month_label }}</h1>
+                <p class="calendar-month-note">
+                    Días no habituales: {{ default_offday_labels|join:", " }}.
                 </p>
             </div>
-            <div class="calendar-nav">
-                <a href="{% url 'clinic:calendar' %}?month={{ previous_month_param }}&date={{ selected_date|date:'Y-m-d' }}">Anterior</a>
-                <a href="{% url 'clinic:calendar' %}?month={{ today|date:'Y-m' }}&date={{ today|date:'Y-m-d' }}">Hoy</a>
-                <a href="{% url 'clinic:calendar' %}?month={{ next_month_param }}&date={{ selected_date|date:'Y-m-d' }}">Siguiente</a>
+            <div class="calendar-toolbar-actions">
+                <nav class="calendar-nav" aria-label="Cambiar de mes">
+                    <a href="{% url 'clinic:calendar' %}?month={{ previous_month_param }}&date={{ selected_date|date:'Y-m-d' }}">Anterior</a>
+                    <a href="{% url 'clinic:calendar' %}?month={{ today|date:'Y-m' }}&date={{ today|date:'Y-m-d' }}">Hoy</a>
+                    <a href="{% url 'clinic:calendar' %}?month={{ next_month_param }}&date={{ selected_date|date:'Y-m-d' }}">Siguiente</a>
+                </nav>
             </div>
         </div>
 
