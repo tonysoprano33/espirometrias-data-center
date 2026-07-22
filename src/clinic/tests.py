@@ -807,7 +807,7 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertNotIn("Pegar Drapp", html)
         self.assertNotIn('name="action" value="save_vitals_group"', html)
         self.assertNotIn("Resultado rapido:", html)
-        self.assertIn('href="#agregar-paciente"', html)
+        self.assertNotIn('href="#agregar-paciente"', html)
         self.assertIn('name="medical_control_today"', html)
         self.assertIn('name="action" value="toggle_medical_control"', html)
 
@@ -884,6 +884,10 @@ class DashboardQuickAddTests(TestCase):
         self.assertTrue(encounter.no_show)
 
     def test_quick_add_can_mark_medical_control_today(self):
+        session = self.client.session
+        session["clinic_work_mode"] = "secretaria"
+        session.save()
+
         response = self.client.post(
             reverse("clinic:dashboard"),
             {

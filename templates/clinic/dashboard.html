@@ -1989,9 +1989,7 @@
             <p class="pill">Agenda {{ today|date:"d/m/Y" }}</p>
             <h1 class="section-title">Pacientes del dia</h1>
         </div>
-        {% if current_work_mode == "secretaria" %}
-            <a class="button" href="#agregar-paciente">+ Agregar paciente</a>
-        {% else %}
+        {% if current_work_mode != "secretaria" %}
             <a class="button alt" href="{% url 'clinic:daily_print' %}" target="_blank" rel="noopener">Imprimir todo el dia</a>
         {% endif %}
     </div>
@@ -2004,7 +2002,7 @@
 
     {% if perms.clinic.manage_agenda %}
     <div class="agenda-entry-panel">
-        <div class="quick-add-box" id="agregar-paciente">
+        <div class="quick-add-box">
             <div class="quick-add-heading">
                 <span class="quick-add-mark" aria-hidden="true">+</span>
                 <div>
