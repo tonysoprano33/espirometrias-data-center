@@ -288,6 +288,46 @@
         display: flex;
         justify-content: flex-end;
     }
+    .patient-pagination {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 14px 16px;
+        border: 1px solid rgba(13,111,138,.16);
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(242,251,253,.96), rgba(255,255,255,.98));
+    }
+    .patient-pagination a,
+    .patient-pagination span {
+        display: inline-flex;
+        min-height: 38px;
+        align-items: center;
+        justify-content: center;
+        padding: 0 14px;
+        border-radius: 11px;
+        font-weight: 800;
+        text-decoration: none;
+    }
+    .patient-pagination a {
+        color: #0b6179;
+        border: 1px solid rgba(13,111,138,.22);
+        background: #fff;
+    }
+    .patient-pagination a:hover {
+        background: #e8f7fa;
+        text-decoration: none;
+    }
+    .patient-pagination .patient-pagination-current {
+        color: #315667;
+        background: rgba(224,244,247,.72);
+    }
+    .patient-pagination .patient-pagination-disabled {
+        color: #91a4ad;
+        background: rgba(244,247,248,.88);
+        border: 1px solid rgba(23,49,63,.08);
+    }
     @media (max-width: 1400px) {
         .patient-table .td-actions > div {
             justify-content: flex-start;
@@ -466,5 +506,20 @@
             </tbody>
         </table>
     </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+        <nav class="patient-pagination" aria-label="Paginacion de pacientes">
+            {% if page_obj.has_previous %}
+                <a href="?{% if pagination_query %}{{ pagination_query }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>
+            {% else %}
+                <span class="patient-pagination-disabled">Anterior</span>
+            {% endif %}
+            <span class="patient-pagination-current">Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }} - {{ patients_total }} pacientes</span>
+            {% if page_obj.has_next %}
+                <a href="?{% if pagination_query %}{{ pagination_query }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Siguiente</a>
+            {% else %}
+                <span class="patient-pagination-disabled">Siguiente</span>
+            {% endif %}
+        </nav>
+    {% endif %}
 </div>
 {% endblock %}

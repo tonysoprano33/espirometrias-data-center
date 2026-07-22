@@ -3652,11 +3652,18 @@ def patient_list(request):
                     )
                 )
     patients = patients.distinct().order_by("full_name")
+    paginator = Paginator(patients, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    pagination_params = request.GET.copy()
+    pagination_params.pop("page", None)
     return render(
         request,
         "clinic/patient_list.html",
         {
-            "patients": patients,
+            "patients": page_obj.object_list,
+            "page_obj": page_obj,
+            "patients_total": paginator.count,
+            "pagination_query": pagination_params.urlencode(),
             "query": query,
             "filters": {
                 "date": date_filter,

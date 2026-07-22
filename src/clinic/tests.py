@@ -2663,6 +2663,26 @@ class ClinicalPatientSearchTests(TestCase):
                 self.assertIn("BUSQUEDA, CLINICA", html)
                 self.assertNotIn("OTRO, PACIENTE", html)
 
+    def test_patient_list_paginates_every_twenty_results_and_keeps_search(self):
+        for index in range(21):
+            Patient.objects.create(full_name=f"PAGINACION, PACIENTE {index:02d}")
+
+        response = self.client.get(reverse("clinic:patient_list"), {"q": "PAGINACION"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["patients_total"], 21)
+        self.assertEqual(response.context["page_obj"].number, 1)
+        self.assertEqual(len(response.context["patients"]), 20)
+        self.assertEqual(response.context["pagination_query"], "q=PAGINACION")
+        self.assertContains(response, "Pagina 1 de 2")
+
+        second_page = self.client.get(reverse("clinic:patient_list"), {"q": "PAGINACION", "page": 2})
+
+        self.assertEqual(second_page.status_code, 200)
+        self.assertEqual(second_page.context["page_obj"].number, 2)
+        self.assertEqual(len(second_page.context["patients"]), 1)
+        self.assertContains(second_page, "PAGINACION, PACIENTE 20")
+
 
 class ClinicalAccessControlTests(TestCase):
     def setUp(self):
