@@ -233,6 +233,11 @@ class Encounter(TimeStampedModel):
         ordering = ["-encounter_date", "-encounter_time", "-created_at"]
         verbose_name = "Atencion"
         verbose_name_plural = "Atenciones"
+        indexes = [
+            models.Index(fields=["encounter_date", "deleted_at"], name="clinic_enc_date_deleted_idx"),
+            models.Index(fields=["status", "encounter_date"], name="clinic_enc_status_date_idx"),
+            models.Index(fields=["patient", "encounter_date"], name="clinic_enc_patient_date_idx"),
+        ]
         permissions = [
             ("manage_agenda", "Puede gestionar la agenda clinica"),
             ("review_medically", "Puede realizar revisiones medicas"),

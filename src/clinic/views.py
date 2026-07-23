@@ -241,6 +241,16 @@ def snapshot_matches_patient(patient, snapshot: dict) -> bool:
 
 
 def get_latest_result_attachment(encounter):
+    prefetched_attachments = getattr(encounter, "_prefetched_objects_cache", {}).get("attachments")
+    if prefetched_attachments is not None:
+        return next(
+            (
+                attachment
+                for attachment in prefetched_attachments
+                if attachment.file_kind in [AttachmentKind.PDF_RESULTADO, AttachmentKind.FOTO_RESULTADO]
+            ),
+            None,
+        )
     return (
         encounter.attachments.filter(file_kind__in=[AttachmentKind.PDF_RESULTADO, AttachmentKind.FOTO_RESULTADO])
         .order_by("-created_at")
@@ -1170,20 +1180,19 @@ def get_row_state_payload(encounter):
     return payload
 
 
-def get_operational_alerts(queryset):
-    if hasattr(queryset, "select_related"):
-        encounters = unique_encounters_by_patient_day(
-            queryset.select_related("patient", "spirometry_result", "vital_signs", "walk_test")
-            .prefetch_related("attachments", "generated_reports")
-        )
-    else:
-        encounters = unique_encounters_by_patient_day(queryset)
+def build_operational_alerts(encounters):
+    """Build dashboard alerts from an already-loaded encounter collection."""
+    encounters = unique_encounters_by_patient_day(encounters)
     pending_review = sum(1 for encounter in encounters if encounter.status == EncounterStatus.PENDIENTE)
     ready_for_report = 0
     missing_pdf = 0
     for encounter in encounters:
         can_generate, _ = get_report_readiness(encounter)
-        if can_generate and not encounter.generated_reports.exists():
+        prefetched_reports = getattr(encounter, "_prefetched_objects_cache", {}).get("generated_reports")
+        has_generated_reports = (
+            bool(prefetched_reports) if prefetched_reports is not None else encounter.generated_reports.exists()
+        )
+        if can_generate and not has_generated_reports:
             ready_for_report += 1
         if encounter.study_type == "Espirometria" and not get_latest_result_attachment(encounter):
             missing_pdf += 1
@@ -1193,6 +1202,16 @@ def get_operational_alerts(queryset):
         "missing_pdf": missing_pdf,
         "no_show": sum(1 for encounter in encounters if encounter.no_show),
     }
+
+
+def get_operational_alerts(queryset):
+    if hasattr(queryset, "select_related"):
+        encounters = queryset.select_related("patient", "spirometry_result", "vital_signs", "walk_test").prefetch_related(
+            "attachments", "generated_reports"
+        )
+    else:
+        encounters = queryset
+    return build_operational_alerts(encounters)
 
 
 def update_inline_field(encounter, field_name: str, raw_value: str, request_user, manual_save: bool = False):
@@ -1790,7 +1809,8 @@ def _encounter_dedupe_rank(encounter):
     printable_ready, _ = get_report_readiness(encounter, ignore_attendance=True)
     vital = getattr(encounter, "vital_signs", None)
     result_code = get_result_code_from_encounter(encounter)
-    has_reports = encounter.generated_reports.exists()
+    prefetched_reports = getattr(encounter, "_prefetched_objects_cache", {}).get("generated_reports")
+    has_reports = bool(prefetched_reports) if prefetched_reports is not None else encounter.generated_reports.exists()
     status_rank = {
         EncounterStatus.ENTREGADA: 5,
         EncounterStatus.INFORME_GENERADO: 4,
@@ -1836,18 +1856,24 @@ def unique_encounters_by_patient_day(encounters):
             unique.append(encounter)
             continue
 
-        current_rank = _encounter_dedupe_rank(encounter)
         previous = seen_identity_keys.get(identity_key)
         if previous is None:
-            seen_identity_keys[identity_key] = (current_rank, encounter)
+            # Most agenda rows are already unique. Delay the expensive comparison
+            # until an actual duplicate is found.
+            seen_identity_keys[identity_key] = (None, encounter)
             unique.append(encounter)
             continue
 
         previous_rank, previous_encounter = previous
+        if previous_rank is None:
+            previous_rank = _encounter_dedupe_rank(previous_encounter)
+        current_rank = _encounter_dedupe_rank(encounter)
         if current_rank > previous_rank:
             previous_index = unique.index(previous_encounter)
             unique[previous_index] = encounter
             seen_identity_keys[identity_key] = (current_rank, encounter)
+        else:
+            seen_identity_keys[identity_key] = (previous_rank, previous_encounter)
     return unique
 
 
@@ -3726,17 +3752,19 @@ def calendar_view(request):
             )
         weeks.append(week_days)
 
-    selected_encounters = (
-        Encounter.objects.select_related("patient", "vital_signs", "spirometry_result")
-        .filter(encounter_date=selected_date)
-        .order_by("encounter_time", "created_at")
-    )
-    selected_encounters = unique_encounters_by_patient_day(selected_encounters)
+    if range_start <= selected_date <= range_end:
+        selected_encounters = list(encounters_by_date.get(selected_date, {}).get("encounters", []))
+    else:
+        selected_encounters = unique_encounters_by_patient_day(
+            Encounter.objects.select_related("patient", "vital_signs", "spirometry_result")
+            .filter(encounter_date=selected_date)
+            .order_by("encounter_time", "created_at")
+        )
     for encounter in selected_encounters:
         encounter.result_label = get_result_label_from_encounter(encounter)
         encounter.attendance_label = get_attendance_label(encounter)
 
-    selected_summary = get_period_summary(Encounter.objects.filter(encounter_date=selected_date))
+    selected_summary = summarize_encounter_list(selected_encounters)
     selected_summary["pending"] = max(
         selected_summary["total"] - selected_summary["attended"] - selected_summary["no_show"],
         0,
@@ -3789,10 +3817,19 @@ def statistics_view(request):
     previous_month_start = (selected_month_start - timedelta(days=1)).replace(day=1)
     can_go_next_month = selected_month_start < current_month_start
 
+    last_week_start = today - timedelta(days=6)
+    last_week_encounters = unique_encounters_by_patient_day(
+        Encounter.objects.select_related("patient", "spirometry_result", "vital_signs")
+        .filter(encounter_date__range=(last_week_start, today))
+    )
+    encounters_by_day = {}
+    for encounter in last_week_encounters:
+        encounters_by_day.setdefault(encounter.encounter_date, []).append(encounter)
+
     last_7_days = []
     for offset in range(6, -1, -1):
         day_value = today - timedelta(days=offset)
-        summary = get_period_summary(Encounter.objects.filter(encounter_date=day_value))
+        summary = summarize_encounter_list(encounters_by_day.get(day_value, []))
         summary.update(
             {
                 "date": day_value,
@@ -3803,7 +3840,9 @@ def statistics_view(request):
 
     selected_month_qs = Encounter.objects.filter(encounter_date__range=(selected_month_start, selected_month_end))
     selected_month_encounters = unique_encounters_by_patient_day(
-        selected_month_qs.select_related("patient", "spirometry_result", "vital_signs").prefetch_related(
+        selected_month_qs.select_related("patient", "spirometry_result", "vital_signs", "walk_test").prefetch_related(
+            "attachments",
+            "generated_reports",
             Prefetch(
                 "events",
                 queryset=EncounterEvent.objects.filter(event_type=EncounterEventType.IMPORT).only(
@@ -3813,23 +3852,23 @@ def statistics_view(request):
         )
     )
     current_month_summary = summarize_encounter_list(selected_month_encounters)
-    current_month_alerts = get_operational_alerts(selected_month_qs)
-    status_rows = []
-    for value, label in EncounterStatus.choices:
-        status_rows.append(
-            {
-                "label": label,
-                "total": selected_month_qs.filter(status=value).count(),
-            }
-        )
+    current_month_alerts = build_operational_alerts(selected_month_encounters)
+    status_counts = Counter(encounter.status for encounter in selected_month_encounters)
+    status_rows = [
+        {"label": label, "total": status_counts[value]}
+        for value, label in EncounterStatus.choices
+    ]
 
     profiled_patients = [
         patient
-        for patient in Patient.objects.all().order_by("-updated_at")
+        for patient in Patient.objects.only(
+            "id", "patient_code", "full_name", "dni", "birth_date", "age_reported", "gender", "ethnicity",
+            "smoking_status", "height_cm", "weight_kg", "bmi", "pack_years", "updated_at"
+        ).order_by("-updated_at")
         if looks_like_profile_data(patient)
     ]
     cohort_patients = list(
-        Patient.objects.prefetch_related(
+        Patient.objects.only("id", "birth_date", "age_reported", "gender", "smoking_status").prefetch_related(
             Prefetch(
                 "encounters",
                 queryset=Encounter.objects.select_related("spirometry_result").order_by(
