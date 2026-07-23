@@ -1992,6 +1992,95 @@
         font-weight: 900;
         letter-spacing: .02em;
     }
+    /* Secretary view: use the room freed by clinical-only fields for clear, touch-friendly reception data. */
+    .secretary-mode-table {
+        border: 1px solid rgba(21, 101, 127, .14);
+        border-radius: 16px;
+        background: #fff;
+        box-shadow: 0 10px 24px rgba(28, 74, 92, .05);
+    }
+    .secretary-mode-table .table thead th {
+        padding: 12px 10px;
+        background: linear-gradient(180deg, #e2f3f7, #eff9fb);
+        color: #19546a;
+        font-size: .78rem;
+        font-weight: 900;
+        letter-spacing: .055em;
+        text-transform: uppercase;
+    }
+    .secretary-mode-table [data-encounter-row] {
+        min-height: 104px;
+    }
+    .secretary-mode-table [data-encounter-row]:nth-child(even) > td {
+        background-color: #fbfdfe;
+    }
+    .secretary-mode-table .time-cell {
+        padding: 14px 12px;
+        background: #edf5ff;
+    }
+    .secretary-mode-table .cell-time {
+        min-height: 48px;
+        padding: 8px 10px;
+        border-color: #c7d9ec;
+        border-radius: 11px;
+        background: #fff;
+        color: #17485f;
+        font-size: 1.02rem;
+        font-weight: 900;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: .025em;
+        text-align: center;
+    }
+    .secretary-mode-table .patient-cell {
+        padding: 14px 12px;
+    }
+    .secretary-mode-table .patient-cell .cell-name {
+        min-height: 48px;
+        padding: 9px 12px;
+        border-left: 5px solid #287bc4;
+        border-radius: 11px;
+        background: #fff;
+        color: #123e54;
+        font-size: 1rem;
+        font-weight: 900;
+        line-height: 1.2;
+    }
+    .secretary-mode-table .vitals-cell[data-label="DNI"] {
+        padding: 14px 12px;
+    }
+    .secretary-mode-table .vitals-cell[data-label="DNI"] .inline-display {
+        min-height: 46px;
+        padding: 8px 10px;
+        border: 1px solid rgba(27, 103, 135, .14);
+        border-radius: 11px;
+        background: #f4fbfd;
+        color: #0b526c;
+        font-size: 1.22rem;
+        font-weight: 900;
+    }
+    .secretary-mode-table .study-cell,
+    .secretary-mode-table .coverage-cell {
+        padding: 14px 12px;
+    }
+    .secretary-mode-table .study-cell .cell-select,
+    .secretary-mode-table .coverage-cell .cell-select {
+        min-height: 48px;
+        padding: 8px 12px;
+        border-radius: 11px;
+        font-size: .98rem;
+        font-weight: 800;
+    }
+    .secretary-mode-table .attendance-cell {
+        padding: 10px 12px;
+        background: #f7fcfa;
+    }
+    .secretary-mode-table .secretary-control-form {
+        margin-top: 7px;
+    }
+    .secretary-mode-table .secretary-control-button {
+        min-height: 38px;
+        font-size: .82rem;
+    }
     @media (max-width: 1680px) and (min-width: 901px) {
         .secretary-mode-table.notebook-stack {
             overflow-x: hidden;
