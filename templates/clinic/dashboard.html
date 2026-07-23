@@ -2172,7 +2172,7 @@
                     <section class="possible-duplicate-panel" aria-live="polite">
                         <h3>Posible paciente existente</h3>
                         {% if quick_duplicate_has_same_name %}
-                            <p>El nombre coincide. Si es una nueva visita, usa la historia indicada. Si es otra persona, completa un DNI distinto dentro de Datos opcionales.</p>
+                            <p>El DNI identifica a la persona. Telefono y fecha de nacimiento solo ayudan a confirmar. Si es otra persona con el mismo nombre, completa un DNI distinto dentro de Datos opcionales.</p>
                         {% else %}
                             <p>Antes de agendar, elegi una historia existente o confirma que se trata de otra persona.</p>
                         {% endif %}
@@ -2181,7 +2181,7 @@
                                 <div class="possible-duplicate-choice">
                                     <div>
                                         <strong>{{ candidate.patient.full_name }}</strong>
-                                        <span>{{ candidate.reason }}{% if candidate.patient.dni %} - DNI de esta historia: {{ candidate.patient.dni|dni_format }}{% else %} - Sin DNI cargado{% endif %}{% if candidate.patient.deleted_at %} - En papelera{% endif %}</span>
+                                        <span>{{ candidate.match_summary }}{% if candidate.patient.dni %} - DNI de esta historia: {{ candidate.patient.dni|dni_format }}{% else %} - Sin DNI cargado{% endif %}{% if candidate.patient.phone %} - Tel: {{ candidate.patient.phone }}{% endif %}{% if candidate.patient.birth_date %} - Nac.: {{ candidate.patient.birth_date|date:"d/m/Y" }}{% endif %}{% if candidate.coverage_hint %} - Ultima cobertura: {{ candidate.coverage_hint }}{% endif %}{% if candidate.patient.deleted_at %} - En papelera{% endif %}</span>
                                     </div>
                                     {% if candidate.can_use %}
                                         <button class="button alt" type="submit" name="duplicate_action" value="use_existing:{{ candidate.patient.pk }}">Usar historia / nueva visita</button>

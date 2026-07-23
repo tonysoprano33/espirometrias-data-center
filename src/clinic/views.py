@@ -1619,36 +1619,73 @@ def normalize_patient_identity_name(raw_name: str) -> str:
     return normalize_for_match(normalize_imported_name(raw_name))
 
 
-def find_possible_patient_duplicates(full_name: str, dni: str = "", *, exclude_pk=None, limit: int = 4):
-    """Return conservative duplicate hints without deciding the patient's identity automatically."""
+def normalize_identity_phone(raw_value: str) -> str:
+    """Normalize a phone for identity checks without changing how it is displayed."""
+    digits = re.sub(r"\D+", "", str(raw_value or ""))
+    return digits if len(digits) >= 8 else ""
+
+
+def find_possible_patient_duplicates(
+    full_name: str,
+    dni: str = "",
+    *,
+    phone: str = "",
+    birth_date=None,
+    coverage_name: str = "",
+    exclude_pk=None,
+    limit: int = 4,
+):
+    """Return identity hints while keeping DNI as the only automatic identifier."""
     normalized_dni = normalize_document_number(dni)
+    normalized_phone = normalize_identity_phone(phone)
     name_key = normalize_patient_identity_name(full_name)
+    normalized_coverage = normalize_for_match(collapse_spaces(coverage_name))
     base_queryset = Patient.all_objects.all()
     if exclude_pk:
         base_queryset = base_queryset.exclude(pk=exclude_pk)
 
     matches = []
-    seen_ids = set()
+    matches_by_id = {}
 
-    def add_match(patient, reason, *, same_dni=False, same_name=False):
-        if patient.pk in seen_ids or len(matches) >= limit:
+    def add_match(patient, reason, *, same_dni=False, same_name=False, same_phone=False, same_birth_date=False):
+        match = matches_by_id.get(patient.pk)
+        if match is not None:
+            match["same_dni"] = match["same_dni"] or same_dni
+            match["same_name"] = match["same_name"] or same_name
+            match["same_phone"] = match["same_phone"] or same_phone
+            match["same_birth_date"] = match["same_birth_date"] or same_birth_date
+            return
+        if len(matches) >= limit:
             return
         existing_dni = normalize_document_number(patient.dni or "")
         compatible_with_entered_dni = not normalized_dni or not existing_dni or existing_dni == normalized_dni
-        matches.append(
-            {
-                "patient": patient,
-                "reason": reason,
-                "same_dni": same_dni,
-                "same_name": same_name,
-                "can_use": compatible_with_entered_dni,
-            }
-        )
-        seen_ids.add(patient.pk)
+        match = {
+            "patient": patient,
+            "reason": reason,
+            "same_dni": same_dni,
+            "same_name": same_name,
+            "same_phone": same_phone,
+            "same_birth_date": same_birth_date,
+            "can_use": compatible_with_entered_dni,
+        }
+        matches.append(match)
+        matches_by_id[patient.pk] = match
 
     if normalized_dni:
         for patient in base_queryset.filter(dni=normalized_dni).order_by("full_name")[:limit]:
             add_match(patient, "Mismo DNI", same_dni=True)
+
+    if normalized_phone:
+        phone_candidates = base_queryset.exclude(phone="").only(
+            "id", "full_name", "dni", "phone", "birth_date", "deleted_at"
+        )[:500]
+        for patient in phone_candidates:
+            if normalize_identity_phone(patient.phone) == normalized_phone:
+                add_match(patient, "Mismo telefono", same_phone=True)
+
+    if birth_date:
+        for patient in base_queryset.filter(birth_date=birth_date).order_by("full_name")[:limit]:
+            add_match(patient, "Misma fecha de nacimiento", same_birth_date=True)
 
     def identity_tokens(value):
         normalized = unicodedata.normalize("NFKD", normalize_imported_name(value))
@@ -1664,7 +1701,9 @@ def find_possible_patient_duplicates(full_name: str, dni: str = "", *, exclude_p
             token_query = Q()
             for token in sorted(name_tokens)[:3]:
                 token_query |= Q(full_name__icontains=token)
-            possible_patients = Patient.objects.filter(token_query).only("id", "full_name", "dni", "deleted_at")[:40]
+            possible_patients = Patient.objects.filter(token_query).only(
+                "id", "full_name", "dni", "phone", "birth_date", "deleted_at"
+            )[:40]
             input_token_set = set(name_tokens)
             for patient in possible_patients:
                 candidate_tokens = identity_tokens(patient.full_name)
@@ -1672,6 +1711,40 @@ def find_possible_patient_duplicates(full_name: str, dni: str = "", *, exclude_p
                 if len(common_tokens) >= 2 or len(common_tokens) == len(input_token_set):
                     same_name = normalize_patient_identity_name(patient.full_name) == name_key
                     add_match(patient, "Mismo nombre" if same_name else "Nombre muy parecido", same_name=same_name)
+
+    for match in matches:
+        patient = match["patient"]
+        checks = []
+        if match["same_dni"]:
+            checks.append("DNI coincide")
+        if match["same_phone"]:
+            checks.append("Telefono coincide")
+        if match["same_birth_date"]:
+            checks.append("Fecha de nacimiento coincide")
+        if match["same_name"]:
+            checks.append("Nombre coincide")
+        if not checks:
+            checks.append(match["reason"])
+        match["match_summary"] = " | ".join(checks)
+
+        latest_encounter = (
+            Encounter.objects.filter(patient=patient)
+            .only("coverage_type", "coverage_name", "encounter_date")
+            .order_by("-encounter_date", "-created_at")
+            .first()
+        )
+        if latest_encounter:
+            if latest_encounter.coverage_type == CoverageType.MUTUAL:
+                match["coverage_hint"] = latest_encounter.coverage_name or "Mutual"
+            else:
+                match["coverage_hint"] = "Particular"
+            match["same_coverage"] = bool(
+                normalized_coverage
+                and normalize_for_match(match["coverage_hint"]) == normalized_coverage
+            )
+        else:
+            match["coverage_hint"] = ""
+            match["same_coverage"] = False
 
     return matches
 
@@ -1693,8 +1766,11 @@ def encounter_matches_import_identity(encounter, parsed_dni: str, patient_name_k
     existing_dni = normalize_document_number(getattr(patient, "dni", "") or "")
     existing_name_key = normalize_patient_identity_name(getattr(patient, "full_name", "") or "")
     same_dni = bool(parsed_dni and existing_dni and parsed_dni == existing_dni)
+    if parsed_dni:
+        # A distinct DNI wins over a matching name: homonyms are possible.
+        return same_dni
     same_name = bool(patient_name_key and existing_name_key and patient_name_key == existing_name_key)
-    return same_dni or same_name
+    return same_name
 
 
 def import_identity_exists_for_date(encounter_date, parsed_dni: str, patient_name: str) -> bool:
@@ -2324,8 +2400,6 @@ def import_drapp_rows(rows, request_user):
         patient = Patient.all_objects.filter(dni=parsed_dni).first() if parsed_dni else None
         if patient is not None and patient.deleted_at:
             patient.restore(restore_batch=False)
-        if patient is None and not parsed_dni:
-            patient = Patient.objects.filter(full_name=patient_name).order_by("-updated_at").first()
         if patient is None:
             patient = Patient.objects.create(
                 full_name=patient_name,
@@ -2427,13 +2501,18 @@ def build_drapp_import_preview(rows):
             if patient_name and date_detected
             else False
         )
-        possible_duplicates = find_possible_patient_duplicates(patient_name, parsed_dni)
+        possible_duplicates = find_possible_patient_duplicates(
+            patient_name,
+            parsed_dni,
+            phone=row["phone"],
+            coverage_name=row["coverage_raw"],
+        )
         valid_name = is_plausible_imported_patient_name(patient_name)
         possible_duplicate_warning = ""
         if possible_duplicates and not duplicate:
             first_match = possible_duplicates[0]
             possible_duplicate_warning = (
-                f"Posible historia existente: {first_match['patient'].full_name} ({first_match['reason'].lower()})."
+                f"Posible historia existente: {first_match['patient'].full_name} ({first_match['match_summary'].lower()})."
             )
         preview.append(
             {
@@ -4174,6 +4253,7 @@ def patient_create(request):
             possible_duplicates = find_possible_patient_duplicates(
                 form.cleaned_data["full_name"],
                 form.cleaned_data.get("dni", ""),
+                phone=form.cleaned_data.get("phone", ""),
             )
             duplicate_action = request.POST.get("duplicate_action", "")
             if possible_duplicates and not duplicate_action:

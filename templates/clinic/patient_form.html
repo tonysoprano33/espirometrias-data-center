@@ -61,12 +61,12 @@
         {% if possible_duplicates %}
             <section class="patient-duplicate-warning" aria-live="polite">
                 <h2>Posible paciente existente</h2>
-                <p>El DNI diferencia a cada persona. Si el nombre coincide y es otra persona, completa un DNI distinto antes de crearla.</p>
+                <p>El DNI diferencia a cada persona. Telefono y fecha de nacimiento sirven para confirmar, pero no reemplazan al DNI. Si el nombre coincide y es otra persona, completa un DNI distinto antes de crearla.</p>
                 {% for candidate in possible_duplicates %}
                     <div class="patient-duplicate-row">
                         <div>
                             <strong>{{ candidate.patient.full_name }}</strong>
-                            <span>{{ candidate.reason }}{% if candidate.patient.dni %} - DNI de esta historia: {{ candidate.patient.dni }}{% else %} - Sin DNI cargado{% endif %}{% if candidate.patient.deleted_at %} - En papelera{% endif %}</span>
+                            <span>{{ candidate.match_summary }}{% if candidate.patient.dni %} - DNI de esta historia: {{ candidate.patient.dni }}{% else %} - Sin DNI cargado{% endif %}{% if candidate.patient.phone %} - Tel: {{ candidate.patient.phone }}{% endif %}{% if candidate.patient.birth_date %} - Nac.: {{ candidate.patient.birth_date|date:"d/m/Y" }}{% endif %}{% if candidate.coverage_hint %} - Ultima cobertura: {{ candidate.coverage_hint }}{% endif %}{% if candidate.patient.deleted_at %} - En papelera{% endif %}</span>
                         </div>
                         <button class="button alt" type="submit" name="duplicate_action" value="open_existing:{{ candidate.patient.pk }}">Abrir historia</button>
                     </div>

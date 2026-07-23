@@ -27,6 +27,7 @@ from .views import (
     extract_drapp_rows_from_browser_ocr,
     extract_drapp_rows_from_ocr_lines,
     extract_drapp_rows_from_text,
+    find_possible_patient_duplicates,
     format_physician_display_name,
     infer_coverage_type,
     import_drapp_rows,
@@ -1183,6 +1184,48 @@ class PatientCreateDuplicateWarningTests(TestCase):
 
 
 
+class PatientIdentityHintTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="identity-hints", password="secret123")
+        self.patient = Patient.objects.create(
+            full_name="PEREZ, ANA",
+            dni="28123456",
+            phone="+54 2657 123456",
+            birth_date=date(1980, 5, 14),
+        )
+        Encounter.objects.create(
+            patient=self.patient,
+            encounter_date=date(2026, 7, 22),
+            encounter_time=time(10, 0),
+            study_type=StudyType.ESPIROMETRIA,
+            coverage_type=CoverageType.MUTUAL,
+            coverage_name="GRASSI",
+            status=EncounterStatus.NO_LLEGO,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+
+    def test_dni_is_primary_and_other_identity_signals_are_visible(self):
+        matches = find_possible_patient_duplicates(
+            "Perez, Ana",
+            "28.123.456",
+            phone="542657123456",
+            birth_date=date(1980, 5, 14),
+            coverage_name="GRASSI",
+        )
+
+        self.assertEqual(len(matches), 1)
+        match = matches[0]
+        self.assertTrue(match["same_dni"])
+        self.assertTrue(match["same_phone"])
+        self.assertTrue(match["same_birth_date"])
+        self.assertTrue(match["same_name"])
+        self.assertTrue(match["same_coverage"])
+        self.assertIn("DNI coincide", match["match_summary"])
+        self.assertIn("Telefono coincide", match["match_summary"])
+        self.assertEqual(match["coverage_hint"], "GRASSI")
+
+
 class DoctorReviewViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="review-test", password="secret123")
@@ -1833,6 +1876,33 @@ class DrappImportDeduplicationTests(TestCase):
         self.assertFalse(imported.attended)
         self.assertEqual(imported.status, EncounterStatus.NO_LLEGO)
 
+    def test_import_does_not_reuse_a_history_only_because_the_name_matches(self):
+        patient = self.create_encounter(
+            full_name="PEREZ, MARIA", dni="11111111", encounter_date=date(2026, 6, 4)
+        ).patient
+        patient.phone = "+542657111111"
+        patient.save(update_fields=["phone", "updated_at"])
+
+        created, skipped = import_drapp_rows(
+            [
+                {
+                    "patient_name": "PEREZ, MARIA",
+                    "coverage_raw": "Particular",
+                    "practice_raw": "Espirometria",
+                    "datetime_raw": "15:00",
+                    "phone": "+542657222222",
+                    "dni": "",
+                    "agenda_date": date(2026, 6, 5),
+                }
+            ],
+            self.user,
+        )
+
+        self.assertEqual((created, skipped), (1, 0))
+        imported = Encounter.objects.get(encounter_date=date(2026, 6, 5))
+        self.assertNotEqual(imported.patient_id, patient.pk)
+        self.assertEqual(imported.patient.phone, "+542657222222")
+
     def test_preview_warns_about_existing_history_without_blocking_another_day(self):
         self.create_encounter(full_name="ORUETTA, RAMONA", dni="42999801")
 
@@ -1881,7 +1951,7 @@ class DrappImportDeduplicationTests(TestCase):
         self.assertIsNotNone(old_encounter.deleted_at)
         self.assertTrue(Encounter.objects.filter(patient=patient, encounter_date=date(2026, 6, 5)).exists())
 
-    def test_skips_same_name_with_different_dni_on_same_day(self):
+    def test_allows_same_name_with_different_dni_on_same_day(self):
         self.create_encounter(full_name="PEREZ, MARIA", dni="11111111")
 
         created, skipped = import_drapp_rows(
@@ -1899,8 +1969,9 @@ class DrappImportDeduplicationTests(TestCase):
             self.user,
         )
 
-        self.assertEqual((created, skipped), (0, 1))
-        self.assertEqual(Encounter.objects.filter(encounter_date=date(2026, 6, 4)).count(), 1)
+        self.assertEqual((created, skipped), (1, 0))
+        self.assertEqual(Encounter.objects.filter(encounter_date=date(2026, 6, 4)).count(), 2)
+        self.assertTrue(Encounter.objects.filter(patient__dni="22222222").exists())
 
     def test_rejects_practice_text_as_patient_name(self):
         created, skipped = import_drapp_rows(
