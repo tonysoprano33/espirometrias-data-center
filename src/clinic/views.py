@@ -20,7 +20,7 @@ from django.core import signing
 from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Max, Prefetch
+from django.db.models import Count, F, Max, OuterRef, Prefetch, Subquery
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -2924,12 +2924,8 @@ def build_month_clinical_summary(encounters):
     }
 
 
-def build_cohort_statistics(patients):
-    latest_encounters = []
-    for patient in patients:
-        latest = get_latest_coded_encounter(patient)
-        if latest:
-            latest_encounters.append(latest)
+def build_cohort_statistics_from_latest_encounters(latest_encounters):
+    latest_encounters = list(latest_encounters)
 
     cohorts = [
         ("Hombres 60+", lambda patient: normalize_gender_bucket(patient.gender) == "Masculino" and (get_patient_age_value(patient) or -1) >= 60),
@@ -2958,6 +2954,48 @@ def build_cohort_statistics(patients):
             }
         )
     return rows, build_diagnosis_distribution(latest_encounters)
+
+
+def build_cohort_statistics(patients):
+    """Compatibility helper for callers that already have patient histories loaded."""
+    return build_cohort_statistics_from_latest_encounters(
+        latest
+        for patient in patients
+        if (latest := get_latest_coded_encounter(patient))
+    )
+
+
+def get_latest_coded_encounters_for_statistics():
+    """Fetch one final spirometry result per patient without loading full histories."""
+    coded_patterns = ("Normal", "Obstructivo", "Restrictivo", "Mixto")
+    latest_encounter_id = (
+        Encounter.objects.filter(
+            patient_id=OuterRef("patient_id"),
+            spirometry_result__respiratory_pattern__in=coded_patterns,
+        )
+        .order_by("-encounter_date", F("encounter_time").desc(nulls_last=True), "-created_at")
+        .values("pk")[:1]
+    )
+    return (
+        Encounter.objects.filter(pk=Subquery(latest_encounter_id))
+        .select_related("patient", "spirometry_result")
+        .only(
+            "id",
+            "patient_id",
+            "encounter_date",
+            "encounter_time",
+            "created_at",
+            "patient__id",
+            "patient__birth_date",
+            "patient__age_reported",
+            "patient__gender",
+            "patient__smoking_status",
+            "spirometry_result__id",
+            "spirometry_result__respiratory_pattern",
+            "spirometry_result__obstruction_grade",
+            "spirometry_result__restriction_grade",
+        )
+    )
 
 
 def get_encounter_inconsistencies(encounter):
@@ -3862,26 +3900,18 @@ def statistics_view(request):
     profiled_patients = [
         patient
         for patient in Patient.objects.only(
-            "id", "patient_code", "full_name", "dni", "birth_date", "age_reported", "gender", "ethnicity",
-            "smoking_status", "height_cm", "weight_kg", "bmi", "pack_years", "updated_at"
+            "id", "patient_code", "full_name", "last_name", "first_name", "dni", "birth_date", "age_reported",
+            "gender", "ethnicity", "smoking_status", "patient_group", "height_cm", "weight_kg", "bmi",
+            "pack_years", "updated_at"
         ).order_by("-updated_at")
         if looks_like_profile_data(patient)
     ]
-    cohort_patients = list(
-        Patient.objects.only("id", "birth_date", "age_reported", "gender", "smoking_status").prefetch_related(
-            Prefetch(
-                "encounters",
-                queryset=Encounter.objects.select_related("spirometry_result").order_by(
-                    "-encounter_date", "-encounter_time", "-created_at"
-                ),
-            )
-        )
-    )
+    latest_coded_encounters = get_latest_coded_encounters_for_statistics()
     month_patient_ids = {encounter.patient_id for encounter in selected_month_encounters}
     current_month_profiled_patients = [patient for patient in profiled_patients if patient.id in month_patient_ids]
     profile_summary = build_patient_profile_summary(profiled_patients)
     month_profile_summary = build_patient_profile_summary(current_month_profiled_patients)
-    cohort_rows, diagnosis_rows = build_cohort_statistics(cohort_patients)
+    cohort_rows, diagnosis_rows = build_cohort_statistics_from_latest_encounters(latest_coded_encounters)
     mutual_coverage_rows = build_mutual_coverage_rows(selected_month_encounters)
     month_clinical_summary = build_month_clinical_summary(selected_month_encounters)
     month_diagnosis_rows = build_diagnosis_distribution(

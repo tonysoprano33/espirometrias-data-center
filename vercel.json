@@ -1,4 +1,6 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["cle1"],
   "builds": [
     {
       "src": "api/index.py",
