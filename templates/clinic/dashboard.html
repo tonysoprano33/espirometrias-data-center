@@ -1973,12 +1973,14 @@
         display: flex;
         flex-direction: column;
     }
-    .secretary-agenda .agenda-head { order: 1; }
-    .secretary-agenda .secretary-mode-table { order: 2; }
+    /* Reception needs the quick add form immediately available when someone arrives. */
     .secretary-agenda .agenda-entry-panel {
-        order: 3;
-        margin-top: 14px;
+        order: 0;
+        margin: 0 0 14px;
     }
+    .secretary-agenda .agenda-head { order: 1; }
+    .secretary-agenda .agenda-attendance-summary { order: 2; }
+    .secretary-agenda .secretary-mode-table { order: 3; }
     .secretary-mode-table .attendance-cell {
         min-width: 180px;
     }
