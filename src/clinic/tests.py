@@ -12,7 +12,7 @@ from django.utils import timezone
 from docx import Document
 from PIL import Image
 
-from .forms import DrappImportForm, validate_clinical_upload
+from .forms import DrappImportForm, parse_result_code, validate_clinical_upload
 from .models import Attachment, AttachmentKind, CoverageType, Encounter, EncounterStatus, GeneratedReport, Patient, ReferringPhysician, ReportType, SpirometryResult, StudyType, VitalSigns, WalkTest, attachment_upload_to, safe_attachment_filename
 from .pdf_intake import (
     build_analysis_from_text,
@@ -31,6 +31,7 @@ from .views import (
     infer_coverage_type,
     import_drapp_rows,
     get_patient_age_value,
+    get_result_code_from_encounter,
     get_result_file_status,
     save_generated_report_artifacts,
     sort_dashboard_encounters,
@@ -2153,6 +2154,83 @@ class PrintReportViewTests(TestCase):
         self.assertIn("FONTANARI ALICIA NOEMI", html)
         self.assertIn("SO2: 88%", html)
         self.assertIn("FC: 64", html)
+
+    def test_ten_distinct_diagnoses_print_individually_and_in_daily_batch(self):
+        """End-to-end print smoke test using only the isolated Django test database."""
+        cases = [
+            ("QA PRINT 01", "N", StudyType.ESPIROMETRIA, CoverageType.PARTICULAR),
+            ("QA PRINT 02", "OL", StudyType.CICLOMETRIA, CoverageType.MUTUAL),
+            ("QA PRINT 03", "OM", StudyType.CICLOMETRIA, CoverageType.PARTICULAR),
+            ("QA PRINT 04", "OMS", StudyType.CICLOMETRIA, CoverageType.MUTUAL),
+            ("QA PRINT 05", "OS", StudyType.ESPIROMETRIA, CoverageType.PARTICULAR),
+            ("QA PRINT 06", "RL", StudyType.CICLOMETRIA, CoverageType.MUTUAL),
+            ("QA PRINT 07", "RMS", StudyType.CICLOMETRIA, CoverageType.PARTICULAR),
+            ("QA PRINT 08", "RS", StudyType.CICLOMETRIA, CoverageType.MUTUAL),
+            ("QA PRINT 09", "RLOM", StudyType.CICLOMETRIA, CoverageType.PARTICULAR),
+        ]
+        encounters = [self.encounter]
+
+        for index, (full_name, result_code, study_type, coverage_type) in enumerate(cases, start=1):
+            parsed = parse_result_code(result_code)
+            patient = Patient.objects.create(full_name=full_name, dni=str(40_000_000 + index))
+            encounter = Encounter.objects.create(
+                patient=patient,
+                encounter_date=date(2026, 6, 4),
+                encounter_time=time(8 + index, 0),
+                study_type=study_type,
+                coverage_type=coverage_type,
+                status=EncounterStatus.REVISADA,
+                attended=True,
+                attended_at=timezone.now(),
+                created_by=self.user,
+                updated_by=self.user,
+            )
+            VitalSigns.objects.create(
+                encounter=encounter,
+                so2_rest=97 - (index % 3),
+                fc_rest=70 + index,
+                so2_post=95 - (index % 4),
+                fc_post=90 + index,
+            )
+            if study_type == StudyType.CICLOMETRIA:
+                WalkTest.objects.create(
+                    encounter=encounter,
+                    distance_meters=200,
+                    completed=True,
+                    stopped=False,
+                    symptoms=False,
+                    borg_final=index % 5,
+                )
+            SpirometryResult.objects.create(
+                encounter=encounter,
+                respiratory_pattern=parsed["pattern"],
+                obstruction_grade=parsed["obstruction_grade"],
+                restriction_grade=parsed["restriction_grade"],
+                bronchodilator_positive=index == 4,
+            )
+            encounters.append(encounter)
+
+        expected_codes = ["RM", "N", "OL", "OM", "OMS", "OS", "RL", "RMS", "RS", "RLOM"]
+        self.assertEqual([get_result_code_from_encounter(item) for item in encounters], expected_codes)
+
+        for encounter in encounters:
+            response = self.client.get(reverse("clinic:encounter_print", args=[encounter.pk]))
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, encounter.patient.full_name)
+            artifacts = build_reports_for_encounter(encounter)
+            self.assertGreaterEqual(len(artifacts), 1)
+            document_text = "\n".join(paragraph.text for paragraph in Document(BytesIO(artifacts[0].bytes_content)).paragraphs)
+            self.assertIn(encounter.patient.full_name, document_text)
+
+        with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 4)):
+            daily_response = self.client.get(reverse("clinic:daily_print"))
+
+        self.assertEqual(daily_response.status_code, 200)
+        self.assertEqual(len(daily_response.context["blocked_encounters"]), 0)
+        self.assertEqual(len(daily_response.context["printable_packets"]), 10)
+        daily_html = daily_response.content.decode()
+        for encounter in encounters:
+            self.assertIn(encounter.patient.full_name, daily_html)
 
     def test_generated_docx_prints_fc_without_percent_symbol(self):
         artifacts = build_reports_for_encounter(self.encounter)
