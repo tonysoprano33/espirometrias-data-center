@@ -2804,6 +2804,57 @@ def describe_progression(previous_encounter, current_encounter):
     return {"label": "Estable", "tone": "muted", "detail": "No hay cambios clinicos marcados respecto del estudio previo."}
 
 
+def format_progression_metric(value, suffix=""):
+    if value is None:
+        return "-"
+    try:
+        normalized = float(value)
+    except (TypeError, ValueError):
+        return "-"
+    rendered = f"{normalized:.1f}".rstrip("0").rstrip(".").replace(".", ",")
+    return f"{rendered}{suffix}"
+
+
+def build_progression_snapshot(encounter):
+    result = getattr(encounter, "spirometry_result", None)
+    vital = getattr(encounter, "vital_signs", None)
+    return {
+        "date": encounter.encounter_date,
+        "result_code": get_result_code_from_encounter(encounter) or "Sin resultado",
+        "result_label": get_result_label_from_encounter(encounter) or "Sin resultado final",
+        "fev1_percent": format_progression_metric(get_measured_metric(result, "fev1", "percent"), "%"),
+        "fvc_percent": format_progression_metric(get_measured_metric(result, "fvc", "percent"), "%"),
+        "so2_post": format_progression_metric(getattr(vital, "so2_post", None), "%"),
+    }
+
+
+def build_longitudinal_comparison(encounters):
+    """Summarize the first, middle, and latest finalized study for one patient."""
+    coded_encounters = sorted(
+        (encounter for encounter in encounters if get_result_code_from_encounter(encounter)),
+        key=lambda encounter: (
+            encounter.encounter_date or date.min,
+            encounter.encounter_time or datetime.min.time(),
+            encounter.created_at,
+        ),
+    )
+    if len(coded_encounters) < 2:
+        return None
+
+    baseline = coded_encounters[0]
+    latest = coded_encounters[-1]
+    previous = coded_encounters[-2]
+    middle = coded_encounters[len(coded_encounters) // 2] if len(coded_encounters) >= 3 else None
+    return {
+        "total": len(coded_encounters),
+        "baseline": build_progression_snapshot(baseline),
+        "middle": build_progression_snapshot(middle) if middle else None,
+        "latest": build_progression_snapshot(latest),
+        "global": describe_progression(baseline, latest),
+        "latest_change": describe_progression(previous, latest),
+    }
+
+
 def get_patient_age_value(patient) -> int | None:
     if patient.birth_date:
         today = timezone.localdate()
@@ -4282,6 +4333,7 @@ def patient_detail(request, pk):
         "reviewed_encounters": patient.encounters.filter(status=EncounterStatus.REVISADA).count(),
     }
     latest_comparison = progression_map.get(encounters[0].pk) if encounters else None
+    longitudinal_comparison = build_longitudinal_comparison(encounters)
 
     profile_items = [
         ("DNI", patient.dni or "-"),
@@ -4307,6 +4359,7 @@ def patient_detail(request, pk):
             "patient_events": patient_events,
             "operational_summary": operational_summary,
             "latest_comparison": latest_comparison,
+            "longitudinal_comparison": longitudinal_comparison,
             "document_form": document_form,
         },
     )

@@ -2590,6 +2590,52 @@ class PatientHistoryActionsTests(TestCase):
         self.assertIn("Generar completo", html)
         self.assertIn("Subir documento", html)
 
+    def test_patient_detail_shows_first_middle_and_latest_clinical_comparison(self):
+        self.encounter.study_type = StudyType.ESPIROMETRIA
+        self.encounter.encounter_date = date(2026, 1, 10)
+        self.encounter.save(update_fields=["study_type", "encounter_date", "updated_at"])
+        SpirometryResult.objects.create(
+            encounter=self.encounter,
+            respiratory_pattern="Normal",
+            measured_values={"fev1": {"percent": 80}, "fvc": {"percent": 82}},
+        )
+        second = Encounter.objects.create(
+            patient=self.patient,
+            encounter_date=date(2026, 3, 10),
+            study_type=StudyType.ESPIROMETRIA,
+            attended=True,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        SpirometryResult.objects.create(
+            encounter=second,
+            respiratory_pattern="Obstructivo",
+            obstruction_grade="Leve",
+            measured_values={"fev1": {"percent": 68}, "fvc": {"percent": 78}},
+        )
+        latest = Encounter.objects.create(
+            patient=self.patient,
+            encounter_date=date(2026, 6, 10),
+            study_type=StudyType.ESPIROMETRIA,
+            attended=True,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        SpirometryResult.objects.create(
+            encounter=latest,
+            respiratory_pattern="Normal",
+            measured_values={"fev1": {"percent": 88}, "fvc": {"percent": 90}},
+        )
+
+        response = self.client.get(reverse("clinic:patient_detail", args=[self.patient.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Comparacion entre visitas")
+        self.assertContains(response, "Primera visita")
+        self.assertContains(response, "Visita intermedia")
+        self.assertContains(response, "Ultima visita")
+        self.assertContains(response, "Cambio frente a la visita anterior")
+
     def test_print_without_final_result_is_blocked_instead_of_defaulting_to_normal(self):
         response = self.client.get(reverse("clinic:encounter_print", args=[self.encounter.pk]))
 
