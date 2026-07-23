@@ -1000,6 +1000,40 @@
         width: 100%;
         min-width: 0;
     }
+    .espirometrista-agenda .agenda-print-action {
+        display: block;
+        width: 100%;
+    }
+    .espirometrista-agenda .agenda-print-action .button {
+        display: flex;
+        width: 100%;
+        min-height: 42px;
+        align-items: center;
+        justify-content: center;
+        font-size: .88rem;
+        font-weight: 800;
+    }
+    .espirometrista-agenda .agenda-print-unavailable {
+        display: block;
+        width: 100%;
+        padding: 8px;
+        border: 1px dashed rgba(100,116,139,.38);
+        border-radius: 10px;
+        color: var(--muted);
+        font-size: .76rem;
+        line-height: 1.15;
+        text-align: center;
+    }
+    .espirometrista-agenda [data-report-form] .button.small {
+        width: 100%;
+        min-height: 30px;
+        padding: 5px 8px;
+        border-radius: 9px;
+        background: #f2f7f8;
+        color: var(--brand);
+        box-shadow: none;
+        font-size: .72rem;
+    }
     @media (min-width: 1851px) {
         .espirometrista-agenda .table {
             table-layout: fixed;
@@ -2706,6 +2740,7 @@
                         {% if current_work_mode != "espirometrista" %}<td class="status-cell" data-label="Estado" data-status-label><span class="status-badge {{ encounter.status_css_class }}">{{ encounter.status }}</span></td>{% endif %}
                         <td class="td-actions" data-label="Acciones">
                             <div style="display:grid; gap:8px; min-width:150px;">
+                                <span class="agenda-print-action" data-print-link>{% if encounter.can_print_result %}<a class="button" href="{{ encounter.print_url }}" target="_blank" rel="noopener">Imprimir</a>{% else %}<span class="agenda-print-unavailable" title="{{ encounter.print_block_reason }}">Imprimir no disponible</span>{% endif %}</span>
                                 <form method="post" action="{% url 'clinic:encounter_generate_report' encounter.pk %}" data-report-form>
                                     {% csrf_token %}
                                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
@@ -2722,7 +2757,6 @@
                                 <div class="agenda-row-links">
                                     {% if perms.clinic.manage_agenda %}<a href="{% url 'clinic:encounter_edit' encounter.pk %}">Editar</a> |{% endif %}
                                     {% if perms.clinic.review_medically %}<a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Revision</a> |{% endif %}
-                                    <span data-print-link>{% if encounter.can_print_result %}<a href="{{ encounter.print_url }}" target="_blank" rel="noopener">Imprimir</a>{% else %}<span class="muted" title="{{ encounter.print_block_reason }}">Imprimir no disponible</span>{% endif %}</span>
                                     {% if current_work_mode != "espirometrista" %}| <a href="{% url 'clinic:patient_detail' encounter.patient.pk %}" data-history-link>Historia</a>{% endif %}
                                     {% if perms.clinic.manage_agenda %}| <form method="post" style="display:inline;" data-delete-form>
                                         {% csrf_token %}
@@ -3301,9 +3335,9 @@
             }
             if (printLink) {
                 if (payload.can_print_result) {
-                    printLink.innerHTML = '<a href="' + escapeHtml(payload.print_url || "#") + '" target="_blank" rel="noopener">Imprimir</a>';
+                    printLink.innerHTML = '<a class="button" href="' + escapeHtml(payload.print_url || "#") + '" target="_blank" rel="noopener">Imprimir</a>';
                 } else {
-                    printLink.innerHTML = '<span class="muted" title="' + escapeHtml(payload.print_block_reason || "") + '">Imprimir no disponible</span>';
+                    printLink.innerHTML = '<span class="agenda-print-unavailable" title="' + escapeHtml(payload.print_block_reason || "") + '">Imprimir no disponible</span>';
                 }
             }
         }
@@ -3930,9 +3964,9 @@
             var printLink = row && row.querySelector ? row.querySelector("[data-print-link]") : null;
             if (printLink) {
                 if (payload.can_print_result) {
-                    printLink.innerHTML = '<a href="' + escapeHtml(payload.print_url || "#") + '" target="_blank" rel="noopener">Imprimir</a>';
+                    printLink.innerHTML = '<a class="button" href="' + escapeHtml(payload.print_url || "#") + '" target="_blank" rel="noopener">Imprimir</a>';
                 } else {
-                    printLink.innerHTML = '<span class="muted" title="' + escapeHtml(payload.print_block_reason || "") + '">Imprimir no disponible</span>';
+                    printLink.innerHTML = '<span class="agenda-print-unavailable" title="' + escapeHtml(payload.print_block_reason || "") + '">Imprimir no disponible</span>';
                 }
             }
         }

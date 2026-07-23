@@ -806,6 +806,9 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertIn('data-review-state="result-ready"', html)
         self.assertNotIn('<th class="col-status">Estado</th>', html)
         self.assertNotIn('data-history-link>Historia</a>', html)
+        self.assertIn('class="agenda-print-action" data-print-link', html)
+        actions_html = html[html.index('class="agenda-print-action" data-print-link') :]
+        self.assertIn('data-report-form', actions_html)
 
     def test_secretary_mode_prioritizes_attendance_and_hides_clinical_controls(self):
         session = self.client.session
