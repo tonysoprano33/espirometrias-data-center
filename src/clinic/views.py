@@ -1630,7 +1630,7 @@ def find_possible_patient_duplicates(full_name: str, dni: str = "", *, exclude_p
     matches = []
     seen_ids = set()
 
-    def add_match(patient, reason, *, same_dni=False):
+    def add_match(patient, reason, *, same_dni=False, same_name=False):
         if patient.pk in seen_ids or len(matches) >= limit:
             return
         existing_dni = normalize_document_number(patient.dni or "")
@@ -1640,6 +1640,7 @@ def find_possible_patient_duplicates(full_name: str, dni: str = "", *, exclude_p
                 "patient": patient,
                 "reason": reason,
                 "same_dni": same_dni,
+                "same_name": same_name,
                 "can_use": compatible_with_entered_dni,
             }
         )
@@ -1656,7 +1657,7 @@ def find_possible_patient_duplicates(full_name: str, dni: str = "", *, exclude_p
 
     if name_key:
         for patient in base_queryset.filter(full_name__iexact=full_name.strip()).order_by("full_name")[:limit]:
-            add_match(patient, "Mismo nombre")
+            add_match(patient, "Mismo nombre", same_name=True)
 
         name_tokens = identity_tokens(full_name)
         if len(name_tokens) >= 2 and len(matches) < limit:
@@ -1669,7 +1670,8 @@ def find_possible_patient_duplicates(full_name: str, dni: str = "", *, exclude_p
                 candidate_tokens = identity_tokens(patient.full_name)
                 common_tokens = input_token_set & candidate_tokens
                 if len(common_tokens) >= 2 or len(common_tokens) == len(input_token_set):
-                    add_match(patient, "Nombre muy parecido")
+                    same_name = normalize_patient_identity_name(patient.full_name) == name_key
+                    add_match(patient, "Mismo nombre" if same_name else "Nombre muy parecido", same_name=same_name)
 
     return matches
 
@@ -3048,6 +3050,7 @@ def render_dashboard_response(
         "import_preview_token": import_preview_token,
         "quick_duplicate_candidates": quick_duplicate_candidates,
         "quick_duplicate_has_same_dni": any(candidate["same_dni"] for candidate in quick_duplicate_candidates),
+        "quick_duplicate_has_same_name": any(candidate["same_name"] for candidate in quick_duplicate_candidates),
     }
     return render(request, "clinic/dashboard.html", context)
 
@@ -3449,6 +3452,22 @@ def dashboard(request):
                             quick_form.add_error(
                                 "patient_dni",
                                 "Ese DNI ya pertenece a una historia existente. Elegi esa historia para no duplicar al paciente.",
+                            )
+                            return render_dashboard_response(
+                                request,
+                                today=today,
+                                quick_form=quick_form,
+                                import_form=import_form,
+                                physician_form=physician_form,
+                                today_encounters=today_encounters,
+                                status_cards=status_cards,
+                                operation_alerts=operation_alerts,
+                                quick_duplicate_candidates=duplicate_candidates,
+                            )
+                        if any(candidate["same_name"] for candidate in duplicate_candidates) and not quick_form.cleaned_data.get("patient_dni"):
+                            quick_form.add_error(
+                                "patient_dni",
+                                "Para crear un paciente nuevo con el mismo nombre, completa un DNI distinto en Datos opcionales.",
                             )
                             return render_dashboard_response(
                                 request,
@@ -4179,6 +4198,8 @@ def patient_create(request):
             elif duplicate_action == "create_new":
                 if any(candidate["same_dni"] for candidate in possible_duplicates):
                     form.add_error("dni", "Ese DNI ya pertenece a una historia existente. No se puede duplicar.")
+                elif any(candidate["same_name"] for candidate in possible_duplicates) and not form.cleaned_data.get("dni"):
+                    form.add_error("dni", "Para crear un paciente nuevo con el mismo nombre, completa un DNI distinto.")
                 else:
                     patient = form.save()
                     messages.success(request, "Paciente creado correctamente.")

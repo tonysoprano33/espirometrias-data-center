@@ -61,18 +61,18 @@
         {% if possible_duplicates %}
             <section class="patient-duplicate-warning" aria-live="polite">
                 <h2>Posible paciente existente</h2>
-                <p>Revisa estas historias antes de crear otra. Si es otra persona, podes continuar solo cuando el DNI no coincide.</p>
+                <p>El DNI diferencia a cada persona. Si el nombre coincide y es otra persona, completa un DNI distinto antes de crearla.</p>
                 {% for candidate in possible_duplicates %}
                     <div class="patient-duplicate-row">
                         <div>
                             <strong>{{ candidate.patient.full_name }}</strong>
-                            <span>{{ candidate.reason }}{% if candidate.patient.dni %} - DNI {{ candidate.patient.dni }}{% endif %}{% if candidate.patient.deleted_at %} - En papelera{% endif %}</span>
+                            <span>{{ candidate.reason }}{% if candidate.patient.dni %} - DNI de esta historia: {{ candidate.patient.dni }}{% else %} - Sin DNI cargado{% endif %}{% if candidate.patient.deleted_at %} - En papelera{% endif %}</span>
                         </div>
                         <button class="button alt" type="submit" name="duplicate_action" value="open_existing:{{ candidate.patient.pk }}">Abrir historia</button>
                     </div>
                 {% endfor %}
                 {% if not possible_duplicates.0.same_dni %}
-                    <button class="button secondary" type="submit" name="duplicate_action" value="create_new">Es otra persona, crear igual</button>
+                    <button class="button secondary" type="submit" name="duplicate_action" value="create_new">Es otra persona, crear con DNI nuevo</button>
                 {% endif %}
             </section>
         {% else %}

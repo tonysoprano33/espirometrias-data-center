@@ -1080,7 +1080,7 @@ class DashboardQuickAddTests(TestCase):
         Patient.objects.create(full_name="PEREZ, JUAN")
         payload = {
             "action": "quick_add",
-            "patient_name": "Perez Juan",
+            "patient_name": "Perez Juan Carlos",
             "encounter_time": "12:15",
             "study_type": StudyType.CICLOMETRIA,
             "coverage_type": CoverageType.PARTICULAR,
@@ -1098,7 +1098,42 @@ class DashboardQuickAddTests(TestCase):
         )
 
         self.assertRedirects(response, reverse("clinic:dashboard"))
-        self.assertEqual(Patient.objects.filter(full_name="PEREZ JUAN").count(), 1)
+        self.assertEqual(Patient.objects.filter(full_name="PEREZ JUAN CARLOS").count(), 1)
+
+    def test_quick_add_same_name_requires_a_new_dni_for_a_new_history(self):
+        patient = Patient.objects.create(full_name="PEREZ, JUAN", dni="30111222")
+        payload = {
+            "action": "quick_add",
+            "patient_name": "Perez Juan",
+            "encounter_time": "12:15",
+            "study_type": StudyType.CICLOMETRIA,
+            "coverage_type": CoverageType.PARTICULAR,
+        }
+
+        response = self.client.post(reverse("clinic:dashboard"), payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "DNI de esta historia")
+        self.assertContains(response, "30.111.222")
+
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {**payload, "duplicate_action": "create_new"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "completa un DNI distinto")
+        self.assertEqual(Patient.objects.count(), 1)
+
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {**payload, "patient_dni": "30.111.223", "duplicate_action": "create_new"},
+        )
+
+        self.assertRedirects(response, reverse("clinic:dashboard"))
+        self.assertEqual(Patient.objects.count(), 2)
+        self.assertTrue(Encounter.objects.filter(patient__dni="30111223").exists())
+        self.assertEqual(Encounter.objects.exclude(patient=patient).count(), 1)
 
 
 class PatientCreateDuplicateWarningTests(TestCase):
@@ -1128,6 +1163,22 @@ class PatientCreateDuplicateWarningTests(TestCase):
         response = self.client.get(reverse("clinic:patient_detail", args=[patient.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "LOPEZ, ANA")
+        self.assertEqual(Patient.objects.count(), 1)
+
+    def test_patient_create_same_name_requires_a_new_dni_for_a_new_history(self):
+        Patient.objects.create(full_name="LOPEZ, ANA", dni="28123456")
+        payload = {"full_name": "Lopez Ana", "dni": "", "phone": "", "notes": ""}
+
+        response = self.client.post(reverse("clinic:patient_create"), payload)
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.post(
+            reverse("clinic:patient_create"),
+            {**payload, "duplicate_action": "create_new"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "completa un DNI distinto")
         self.assertEqual(Patient.objects.count(), 1)
 
 

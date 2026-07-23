@@ -2171,16 +2171,20 @@
                 {% if quick_duplicate_candidates %}
                     <section class="possible-duplicate-panel" aria-live="polite">
                         <h3>Posible paciente existente</h3>
-                        <p>Antes de agendar, elegi una historia existente o confirma que se trata de otra persona.</p>
+                        {% if quick_duplicate_has_same_name %}
+                            <p>El nombre coincide. Si es una nueva visita, usa la historia indicada. Si es otra persona, completa un DNI distinto dentro de Datos opcionales.</p>
+                        {% else %}
+                            <p>Antes de agendar, elegi una historia existente o confirma que se trata de otra persona.</p>
+                        {% endif %}
                         <div class="possible-duplicate-list">
                             {% for candidate in quick_duplicate_candidates %}
                                 <div class="possible-duplicate-choice">
                                     <div>
                                         <strong>{{ candidate.patient.full_name }}</strong>
-                                        <span>{{ candidate.reason }}{% if candidate.patient.dni %} - DNI {{ candidate.patient.dni|dni_format }}{% endif %}{% if candidate.patient.deleted_at %} - En papelera{% endif %}</span>
+                                        <span>{{ candidate.reason }}{% if candidate.patient.dni %} - DNI de esta historia: {{ candidate.patient.dni|dni_format }}{% else %} - Sin DNI cargado{% endif %}{% if candidate.patient.deleted_at %} - En papelera{% endif %}</span>
                                     </div>
                                     {% if candidate.can_use %}
-                                        <button class="button alt" type="submit" name="duplicate_action" value="use_existing:{{ candidate.patient.pk }}">Usar esta historia</button>
+                                        <button class="button alt" type="submit" name="duplicate_action" value="use_existing:{{ candidate.patient.pk }}">Usar historia / nueva visita</button>
                                     {% else %}
                                         <span>El DNI ingresado no coincide</span>
                                     {% endif %}
@@ -2189,7 +2193,7 @@
                         </div>
                         <div class="possible-duplicate-actions">
                             {% if not quick_duplicate_has_same_dni %}
-                                <button class="button secondary" type="submit" name="duplicate_action" value="create_new">Es otra persona, crear igual</button>
+                                <button class="button secondary" type="submit" name="duplicate_action" value="create_new">Es otra persona, crear con DNI nuevo</button>
                             {% endif %}
                             <a class="button secondary" href="{% url 'clinic:dashboard' %}">Cancelar</a>
                         </div>
