@@ -3294,6 +3294,14 @@
             }
         }
 
+        function escapeHtml(value) {
+            return String(value === null || typeof value === "undefined" ? "" : value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
         function updateReportUI(row, payload) {
             if (!row || !payload) return;
             const reportButton = row.querySelector("[data-report-button]");

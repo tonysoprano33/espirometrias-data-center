@@ -809,6 +809,7 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertIn('class="agenda-print-action" data-print-link', html)
         actions_html = html[html.index('class="agenda-print-action" data-print-link') :]
         self.assertIn('data-report-form', actions_html)
+        self.assertLess(html.index('function escapeHtml(value)'), html.index('function updateReportUI(row, payload)'))
 
     def test_secretary_mode_prioritizes_attendance_and_hides_clinical_controls(self):
         session = self.client.session
