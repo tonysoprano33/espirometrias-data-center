@@ -791,6 +791,22 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertIn('title="Guardar SO2 y FC en reposo"', html)
         self.assertIn('title="Guardar SO2 y FC post"', html)
 
+    def test_espirometrista_dashboard_uses_review_bands_instead_of_a_duplicate_status(self):
+        SpirometryResult.objects.create(encounter=self.encounter, respiratory_pattern="Normal")
+        session = self.client.session
+        session["clinic_work_mode"] = "espirometrista"
+        session.save()
+
+        with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
+            response = self.client.get(reverse("clinic:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn("espirometrista-agenda", html)
+        self.assertIn('data-review-state="result-ready"', html)
+        self.assertNotIn('<th class="col-status">Estado</th>', html)
+        self.assertNotIn('data-history-link>Historia</a>', html)
+
     def test_secretary_mode_prioritizes_attendance_and_hides_clinical_controls(self):
         session = self.client.session
         session["clinic_work_mode"] = "secretaria"

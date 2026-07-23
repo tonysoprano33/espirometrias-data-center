@@ -740,6 +740,14 @@ def encounter_is_pending_doctor_review(encounter) -> bool:
     return encounter.attended and encounter_has_review_pdf(encounter) and encounter.status not in get_doctor_review_done_statuses()
 
 
+def get_agenda_review_visual_state(encounter) -> str:
+    if get_result_code_from_encounter(encounter):
+        return "result-ready"
+    if encounter_has_review_pdf(encounter):
+        return "awaiting-review"
+    return "neutral"
+
+
 def build_doctor_review_queue(reference_date, current_encounter=None):
     pending_encounters = []
     queue_qs = (
@@ -1142,6 +1150,7 @@ def get_row_state_payload(encounter):
         "encounter_id": encounter.pk,
         "status": encounter.status,
         "status_css_class": get_status_badge_class(encounter.status),
+        "review_visual_state": get_agenda_review_visual_state(encounter),
         "attended": encounter.attended,
         "no_show": encounter.no_show,
         "attendance_label": get_attendance_label(encounter),
@@ -3268,7 +3277,7 @@ def dashboard(request):
     }
     today_encounters = (
         Encounter.objects.select_related("patient", "referring_physician", "vital_signs", "spirometry_result")
-        .prefetch_related("generated_reports__attachment")
+        .prefetch_related("attachments", "generated_reports__attachment")
         .filter(encounter_date=today)
         .order_by("encounter_time", "created_at")
     )
@@ -3277,6 +3286,7 @@ def dashboard(request):
     for encounter in today_encounters:
         encounter.result_code = get_result_code_from_encounter(encounter)
         encounter.status_css_class = get_status_badge_class(encounter.status)
+        encounter.review_visual_state = get_agenda_review_visual_state(encounter)
         encounter.can_generate_report, encounter.report_block_reason = get_report_readiness(encounter)
         encounter.has_generated_reports = len(encounter.generated_reports.all()) > 0
         encounter.has_cycle_data = encounter_has_cycle_data(encounter)

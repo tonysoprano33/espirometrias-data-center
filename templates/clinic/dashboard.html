@@ -985,6 +985,59 @@
             display: none !important;
         }
     }
+    .espirometrista-agenda [data-review-state="awaiting-review"] > td {
+        box-shadow: inset 0 4px 0 #ec8b20;
+    }
+    .espirometrista-agenda [data-review-state="result-ready"] > td {
+        box-shadow: inset 0 4px 0 #28a35e;
+    }
+    .espirometrista-agenda .result-cell,
+    .espirometrista-agenda .col-result {
+        width: 7%;
+    }
+    .espirometrista-agenda .result-cell .inline-cell-form,
+    .espirometrista-agenda .result-input {
+        width: 100%;
+        min-width: 0;
+    }
+    @media (min-width: 1851px) {
+        .espirometrista-agenda .table {
+            table-layout: fixed;
+        }
+        .espirometrista-agenda .col-time,
+        .espirometrista-agenda .time-cell { width: 7%; }
+        .espirometrista-agenda .col-patient,
+        .espirometrista-agenda .patient-cell { width: 17%; }
+        .espirometrista-agenda .vitals-cell[data-label="DNI"] { width: 9%; }
+        .espirometrista-agenda .study-cell { width: 8%; }
+        .espirometrista-agenda .coverage-cell[data-label="Cobertura"] { width: 9%; }
+        .espirometrista-agenda .coverage-cell[data-label="Dr. deriva"] { width: 13%; }
+        .espirometrista-agenda td[data-label="SO2 / FC reposo"],
+        .espirometrista-agenda td[data-label="SO2 / FC post"] { width: 7%; }
+        .espirometrista-agenda .col-attendance,
+        .espirometrista-agenda .attendance-cell { width: 7%; }
+        .espirometrista-agenda .td-actions { width: 9%; }
+        .espirometrista-agenda .result-input {
+            min-height: 42px;
+            padding-left: 9px;
+            padding-right: 9px;
+            text-align: center;
+        }
+        .espirometrista-agenda .agenda-row-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px 6px;
+        }
+    }
+    @media (max-width: 1850px) and (min-width: 681px) {
+        .espirometrista-agenda .responsive-table-wrap.notebook-stack [data-encounter-row],
+        .espirometrista-agenda .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed {
+            grid-template-columns: 32px 66px minmax(120px, 1.35fr) minmax(82px, .72fr) minmax(76px, .52fr) minmax(86px, .55fr) minmax(120px, .7fr) minmax(120px, .7fr);
+            grid-template-areas:
+                "toggle time patient dni result attendance actions actions"
+                "toggle study coverage doctor rest post actions actions";
+        }
+    }
     @media (max-width: 1680px) and (min-width: 901px) {
         .responsive-table-wrap.notebook-stack {
             overflow-x: auto;
@@ -2139,7 +2192,7 @@
         .secretary-mode-table.notebook-stack .attendance-cell { grid-area: attendance; }
     }
 </style>
-<section class="card agenda-card{% if current_work_mode == 'secretaria' %} secretary-agenda{% endif %}">
+<section class="card agenda-card{% if current_work_mode == 'secretaria' %} secretary-agenda{% elif current_work_mode == 'espirometrista' %} espirometrista-agenda{% endif %}">
     <div class="agenda-head">
         <div>
             <p class="pill">Agenda {{ today|date:"d/m/Y" }}</p>
@@ -2445,7 +2498,7 @@
                     {% endif %}
                     <th class="col-attendance">Asistencia</th>
                     {% if current_work_mode != "secretaria" %}
-                        <th class="col-status">Estado</th>
+                    {% if current_work_mode != "espirometrista" %}<th class="col-status">Estado</th>{% endif %}
                         <th></th>
                     {% endif %}
                 </tr>
@@ -2461,6 +2514,7 @@
                         data-encounter-time="{{ encounter.encounter_time|time:'H:i'|default:'' }}"
                         data-study-type="{{ encounter.study_type }}"
                         data-has-cycle-data="{% if encounter.has_cycle_data %}1{% else %}0{% endif %}"
+                        data-review-state="{{ encounter.review_visual_state }}"
                         data-auto-collapse="{% if encounter.attended or encounter.no_show %}1{% else %}0{% endif %}"
                     >
                         {% if current_work_mode != "secretaria" %}
@@ -2649,7 +2703,7 @@
                             {% endif %}
                         </td>
                         {% if current_work_mode != "secretaria" %}
-                        <td class="status-cell" data-label="Estado" data-status-label><span class="status-badge {{ encounter.status_css_class }}">{{ encounter.status }}</span></td>
+                        {% if current_work_mode != "espirometrista" %}<td class="status-cell" data-label="Estado" data-status-label><span class="status-badge {{ encounter.status_css_class }}">{{ encounter.status }}</span></td>{% endif %}
                         <td class="td-actions" data-label="Acciones">
                             <div style="display:grid; gap:8px; min-width:150px;">
                                 <form method="post" action="{% url 'clinic:encounter_generate_report' encounter.pk %}" data-report-form>
@@ -2668,9 +2722,9 @@
                                 <div class="agenda-row-links">
                                     {% if perms.clinic.manage_agenda %}<a href="{% url 'clinic:encounter_edit' encounter.pk %}">Editar</a> |{% endif %}
                                     {% if perms.clinic.review_medically %}<a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Revision</a> |{% endif %}
-                                    <span data-print-link>{% if encounter.can_print_result %}<a href="{{ encounter.print_url }}" target="_blank" rel="noopener">Imprimir</a>{% else %}<span class="muted" title="{{ encounter.print_block_reason }}">Imprimir no disponible</span>{% endif %}</span> |
-                                    <a href="{% url 'clinic:patient_detail' encounter.patient.pk %}" data-history-link>Historia</a> |
-                                    {% if perms.clinic.manage_agenda %}<form method="post" style="display:inline;" data-delete-form>
+                                    <span data-print-link>{% if encounter.can_print_result %}<a href="{{ encounter.print_url }}" target="_blank" rel="noopener">Imprimir</a>{% else %}<span class="muted" title="{{ encounter.print_block_reason }}">Imprimir no disponible</span>{% endif %}</span>
+                                    {% if current_work_mode != "espirometrista" %}| <a href="{% url 'clinic:patient_detail' encounter.patient.pk %}" data-history-link>Historia</a>{% endif %}
+                                    {% if perms.clinic.manage_agenda %}| <form method="post" style="display:inline;" data-delete-form>
                                         {% csrf_token %}
                                         <input type="hidden" name="action" value="delete_encounter">
                                         <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
@@ -2699,7 +2753,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="{% if current_work_mode == 'secretaria' %}6{% else %}13{% endif %}">Todavia no hay pacientes cargados para hoy.</td>
+                        <td colspan="{% if current_work_mode == 'secretaria' %}6{% elif current_work_mode == 'espirometrista' %}12{% else %}13{% endif %}">Todavia no hay pacientes cargados para hoy.</td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -3918,6 +3972,9 @@
             }
             if (payload.status_css_class) {
                 row.setAttribute("data-status-class", payload.status_css_class);
+            }
+            if (payload.review_visual_state) {
+                row.setAttribute("data-review-state", payload.review_visual_state);
             }
             row.setAttribute("data-attended-at", payload.attended_at || "");
             row.setAttribute("data-encounter-time", payload.encounter_time || "");
