@@ -1,0 +1,8 @@
+[project]
+name = "clinica-automatizador-espiro"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+
+[tool.vercel.scripts]
+# Keep the database schema in sync before publishing code that expects it.
+build = "python src/manage.py migrate --noinput"

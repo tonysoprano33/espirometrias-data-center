@@ -1123,6 +1123,11 @@ class PatientCreateDuplicateWarningTests(TestCase):
         )
 
         self.assertRedirects(response, reverse("clinic:patient_detail", args=[patient.pk]))
+        # Reusing an existing history must also render the destination page.
+        # A redirect alone can hide a production-only failure in the history view.
+        response = self.client.get(reverse("clinic:patient_detail", args=[patient.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "LOPEZ, ANA")
         self.assertEqual(Patient.objects.count(), 1)
 
 
