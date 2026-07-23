@@ -2018,7 +2018,12 @@
         padding: 14px 12px;
         background: #edf5ff;
     }
+    .secretary-mode-table .inline-cell-form,
+    .secretary-mode-table .inline-edit {
+        width: 100%;
+    }
     .secretary-mode-table .cell-time {
+        width: 100%;
         min-height: 48px;
         padding: 8px 10px;
         border-color: #c7d9ec;
@@ -2049,6 +2054,10 @@
         padding: 14px 12px;
     }
     .secretary-mode-table .vitals-cell[data-label="DNI"] .inline-display {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        justify-content: center;
         min-height: 46px;
         padding: 8px 10px;
         border: 1px solid rgba(27, 103, 135, .14);
