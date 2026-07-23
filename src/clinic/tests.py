@@ -21,7 +21,7 @@ from .pdf_intake import (
     extract_patient_snapshot_from_text,
     extract_spirometry_numbers_from_text,
 )
-from .services import build_reports_for_encounter, construir_informe_espirometria, normalizar_medico
+from .services import build_reports_for_encounter, build_walk_measurement_rows, construir_informe_espirometria, normalizar_medico
 from .views import (
     build_drapp_import_preview,
     extract_drapp_rows_from_browser_ocr,
@@ -2158,19 +2158,21 @@ class PrintReportViewTests(TestCase):
     def test_ten_distinct_diagnoses_print_individually_and_in_daily_batch(self):
         """End-to-end print smoke test using only the isolated Django test database."""
         cases = [
-            ("QA PRINT 01", "N", StudyType.ESPIROMETRIA, CoverageType.PARTICULAR),
-            ("QA PRINT 02", "OL", StudyType.CICLOMETRIA, CoverageType.MUTUAL),
-            ("QA PRINT 03", "OM", StudyType.CICLOMETRIA, CoverageType.PARTICULAR),
-            ("QA PRINT 04", "OMS", StudyType.CICLOMETRIA, CoverageType.MUTUAL),
-            ("QA PRINT 05", "OS", StudyType.ESPIROMETRIA, CoverageType.PARTICULAR),
-            ("QA PRINT 06", "RL", StudyType.CICLOMETRIA, CoverageType.MUTUAL),
-            ("QA PRINT 07", "RMS", StudyType.CICLOMETRIA, CoverageType.PARTICULAR),
-            ("QA PRINT 08", "RS", StudyType.CICLOMETRIA, CoverageType.MUTUAL),
-            ("QA PRINT 09", "RLOM", StudyType.CICLOMETRIA, CoverageType.PARTICULAR),
+            ("QA PRINT 01", "N", StudyType.ESPIROMETRIA, CoverageType.PARTICULAR, None, False),
+            ("QA PRINT 02", "OL", StudyType.CICLOMETRIA, CoverageType.MUTUAL, 0, False),
+            ("QA PRINT 03", "OM", StudyType.CICLOMETRIA, CoverageType.PARTICULAR, 1, False),
+            ("QA PRINT 04", "OMS", StudyType.CICLOMETRIA, CoverageType.MUTUAL, 2, True),
+            ("QA PRINT 05", "OS", StudyType.ESPIROMETRIA, CoverageType.PARTICULAR, None, False),
+            ("QA PRINT 06", "RL", StudyType.CICLOMETRIA, CoverageType.MUTUAL, 4, False),
+            ("QA PRINT 07", "RMS", StudyType.CICLOMETRIA, CoverageType.PARTICULAR, 5, False),
+            ("QA PRINT 08", "RS", StudyType.CICLOMETRIA, CoverageType.MUTUAL, 7, False),
+            ("QA PRINT 09", "RLOM", StudyType.CICLOMETRIA, CoverageType.PARTICULAR, 10, False),
         ]
         encounters = [self.encounter]
+        expected_borg_final = {self.encounter.pk: 1}
+        bronchodilator_positive_ids = set()
 
-        for index, (full_name, result_code, study_type, coverage_type) in enumerate(cases, start=1):
+        for index, (full_name, result_code, study_type, coverage_type, borg_final, bronchodilator_positive) in enumerate(cases, start=1):
             parsed = parse_result_code(result_code)
             patient = Patient.objects.create(full_name=full_name, dni=str(40_000_000 + index))
             encounter = Encounter.objects.create(
@@ -2199,15 +2201,18 @@ class PrintReportViewTests(TestCase):
                     completed=True,
                     stopped=False,
                     symptoms=False,
-                    borg_final=index % 5,
+                    borg_final=borg_final,
                 )
+                expected_borg_final[encounter.pk] = borg_final or 1
             SpirometryResult.objects.create(
                 encounter=encounter,
                 respiratory_pattern=parsed["pattern"],
                 obstruction_grade=parsed["obstruction_grade"],
                 restriction_grade=parsed["restriction_grade"],
-                bronchodilator_positive=index == 4,
+                bronchodilator_positive=bronchodilator_positive,
             )
+            if bronchodilator_positive:
+                bronchodilator_positive_ids.add(encounter.pk)
             encounters.append(encounter)
 
         expected_codes = ["RM", "N", "OL", "OM", "OMS", "OS", "RL", "RMS", "RS", "RLOM"]
@@ -2219,8 +2224,22 @@ class PrintReportViewTests(TestCase):
             self.assertContains(response, encounter.patient.full_name)
             artifacts = build_reports_for_encounter(encounter)
             self.assertGreaterEqual(len(artifacts), 1)
-            document_text = "\n".join(paragraph.text for paragraph in Document(BytesIO(artifacts[0].bytes_content)).paragraphs)
+            document = Document(BytesIO(artifacts[0].bytes_content))
+            document_text = "\n".join(paragraph.text for paragraph in document.paragraphs)
             self.assertIn(encounter.patient.full_name, document_text)
+            if encounter.pk in bronchodilator_positive_ids:
+                self.assertIn("Broncodilatador Positivo", document_text)
+            else:
+                self.assertNotIn("Broncodilatador Positivo", document_text)
+            if encounter.study_type == StudyType.CICLOMETRIA:
+                rows = build_walk_measurement_rows(encounter.vital_signs, encounter.walk_test)
+                self.assertEqual(len(rows), 7)
+                self.assertEqual(rows[0]["borg"], 0)
+                self.assertEqual(rows[-1]["borg"], expected_borg_final[encounter.pk])
+                self.assertTrue(all(row["so2"] != "" and row["fc"] != "" for row in rows))
+                self.assertEqual([row["borg"] for row in rows], sorted(row["borg"] for row in rows))
+                walk_table = next(table for table in document.tables if table.rows[0].cells[0].text == "MINUTOS")
+                self.assertEqual(walk_table.rows[7].cells[3].text, str(expected_borg_final[encounter.pk]))
 
         with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 4)):
             daily_response = self.client.get(reverse("clinic:daily_print"))
@@ -2229,6 +2248,7 @@ class PrintReportViewTests(TestCase):
         self.assertEqual(len(daily_response.context["blocked_encounters"]), 0)
         self.assertEqual(len(daily_response.context["printable_packets"]), 10)
         daily_html = daily_response.content.decode()
+        self.assertIn("Broncodilatador Positivo", daily_html)
         for encounter in encounters:
             self.assertIn(encounter.patient.full_name, daily_html)
 
