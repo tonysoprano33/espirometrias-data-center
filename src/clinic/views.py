@@ -86,6 +86,7 @@ from .services import (
     normalizar_medico,
     normalizar_patron,
 )
+from .roles import WORK_MODES, fixed_work_mode_for_user, get_request_work_mode
 
 
 SPANISH_MONTHS = [
@@ -103,17 +104,21 @@ SPANISH_MONTHS = [
     "Diciembre",
 ]
 SPANISH_WEEKDAYS = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"]
-WORK_MODES = {"secretaria", "medico", "espirometrista"}
 
 
 def get_work_mode(request):
-    saved_mode = str(request.session.get("clinic_work_mode", "") or "").strip()
-    return saved_mode if saved_mode in WORK_MODES else "espirometrista"
+    return get_request_work_mode(request)
 
 
 @login_required
 @require_POST
 def set_work_mode(request):
+    fixed_mode = fixed_work_mode_for_user(request.user)
+    if fixed_mode:
+        if fixed_mode == "medico":
+            return redirect("clinic:doctor_review_list")
+        return redirect("clinic:dashboard")
+
     work_mode = str(request.POST.get("work_mode", "") or "").strip()
     if work_mode not in WORK_MODES:
         messages.error(request, "Modo de trabajo no valido.")
@@ -3356,6 +3361,8 @@ def render_dashboard_response(
 @login_required
 def dashboard(request):
     purge_expired_recycle_bin()
+    if get_work_mode(request) == "medico":
+        return redirect("clinic:doctor_review_list")
     if request.method == "POST":
         require_any_clinic_permission(request, "clinic.manage_agenda")
     today = timezone.localdate()

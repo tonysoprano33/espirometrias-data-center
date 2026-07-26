@@ -6,6 +6,8 @@ from django.http import Http404
 from django.http import FileResponse
 from django.urls import include, path
 
+from clinic.auth_views import RoleLoginView
+
 
 FAVICON_CONTENT_TYPES = {
     "favicon.svg": "image/svg+xml",
@@ -32,7 +34,7 @@ urlpatterns = [
     path("static/favicon-32.png", favicon_file, {"filename": "favicon-32.png"}),
     path("static/favicon.ico", favicon_file, {"filename": "favicon.ico"}),
     path("admin/", admin.site.urls),
-    path("login/", auth_views.LoginView.as_view(template_name="registration/login.html"), name="login"),
+    path("login/", RoleLoginView.as_view(), name="login"),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
     path("", include("clinic.urls")),
 ]

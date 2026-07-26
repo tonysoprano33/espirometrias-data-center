@@ -38,6 +38,7 @@ from .views import (
     sort_dashboard_encounters,
     unique_encounters_by_patient_day,
 )
+from .roles import provision_role_session_accounts
 
 
 def grant_clinic_permissions(user, *codenames):
@@ -763,16 +764,15 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertNotIn('physician-save-button', html)
         self.assertNotIn('data-inline-submit data-physician-search', html)
 
-    def test_global_work_mode_selector_is_available_for_authenticated_users(self):
+    def test_authenticated_users_see_the_server_backed_session_label(self):
         with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
             response = self.client.get(reverse("clinic:dashboard"))
 
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
-        self.assertIn('id="work-mode"', html)
-        self.assertIn('value="secretaria"', html)
-        self.assertIn('value="medico"', html)
-        self.assertIn('value="espirometrista"', html)
+        self.assertIn('class="work-mode-session"', html)
+        self.assertNotIn('id="work-mode"', html)
+        self.assertNotIn("clinica-espiro-work-mode", html)
         self.assertIn('data-work-mode-visible="secretaria espirometrista"', html)
         self.assertIn('[data-work-mode-visible][hidden]', html)
         self.assertIn('id="site-topbar"', html)

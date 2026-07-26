@@ -88,38 +88,56 @@
             gap: 14px;
             min-width: 0;
         }
-        .work-mode-control {
-            display: flex;
+        .work-mode-session {
+            display: inline-flex;
             align-items: center;
             gap: 7px;
-            padding: 6px 8px 6px 10px;
+            padding: 7px 10px;
             border: 1px solid rgba(13,111,138,.20);
             border-radius: 12px;
             background: linear-gradient(135deg, #edfaff, #fff9e9);
             box-shadow: 0 5px 14px rgba(16,43,60,.06);
+            white-space: nowrap;
         }
-        .work-mode-control label {
+        .work-mode-session span {
             color: #31596b;
             font-size: .7rem;
             font-weight: 900;
             letter-spacing: .04em;
             text-transform: uppercase;
-            white-space: nowrap;
         }
-        .work-mode-control select {
-            min-width: 144px;
-            border: 0;
-            border-radius: 8px;
-            background: #fff;
+        .work-mode-session strong {
             color: #0c5269;
-            padding: 6px 8px;
-            font: inherit;
             font-size: .83rem;
             font-weight: 800;
-            cursor: pointer;
         }
-        .work-mode-control select:focus {
-            outline: 3px solid rgba(13,111,138,.18);
+        .login-role-picker {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            margin: 0 0 16px;
+        }
+        .login-role-picker button {
+            min-height: 68px;
+            padding: 10px;
+            border: 1px solid #c8d8df;
+            border-radius: 12px;
+            background: #f8fcfd;
+            color: var(--ink);
+            cursor: pointer;
+            text-align: left;
+        }
+        .login-role-picker button:hover,
+        .login-role-picker button:focus-visible {
+            border-color: var(--brand);
+            background: #e8f7fa;
+        }
+        .login-role-picker strong,
+        .login-role-picker span { display: block; }
+        .login-role-picker span {
+            margin-top: 3px;
+            color: var(--muted);
+            font-size: .75rem;
         }
         .nav {
             display: flex;
@@ -1157,8 +1175,8 @@
         }
         @media (max-width: 560px) {
             .brand-block { align-items: flex-start; flex-direction: column; gap: 7px; }
-            .work-mode-control { width: 100%; justify-content: space-between; }
-            .work-mode-control select { flex: 1; min-width: 0; }
+            .work-mode-session { width: 100%; justify-content: space-between; }
+            .login-role-picker { grid-template-columns: 1fr; }
             .nav {
                 grid-template-columns: repeat(3, minmax(0, 1fr));
             }
@@ -1177,7 +1195,7 @@
     </style>
 </head>
 <body>
-    <header class="topbar" id="site-topbar">
+    <header class="topbar" id="site-topbar" data-work-mode="{{ current_work_mode }}">
         <div class="topbar-inner">
             <div class="brand-block">
                 <div class="brand">
@@ -1185,18 +1203,10 @@
                     <small>Agenda respiratoria e informes</small>
                 </div>
                 {% if request.user.is_authenticated %}
-                    <div class="work-mode-control">
-                        <label for="work-mode">Estoy en modo</label>
-                        <select id="work-mode" aria-label="Elegir vista de trabajo" data-server-mode="{{ current_work_mode }}">
-                            <option value="secretaria">Secretaría</option>
-                            <option value="medico">Médico</option>
-                            <option value="espirometrista">Espirometrista</option>
-                        </select>
+                    <div class="work-mode-session" aria-label="Sesion activa">
+                        <span>Sesion</span>
+                        <strong>{{ current_work_mode_label }}</strong>
                     </div>
-                    <form id="work-mode-form" method="post" action="{% url 'clinic:set_work_mode' %}" hidden>
-                        {% csrf_token %}
-                        <input type="hidden" name="work_mode" value="espirometrista">
-                    </form>
                 {% endif %}
             </div>
             <nav class="nav">
@@ -1229,26 +1239,9 @@
     {% if request.user.is_authenticated %}
         <script>
             (() => {
-                const storageKey = "clinica-espiro-work-mode";
-                const modeSelect = document.getElementById("work-mode");
-                const modeForm = document.getElementById("work-mode-form");
-                if (!modeSelect) return;
-
-                const modeDestinations = {
-                    secretaria: "{% url 'clinic:dashboard' %}",
-                    medico: "{% url 'clinic:doctor_review_list' %}",
-                    espirometrista: "{% url 'clinic:dashboard' %}",
-                };
-                const savedMode = window.localStorage.getItem(storageKey);
-                const serverMode = modeSelect.dataset.serverMode;
-                const currentMode = ["secretaria", "medico", "espirometrista"].includes(serverMode)
-                    ? serverMode
-                    : ["secretaria", "medico", "espirometrista"].includes(savedMode)
-                    ? savedMode
-                    : "espirometrista";
+                const currentMode = "{{ current_work_mode }}";
 
                 const applyMode = (mode) => {
-                    modeSelect.value = mode;
                     document.getElementById("site-topbar").dataset.workMode = mode;
                     document.querySelectorAll("[data-work-mode-visible]").forEach((element) => {
                         const visibleModes = element.dataset.workModeVisible.split(" ");
@@ -1263,20 +1256,6 @@
                 };
 
                 applyMode(currentMode);
-                modeSelect.addEventListener("change", () => {
-                    const mode = modeSelect.value;
-                    window.localStorage.setItem(storageKey, mode);
-                    applyMode(mode);
-                    if (modeForm) {
-                        modeForm.querySelector('input[name="work_mode"]').value = mode;
-                        modeForm.submit();
-                    } else {
-                        const destination = modeDestinations[mode];
-                        if (destination && window.location.pathname !== destination) {
-                            window.location.assign(destination);
-                        }
-                    }
-                });
             })();
         </script>
     {% endif %}
