@@ -1272,6 +1272,27 @@ class DoctorReviewViewTests(TestCase):
         self.assertEqual(response.context["selected_date"], "2026-07-13")
         self.assertEqual(response.context["today"], date(2026, 7, 13))
 
+    def test_review_shows_rest_and_post_vital_signs(self):
+        self.client.force_login(self.user)
+        VitalSigns.objects.create(
+            encounter=self.encounter,
+            so2_rest=97,
+            fc_rest=74,
+            so2_post=92,
+            fc_post=108,
+        )
+
+        response = self.client.get(reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Signos vitales de la atencion")
+        self.assertContains(response, "En reposo")
+        self.assertContains(response, "Post caminata")
+        self.assertContains(response, "97")
+        self.assertContains(response, "108")
+        self.assertTrue(response.context["review_vitals"]["has_data"])
+        self.assertEqual(response.context["review_vitals"]["post"]["so2"], 92)
+
     def test_list_deduplicates_same_patient_same_day_and_keeps_latest_card(self):
         self.client.force_login(self.user)
         duplicate_patient = Patient.objects.create(full_name="THEO, CORNEJO", dni="59158072")

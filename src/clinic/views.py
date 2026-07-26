@@ -4978,6 +4978,22 @@ def doctor_review_detail(request, pk):
                     preview_error = str(error)
     inconsistency_flags = get_encounter_inconsistencies(encounter)
     file_status = get_result_file_status(encounter, pdf_attachment)
+    vital_signs = getattr(encounter, "vital_signs", None)
+    review_vitals = {
+        "has_data": vital_signs_have_data(vital_signs),
+        "rest": {
+            "so2": getattr(vital_signs, "so2_rest", None),
+            "fc": getattr(vital_signs, "fc_rest", None),
+            "has_so2": getattr(vital_signs, "so2_rest", None) is not None,
+            "has_fc": getattr(vital_signs, "fc_rest", None) is not None,
+        },
+        "post": {
+            "so2": getattr(vital_signs, "so2_post", None),
+            "fc": getattr(vital_signs, "fc_post", None),
+            "has_so2": getattr(vital_signs, "so2_post", None) is not None,
+            "has_fc": getattr(vital_signs, "fc_post", None) is not None,
+        },
+    }
     return render(
         request,
         "clinic/doctor_review_detail.html",
@@ -4999,6 +5015,7 @@ def doctor_review_detail(request, pk):
             "patient_profile_available": looks_like_profile_data(encounter.patient),
             "spirometry_suggestion": spirometry_suggestion,
             "inconsistency_flags": inconsistency_flags,
+            "review_vitals": review_vitals,
             "review_queue": review_queue,
             "previous_review_encounter": review_queue["previous_encounter"],
             "next_review_encounter": next_review_encounter,

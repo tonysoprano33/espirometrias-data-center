@@ -534,6 +534,95 @@
     .review-panel-compact .button[type="submit"] {
         margin-top: 12px !important;
     }
+    .review-vitals-card {
+        margin: 0 0 10px;
+        padding: 11px;
+        border: 1px solid #b9d8e4;
+        border-radius: 15px;
+        background: linear-gradient(145deg, #f6fcff, #edf7fa);
+        box-shadow: 0 10px 22px rgba(28, 100, 125, .09);
+    }
+    .review-vitals-heading {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 9px;
+    }
+    .review-vitals-heading h2 {
+        margin: 0;
+        color: #12485f;
+        font-size: .98rem;
+        font-weight: 900;
+    }
+    .review-vitals-heading span {
+        color: #58717d;
+        font-size: .72rem;
+        font-weight: 700;
+        text-align: right;
+    }
+    .review-vitals-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+    .review-vitals-phase {
+        padding: 9px;
+        border: 1px solid rgba(24, 100, 129, .18);
+        border-radius: 12px;
+        background: #fff;
+    }
+    .review-vitals-phase.post {
+        border-color: rgba(222, 130, 40, .3);
+        background: #fffaf3;
+    }
+    .review-vitals-phase-title {
+        display: block;
+        margin-bottom: 7px;
+        color: #24708c;
+        font-size: .72rem;
+        font-weight: 900;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+    .review-vitals-phase.post .review-vitals-phase-title {
+        color: #ad5d10;
+    }
+    .review-vitals-values {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 5px;
+    }
+    .review-vital-value {
+        min-width: 0;
+        padding: 6px 5px;
+        border-radius: 9px;
+        background: #edf8fc;
+        text-align: center;
+    }
+    .review-vitals-phase.post .review-vital-value {
+        background: #fff0de;
+    }
+    .review-vital-value span {
+        display: block;
+        color: #52717e;
+        font-size: .62rem;
+        font-weight: 900;
+        letter-spacing: .04em;
+    }
+    .review-vital-value strong {
+        display: block;
+        margin-top: 1px;
+        color: #123f52;
+        font-size: 1.25rem;
+        line-height: 1.1;
+        font-variant-numeric: tabular-nums;
+    }
+    .review-vital-value small {
+        margin-left: 1px;
+        color: #53717d;
+        font-size: .62em;
+    }
     .review-upload-panel {
         margin: 0 0 14px;
         padding: 10px 12px;
@@ -743,6 +832,13 @@
             position: static;
             max-height: none;
         }
+        .review-vitals-heading {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+        .review-vitals-heading span {
+            text-align: left;
+        }
         .pdf-page-viewport {
             height: auto;
             min-height: 0;
@@ -902,6 +998,42 @@
     </article>
 
     <aside class="card review-panel review-panel-compact">
+        {% if review_vitals.has_data %}
+            <section class="review-vitals-card" aria-label="Signos vitales de la atencion">
+                <div class="review-vitals-heading">
+                    <h2>Signos vitales de la atencion</h2>
+                    <span>SO2 y frecuencia cardiaca</span>
+                </div>
+                <div class="review-vitals-grid">
+                    <article class="review-vitals-phase">
+                        <span class="review-vitals-phase-title">En reposo</span>
+                        <div class="review-vitals-values">
+                            <div class="review-vital-value">
+                                <span>SO2</span>
+                                <strong>{% if review_vitals.rest.has_so2 %}{{ review_vitals.rest.so2 }}<small>%</small>{% else %}-{% endif %}</strong>
+                            </div>
+                            <div class="review-vital-value">
+                                <span>FC</span>
+                                <strong>{% if review_vitals.rest.has_fc %}{{ review_vitals.rest.fc }}<small>lpm</small>{% else %}-{% endif %}</strong>
+                            </div>
+                        </div>
+                    </article>
+                    <article class="review-vitals-phase post">
+                        <span class="review-vitals-phase-title">Post caminata</span>
+                        <div class="review-vitals-values">
+                            <div class="review-vital-value">
+                                <span>SO2</span>
+                                <strong>{% if review_vitals.post.has_so2 %}{{ review_vitals.post.so2 }}<small>%</small>{% else %}-{% endif %}</strong>
+                            </div>
+                            <div class="review-vital-value">
+                                <span>FC</span>
+                                <strong>{% if review_vitals.post.has_fc %}{{ review_vitals.post.fc }}<small>lpm</small>{% else %}-{% endif %}</strong>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            </section>
+        {% endif %}
         <section class="file-reading-status {{ file_status.key }}" aria-label="Estado del archivo">
             <span class="file-status-label">{{ file_status.label }}</span>
             <div>
