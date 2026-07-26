@@ -600,9 +600,6 @@
         background: #edf8fc;
         text-align: center;
     }
-    .review-vitals-phase.post .review-vital-value {
-        background: #fff0de;
-    }
     .review-vital-value span {
         display: block;
         color: #52717e;
@@ -623,23 +620,99 @@
         color: #53717d;
         font-size: .62em;
     }
-    .review-vital-value.so2 {
-        background: #d9f6f5;
-        border: 1px solid #91ddd9;
-    }
+    .review-vital-value.so2 { border: 1px solid #91ddd9; }
     .review-vital-value.fc {
         background: #fff0dc;
         border: 1px solid #f4c58f;
-    }
-    .review-vital-value.so2 span,
-    .review-vital-value.so2 strong,
-    .review-vital-value.so2 small {
-        color: #087f7a;
     }
     .review-vital-value.fc span,
     .review-vital-value.fc strong,
     .review-vital-value.fc small {
         color: #b45a10;
+    }
+    .review-vital-value.so2.is-ok {
+        background: #e3f8eb;
+        border-color: #8fd3a8;
+    }
+    .review-vital-value.so2.is-ok span,
+    .review-vital-value.so2.is-ok strong,
+    .review-vital-value.so2.is-ok small { color: #197244; }
+    .review-vital-value.so2.is-watch {
+        background: #fff5ce;
+        border-color: #ecc95c;
+    }
+    .review-vital-value.so2.is-watch span,
+    .review-vital-value.so2.is-watch strong,
+    .review-vital-value.so2.is-watch small { color: #976c00; }
+    .review-vital-value.so2.is-alert {
+        background: #ffe3df;
+        border-color: #ef9f91;
+    }
+    .review-vital-value.so2.is-alert span,
+    .review-vital-value.so2.is-alert strong,
+    .review-vital-value.so2.is-alert small { color: #b33323; }
+    .review-vital-value.so2.is-neutral {
+        background: #eef3f5;
+        border-color: #cedae0;
+    }
+    .review-vital-value.so2.is-neutral span,
+    .review-vital-value.so2.is-neutral strong,
+    .review-vital-value.so2.is-neutral small { color: #607682; }
+    .walk-review-summary {
+        margin-top: 8px;
+        padding: 8px 9px;
+        border: 1px solid #cbd8df;
+        border-radius: 12px;
+        background: #f8fbfc;
+    }
+    .walk-review-summary.ok { border-color: #91d3a8; background: #effaf3; }
+    .walk-review-summary.watch { border-color: #edcf72; background: #fff9e5; }
+    .walk-review-summary.alert { border-color: #eea095; background: #fff0ed; }
+    .walk-review-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+    .walk-review-title span {
+        color: #55717e;
+        font-size: .66rem;
+        font-weight: 900;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+    .walk-review-title strong {
+        color: #183f51;
+        font-size: .82rem;
+        line-height: 1.15;
+        text-align: right;
+    }
+    .walk-review-summary.alert .walk-review-title strong { color: #a5382a; }
+    .walk-review-summary.watch .walk-review-title strong { color: #8a6500; }
+    .walk-review-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 7px;
+    }
+    .walk-review-chip {
+        padding: 4px 6px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.82);
+        border: 1px solid rgba(23,49,63,.1);
+        color: #45616f;
+        font-size: .68rem;
+        font-weight: 800;
+    }
+    .walk-review-chip.borg-ok { color: #197244; border-color: #a9d8b7; }
+    .walk-review-chip.borg-watch { color: #8c6700; border-color: #ead17d; }
+    .walk-review-chip.borg-alert { color: #ae3627; border-color: #edb0a8; }
+    .walk-review-reasons {
+        margin: 7px 0 0;
+        color: #9e3a2d;
+        font-size: .72rem;
+        font-weight: 700;
+        line-height: 1.25;
     }
     .review-upload-panel {
         margin: 0 0 14px;
@@ -1026,7 +1099,7 @@
                     <article class="review-vitals-phase">
                         <span class="review-vitals-phase-title">En reposo</span>
                         <div class="review-vitals-values">
-                            <div class="review-vital-value so2">
+                            <div class="review-vital-value so2 is-{{ review_vitals.rest.so2_tone }}">
                                 <span>SO2</span>
                                 <strong>{% if review_vitals.rest.has_so2 %}{{ review_vitals.rest.so2 }}<small>%</small>{% else %}-{% endif %}</strong>
                             </div>
@@ -1039,7 +1112,7 @@
                     <article class="review-vitals-phase post">
                         <span class="review-vitals-phase-title">Post caminata</span>
                         <div class="review-vitals-values">
-                            <div class="review-vital-value so2">
+                            <div class="review-vital-value so2 is-{{ review_vitals.post.so2_tone }}">
                                 <span>SO2</span>
                                 <strong>{% if review_vitals.post.has_so2 %}{{ review_vitals.post.so2 }}<small>%</small>{% else %}-{% endif %}</strong>
                             </div>
@@ -1050,6 +1123,31 @@
                         </div>
                     </article>
                 </div>
+                {% if review_vitals.walk.has_data %}
+                    <section class="walk-review-summary {{ review_vitals.walk.tone }}" aria-label="Resumen de la prueba de caminata">
+                        <div class="walk-review-title">
+                            <span>Prueba de caminata</span>
+                            <strong>{{ review_vitals.walk.label }}</strong>
+                        </div>
+                        <div class="walk-review-meta">
+                            {% if review_vitals.walk.completed is not None %}
+                                <span class="walk-review-chip">{% if review_vitals.walk.completed %}Completada{% else %}No completada{% endif %}</span>
+                            {% endif %}
+                            {% if review_vitals.walk.stopped is not None %}
+                                <span class="walk-review-chip">{% if review_vitals.walk.stopped %}Se detuvo{% else %}Sin detencion{% endif %}</span>
+                            {% endif %}
+                            {% if review_vitals.walk.symptoms is not None %}
+                                <span class="walk-review-chip">{% if review_vitals.walk.symptoms %}Con sintomas{% else %}Sin sintomas{% endif %}</span>
+                            {% endif %}
+                            {% if review_vitals.walk.borg_final is not None %}
+                                <span class="walk-review-chip borg-{{ review_vitals.walk.borg_tone }}">Borg final {{ review_vitals.walk.borg_final }}/10</span>
+                            {% endif %}
+                        </div>
+                        {% if review_vitals.walk.reasons %}
+                            <p class="walk-review-reasons">{{ review_vitals.walk.reasons|join:", " }}.</p>
+                        {% endif %}
+                    </section>
+                {% endif %}
             </section>
         {% endif %}
         <section class="file-reading-status {{ file_status.key }}" aria-label="Estado del archivo">

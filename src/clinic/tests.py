@@ -1278,8 +1278,15 @@ class DoctorReviewViewTests(TestCase):
             encounter=self.encounter,
             so2_rest=97,
             fc_rest=74,
-            so2_post=92,
+            so2_post=95,
             fc_post=108,
+        )
+        WalkTest.objects.create(
+            encounter=self.encounter,
+            completed=True,
+            stopped=False,
+            symptoms=False,
+            borg_final=2,
         )
 
         response = self.client.get(reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
@@ -1288,12 +1295,34 @@ class DoctorReviewViewTests(TestCase):
         self.assertContains(response, "Signos vitales de la atencion")
         self.assertContains(response, "En reposo")
         self.assertContains(response, "Post caminata")
-        self.assertContains(response, 'class="review-vital-value so2"')
+        self.assertContains(response, 'class="review-vital-value so2 is-ok"')
         self.assertContains(response, 'class="review-vital-value fc"')
+        self.assertContains(response, "Prueba realizada con normalidad")
+        self.assertContains(response, "Borg final 2/10")
         self.assertContains(response, "97")
         self.assertContains(response, "108")
         self.assertTrue(response.context["review_vitals"]["has_data"])
-        self.assertEqual(response.context["review_vitals"]["post"]["so2"], 92)
+        self.assertEqual(response.context["review_vitals"]["post"]["so2"], 95)
+
+    def test_review_marks_walk_for_attention_when_so2_falls(self):
+        self.client.force_login(self.user)
+        VitalSigns.objects.create(
+            encounter=self.encounter,
+            so2_rest=98,
+            fc_rest=76,
+            so2_post=86,
+            fc_post=109,
+        )
+        WalkTest.objects.create(encounter=self.encounter, borg_final=7)
+
+        response = self.client.get(reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="review-vital-value so2 is-alert"')
+        self.assertContains(response, "Prueba con hallazgos a revisar")
+        self.assertContains(response, "desaturacion al esfuerzo")
+        self.assertContains(response, "Borg final 7/10")
+        self.assertEqual(response.context["review_vitals"]["walk"]["tone"], "alert")
 
     def test_list_deduplicates_same_patient_same_day_and_keeps_latest_card(self):
         self.client.force_login(self.user)

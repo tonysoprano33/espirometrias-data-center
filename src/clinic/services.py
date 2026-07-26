@@ -201,6 +201,7 @@ def build_walk_test_assessment(
             "label": "PRUEBA NO NORMAL",
             "detail": "",
             "tone": "alert",
+            "reasons": reasons,
         }
 
     return {
@@ -208,6 +209,7 @@ def build_walk_test_assessment(
         "label": "PRUEBA NORMAL",
         "detail": "",
         "tone": "ok",
+        "reasons": [],
     }
 
 

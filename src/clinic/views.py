@@ -748,6 +748,101 @@ def get_agenda_review_visual_state(encounter) -> str:
     return "neutral"
 
 
+def get_review_spo2_tone(value, reference_value=None) -> str:
+    try:
+        so2_value = int(value)
+    except (TypeError, ValueError):
+        return "neutral"
+
+    try:
+        reference = int(reference_value)
+    except (TypeError, ValueError):
+        reference = None
+
+    drop = reference - so2_value if reference is not None else 0
+    if so2_value <= 88 or drop >= 6:
+        return "alert"
+    if so2_value <= 92 or drop >= 4:
+        return "watch"
+    return "ok"
+
+
+def get_review_borg_tone(value) -> str:
+    try:
+        borg_value = int(value)
+    except (TypeError, ValueError):
+        return "neutral"
+    if borg_value >= 7:
+        return "alert"
+    if borg_value >= 4:
+        return "watch"
+    return "ok"
+
+
+def build_review_vitals_context(encounter) -> dict:
+    vital = getattr(encounter, "vital_signs", None)
+    walk = getattr(encounter, "walk_test", None)
+    rest_so2 = getattr(vital, "so2_rest", None)
+    post_so2 = getattr(vital, "so2_post", None)
+    rest_fc = getattr(vital, "fc_rest", None)
+    post_fc = getattr(vital, "fc_post", None)
+    has_post_pair = post_so2 is not None and post_fc is not None
+    has_walk_record = walk is not None
+    borg_final = getattr(walk, "borg_final", None)
+    walk_summary = {
+        "has_data": has_walk_record or has_post_pair,
+        "tone": "neutral",
+        "label": "Datos de caminata incompletos",
+        "reasons": [],
+        "completed": getattr(walk, "completed", None) if walk else None,
+        "stopped": getattr(walk, "stopped", None) if walk else None,
+        "symptoms": getattr(walk, "symptoms", None) if walk else None,
+        "borg_final": borg_final,
+        "borg_tone": get_review_borg_tone(borg_final),
+    }
+
+    if has_walk_record and has_post_pair:
+        assessment = build_walk_test_assessment(
+            rest_so2,
+            post_so2,
+            completed=bool(getattr(walk, "completed", True)),
+            stopped=bool(getattr(walk, "stopped", False)),
+            symptoms=bool(getattr(walk, "symptoms", False)),
+        )
+        walk_summary["reasons"] = assessment.get("reasons", [])
+        if not assessment["is_normal"]:
+            walk_summary["tone"] = "alert"
+            walk_summary["label"] = "Prueba con hallazgos a revisar"
+        elif walk_summary["borg_tone"] == "alert":
+            walk_summary["tone"] = "watch"
+            walk_summary["label"] = "Prueba completada con esfuerzo alto"
+        elif walk_summary["borg_tone"] == "watch":
+            walk_summary["tone"] = "watch"
+            walk_summary["label"] = "Prueba completada con esfuerzo moderado"
+        else:
+            walk_summary["tone"] = "ok"
+            walk_summary["label"] = "Prueba realizada con normalidad"
+
+    return {
+        "has_data": vital_signs_have_data(vital),
+        "rest": {
+            "so2": rest_so2,
+            "fc": rest_fc,
+            "has_so2": rest_so2 is not None,
+            "has_fc": rest_fc is not None,
+            "so2_tone": get_review_spo2_tone(rest_so2),
+        },
+        "post": {
+            "so2": post_so2,
+            "fc": post_fc,
+            "has_so2": post_so2 is not None,
+            "has_fc": post_fc is not None,
+            "so2_tone": get_review_spo2_tone(post_so2, rest_so2),
+        },
+        "walk": walk_summary,
+    }
+
+
 def build_doctor_review_queue(reference_date, current_encounter=None):
     pending_encounters = []
     queue_qs = (
@@ -4978,22 +5073,7 @@ def doctor_review_detail(request, pk):
                     preview_error = str(error)
     inconsistency_flags = get_encounter_inconsistencies(encounter)
     file_status = get_result_file_status(encounter, pdf_attachment)
-    vital_signs = getattr(encounter, "vital_signs", None)
-    review_vitals = {
-        "has_data": vital_signs_have_data(vital_signs),
-        "rest": {
-            "so2": getattr(vital_signs, "so2_rest", None),
-            "fc": getattr(vital_signs, "fc_rest", None),
-            "has_so2": getattr(vital_signs, "so2_rest", None) is not None,
-            "has_fc": getattr(vital_signs, "fc_rest", None) is not None,
-        },
-        "post": {
-            "so2": getattr(vital_signs, "so2_post", None),
-            "fc": getattr(vital_signs, "fc_post", None),
-            "has_so2": getattr(vital_signs, "so2_post", None) is not None,
-            "has_fc": getattr(vital_signs, "fc_post", None) is not None,
-        },
-    }
+    review_vitals = build_review_vitals_context(encounter)
     return render(
         request,
         "clinic/doctor_review_detail.html",
