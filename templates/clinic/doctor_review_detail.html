@@ -623,6 +623,24 @@
         color: #53717d;
         font-size: .62em;
     }
+    .review-vital-value.so2 {
+        background: #d9f6f5;
+        border: 1px solid #91ddd9;
+    }
+    .review-vital-value.fc {
+        background: #fff0dc;
+        border: 1px solid #f4c58f;
+    }
+    .review-vital-value.so2 span,
+    .review-vital-value.so2 strong,
+    .review-vital-value.so2 small {
+        color: #087f7a;
+    }
+    .review-vital-value.fc span,
+    .review-vital-value.fc strong,
+    .review-vital-value.fc small {
+        color: #b45a10;
+    }
     .review-upload-panel {
         margin: 0 0 14px;
         padding: 10px 12px;
@@ -1008,11 +1026,11 @@
                     <article class="review-vitals-phase">
                         <span class="review-vitals-phase-title">En reposo</span>
                         <div class="review-vitals-values">
-                            <div class="review-vital-value">
+                            <div class="review-vital-value so2">
                                 <span>SO2</span>
                                 <strong>{% if review_vitals.rest.has_so2 %}{{ review_vitals.rest.so2 }}<small>%</small>{% else %}-{% endif %}</strong>
                             </div>
-                            <div class="review-vital-value">
+                            <div class="review-vital-value fc">
                                 <span>FC</span>
                                 <strong>{% if review_vitals.rest.has_fc %}{{ review_vitals.rest.fc }}<small>lpm</small>{% else %}-{% endif %}</strong>
                             </div>
@@ -1021,11 +1039,11 @@
                     <article class="review-vitals-phase post">
                         <span class="review-vitals-phase-title">Post caminata</span>
                         <div class="review-vitals-values">
-                            <div class="review-vital-value">
+                            <div class="review-vital-value so2">
                                 <span>SO2</span>
                                 <strong>{% if review_vitals.post.has_so2 %}{{ review_vitals.post.so2 }}<small>%</small>{% else %}-{% endif %}</strong>
                             </div>
-                            <div class="review-vital-value">
+                            <div class="review-vital-value fc">
                                 <span>FC</span>
                                 <strong>{% if review_vitals.post.has_fc %}{{ review_vitals.post.fc }}<small>lpm</small>{% else %}-{% endif %}</strong>
                             </div>

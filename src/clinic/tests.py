@@ -1288,6 +1288,8 @@ class DoctorReviewViewTests(TestCase):
         self.assertContains(response, "Signos vitales de la atencion")
         self.assertContains(response, "En reposo")
         self.assertContains(response, "Post caminata")
+        self.assertContains(response, 'class="review-vital-value so2"')
+        self.assertContains(response, 'class="review-vital-value fc"')
         self.assertContains(response, "97")
         self.assertContains(response, "108")
         self.assertTrue(response.context["review_vitals"]["has_data"])
