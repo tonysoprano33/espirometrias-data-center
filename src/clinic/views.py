@@ -5605,6 +5605,10 @@ def doctor_review_detail_api(request, pk):
     previous_encounter = queue_info["previous_encounter"]
     next_encounter = queue_info["next_encounter"]
     can_print, print_block_reason = get_print_readiness(encounter, ignore_attendance=True)
+    can_edit_file = (
+        get_work_mode(request) == "espirometrista"
+        and request.user.has_perm("clinic.manage_agenda")
+    )
     return JsonResponse(
         {
             "ok": True,
@@ -5621,6 +5625,7 @@ def doctor_review_detail_api(request, pk):
             "medical_control_today": encounter.medical_control_today,
             "technician_notes": encounter.technician_notes or "",
             "bronchodilator_positive": bool(getattr(getattr(encounter, "spirometry_result", None), "bronchodilator_positive", False)),
+            "can_edit_file": can_edit_file,
             "file": {
                 "present": bool(attachment),
                 "url": safe_attachment_url(attachment) if attachment else "",
@@ -5638,6 +5643,78 @@ def doctor_review_detail_api(request, pk):
             "previous": {"id": previous_encounter.pk, "name": previous_encounter.patient.full_name} if previous_encounter else None,
             "next": {"id": next_encounter.pk, "name": next_encounter.patient.full_name} if next_encounter else None,
             "pending_total": queue_info["pending_total"],
+        }
+    )
+
+
+@login_required
+@permission_required("clinic.manage_agenda", raise_exception=True)
+@require_POST
+def doctor_review_upload_api(request, pk):
+    """Upload and analyze an original study from Next without deciding the medical result."""
+    if get_work_mode(request) != "espirometrista":
+        return JsonResponse(
+            {"ok": False, "message": "Solo la sesion Espirometro puede reemplazar el PDF o la foto."},
+            status=403,
+        )
+
+    encounter = get_object_or_404(Encounter.objects.select_related("patient"), pk=pk)
+    uploaded_file = request.FILES.get("pdf_file")
+    if not uploaded_file:
+        return JsonResponse({"ok": False, "message": "Elegi un PDF o una foto antes de subir."}, status=400)
+
+    try:
+        file_kind, mime_type = classify_result_upload(uploaded_file)
+    except ValueError as error:
+        return JsonResponse({"ok": False, "message": str(error)}, status=400)
+
+    attachment = Attachment(
+        encounter=encounter,
+        file_kind=file_kind,
+        original_name=uploaded_file.name,
+        mime_type=mime_type,
+        uploaded_by=request.user,
+        analysis_status=AttachmentAnalysisStatus.UPLOADED,
+    )
+    attachment.file.save(uploaded_file.name, uploaded_file, save=True)
+    analysis, snapshot, changed_fields, patient_identity_mismatch, reading_error = analyze_result_attachment(
+        encounter,
+        attachment,
+    )
+    record_encounter_event(
+        encounter,
+        EncounterEventType.DOCUMENT,
+        "Resultado de espirometria cargado",
+        actor=request.user,
+        details=f"Archivo: {uploaded_file.name}",
+        metadata={
+            "analysis_source": analysis.get("source", "") if analysis else "",
+            "suggested_code": analysis.get("code", "") if analysis else "",
+        },
+    )
+    mark_encounter_attended(
+        encounter,
+        request.user,
+        details="Se marco como atendido al cargar el resultado de espirometria desde Next.",
+    )
+
+    if patient_identity_mismatch:
+        message = "El archivo se guardo, pero sus datos no se aplicaron porque parecen corresponder a otro paciente."
+    elif reading_error:
+        message = "El archivo se guardo, pero no se pudieron leer datos automaticamente. Podes reintentar desde la ficha avanzada."
+    elif snapshot:
+        message = "Archivo leido y datos del paciente actualizados. El resultado final sigue pendiente del medico."
+    elif analysis.get("code"):
+        message = "Archivo leido y sugerencia preparada. El medico debe elegir el resultado final."
+    else:
+        message = "Archivo guardado correctamente."
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "message": message,
+            "file_status": get_result_file_status(encounter, attachment),
+            "changed_fields": changed_fields,
         }
     )
 

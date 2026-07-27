@@ -1685,6 +1685,51 @@ class DoctorReviewViewTests(TestCase):
         self.assertEqual(attachment.analysis_status, "detected")
         self.assertEqual(attachment.analysis_error, "")
 
+    def test_next_upload_reads_file_without_deciding_medical_result(self):
+        grant_clinic_permissions(self.user, "manage_agenda")
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["clinic_work_mode"] = "espirometrista"
+        session.save()
+        pdf_file = SimpleUploadedFile("resultado con ñ.pdf", b"%PDF-1.4 fake", content_type="application/pdf")
+        analysis = {"source": "server-pdf-text", "code": "RL", "summary": "Sugerencia RL.", "values": {"fvc": {"best": 1.8}}}
+
+        with patch("clinic.views.build_analysis_for_uploaded_result", return_value=analysis):
+            response = self.client.post(
+                reverse("clinic:doctor_review_upload_api", args=[self.encounter.pk]),
+                {"pdf_file": pdf_file},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        self.encounter.refresh_from_db()
+        self.assertTrue(self.encounter.attended)
+        self.assertEqual(self.encounter.status, EncounterStatus.CARGADA)
+        self.assertEqual(self.encounter.spirometry_result.suggested_code, "RL")
+        self.assertEqual(self.encounter.spirometry_result.respiratory_pattern, "")
+        attachment = Attachment.objects.get(encounter=self.encounter, file_kind=AttachmentKind.PDF_RESULTADO)
+        self.assertIn("resultado_con_n", attachment.file.name)
+
+        response = self.client.get(reverse("clinic:doctor_review_detail_api", args=[self.encounter.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["can_edit_file"])
+
+    def test_next_upload_is_not_available_to_medical_session(self):
+        grant_clinic_permissions(self.user, "manage_agenda")
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["clinic_work_mode"] = "medico"
+        session.save()
+        pdf_file = SimpleUploadedFile("resultado.pdf", b"%PDF-1.4 fake", content_type="application/pdf")
+
+        response = self.client.post(
+            reverse("clinic:doctor_review_upload_api", args=[self.encounter.pk]),
+            {"pdf_file": pdf_file},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Attachment.objects.filter(encounter=self.encounter).exists())
+
     def test_failed_file_read_keeps_original_upload_and_marks_retryable(self):
         self.client.force_login(self.user)
         pdf_file = SimpleUploadedFile("estudio.pdf", b"%PDF-1.4 fake", content_type="application/pdf")

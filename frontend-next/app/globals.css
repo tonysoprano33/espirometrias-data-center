@@ -174,3 +174,13 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
   .review-detail-head, .review-detail-navigation { align-items: flex-start; flex-direction: column; }.review-detail-head .legacy-review-button { width: 100%; }.review-document iframe { height: 55vh; }
   .detail-header-actions { width: 100%; }.detail-header-actions a { flex: 1; }.review-detail-head .legacy-review-button { width: auto; }
 }
+
+.next-file-upload { display: flex; align-items: end; gap: 9px; padding: 10px 12px; border-bottom: 1px solid #dcebef; background: #f5fbfc; }
+.next-file-upload label { display: grid; flex: 1; gap: 5px; color: #456b77; font: 800 .7rem "Trebuchet MS", sans-serif; text-transform: uppercase; }
+.next-file-upload input { max-width: 100%; color: #284b57; font: 700 .75rem "Trebuchet MS", sans-serif; }
+.next-file-upload button { min-height: 36px; padding: 0 12px; border: 0; border-radius: 8px; color: #fff; background: #087f9b; cursor: pointer; font: 800 .72rem "Trebuchet MS", sans-serif; white-space: nowrap; }
+.next-file-upload button:disabled { color: #789099; background: #dce8eb; cursor: not-allowed; }
+
+@media (max-width: 720px) {
+  .next-file-upload { align-items: stretch; flex-direction: column; }
+}
