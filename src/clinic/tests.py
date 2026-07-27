@@ -3271,6 +3271,46 @@ class PatientHistoryActionsTests(TestCase):
         self.assertTrue(Patient.objects.filter(pk=self.patient.pk).exists())
         self.assertTrue(Encounter.objects.filter(pk=self.encounter.pk).exists())
 
+    def test_recycle_bin_api_lists_deleted_records_and_restores_patient(self):
+        self.patient.soft_delete(deleted_by=self.user)
+
+        response = self.client.get(reverse("clinic:recycle_bin_api"))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["retention_days"], 30)
+        self.assertEqual(len(payload["patients"]), 1)
+        self.assertEqual(payload["patients"][0]["name"], "TEST, PACIENTE")
+        self.assertEqual(payload["patients"][0]["dni"], "12.345.678")
+
+        restore = self.client.post(
+            reverse("clinic:recycle_bin_action_api"),
+            data=json.dumps({"action": "restore_patient", "id": self.patient.pk}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(restore.status_code, 200)
+        self.assertEqual(restore.json()["patients"], [])
+        self.patient.refresh_from_db()
+        self.encounter.refresh_from_db()
+        self.assertIsNone(self.patient.deleted_at)
+        self.assertIsNone(self.encounter.deleted_at)
+
+    def test_recycle_bin_api_requires_permanent_delete_permission(self):
+        self.patient.soft_delete(deleted_by=self.user)
+        self.user.user_permissions.remove(
+            Permission.objects.get(codename="purge_clinical_data", content_type__app_label="clinic")
+        )
+
+        response = self.client.post(
+            reverse("clinic:recycle_bin_action_api"),
+            data=json.dumps({"action": "purge_patient", "id": self.patient.pk}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Patient.all_objects.filter(pk=self.patient.pk).exists())
+
     def test_restoring_patient_does_not_restore_an_older_independent_deletion(self):
         older_encounter = Encounter.objects.create(
             patient=self.patient,

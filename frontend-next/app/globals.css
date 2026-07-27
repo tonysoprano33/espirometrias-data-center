@@ -94,6 +94,13 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .empty, .notice { padding: 22px; color: var(--muted); }
 .notice.error { color: #a13232; background: #fff1f1; border-radius: 10px; }.notice.success { color: #176b41; background: #edf9ef; border-radius: 10px; }
 
+.trash-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.trash-panel { margin-top: 18px; overflow: hidden; border: 1px solid #d7e5eb; border-radius: 16px; background: #fff; box-shadow: 0 10px 28px rgba(18, 72, 91, .06); }
+.trash-panel > h2 { margin: 0; padding: 15px 18px; border-bottom: 1px solid #dcebed; background: #f5fafb; }
+.trash-row { display: grid; grid-template-columns: minmax(190px, 1fr) minmax(160px, .75fr) auto; gap: 14px; align-items: center; padding: 14px 18px; border-bottom: 1px solid #e6eff2; }
+.trash-row:last-child { border-bottom: 0; }.trash-row strong, .trash-row span, .trash-row small { display: block; }.trash-row strong { font-size: 1rem; }.trash-row span { color: #607982; font: 800 .77rem/1.45 "Trebuchet MS", sans-serif; }.trash-row small { margin-top: 2px; color: #a05b00; font-size: .72rem; }
+.trash-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 7px; }.trash-actions button { min-height: 34px; border: 1px solid #a7d4df; border-radius: 8px; color: #086780; background: #edfbff; cursor: pointer; font: 800 .75rem "Trebuchet MS", sans-serif; }.trash-actions .danger { color: #a33a34; border-color: #edc1bd; background: #fff4f3; }.trash-actions button:disabled { opacity: .6; cursor: wait; }
+
 /* Calendar and statistics stay compact so they work on older notebooks too. */
 .next-nav { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
 .next-nav a { padding: 8px 11px; border: 1px solid #c8dfe6; border-radius: 9px; color: #17667d; background: #f8fcfd; font: 800 .76rem "Trebuchet MS", sans-serif; text-decoration: none; }
@@ -189,6 +196,7 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 @media (max-width: 720px) {
   .next-file-upload { align-items: stretch; flex-direction: column; }
   .patient-history-head { align-items: stretch; flex-direction: column; }.patient-profile-next { grid-template-columns: repeat(2, minmax(0, 1fr)); }.history-encounter { grid-template-columns: 72px minmax(0, 1fr); }.history-vitals, .history-actions { grid-column: 2; justify-content: flex-start; }
+  .trash-summary { grid-template-columns: 1fr; }.trash-row { grid-template-columns: 1fr; }.trash-actions { justify-content: flex-start; }
 }
 
 .history-actions button { padding: 7px 8px; border: 0; border-radius: 8px; color: #fff; background: #087f9b; cursor: pointer; font: 800 .68rem "Trebuchet MS", sans-serif; }

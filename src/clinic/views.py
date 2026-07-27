@@ -4887,6 +4887,115 @@ def patient_search_api(request):
     )
 
 
+def get_recycle_bin_payload(request):
+    """Serialize the recoverable clinical records without exposing file storage paths."""
+    purge_expired_recycle_bin()
+    now = timezone.now()
+    deleted_patients = Patient.all_objects.filter(deleted_at__isnull=False).order_by("-deleted_at")
+    deleted_encounters = (
+        Encounter.all_objects.select_related("patient")
+        .filter(deleted_at__isnull=False)
+        .order_by("-deleted_at")
+    )
+
+    def days_remaining(deleted_at):
+        if not deleted_at:
+            return 0
+        elapsed_days = max((now - deleted_at).days, 0)
+        return max(RECYCLE_BIN_RETENTION_DAYS - elapsed_days, 0)
+
+    return {
+        "ok": True,
+        "retention_days": RECYCLE_BIN_RETENTION_DAYS,
+        "can_purge": request.user.has_perm("clinic.purge_clinical_data"),
+        "patients": [
+            {
+                "patient_id": patient.pk,
+                "name": patient.full_name,
+                "dni": formatear_dni(patient.dni) if patient.dni else "Sin DNI",
+                "deleted_at": timezone.localtime(patient.deleted_at).strftime("%d/%m/%Y %H:%M"),
+                "days_remaining": days_remaining(patient.deleted_at),
+                "encounter_count": Encounter.all_objects.filter(patient=patient, deleted_at__isnull=False).count(),
+            }
+            for patient in deleted_patients
+        ],
+        "encounters": [
+            {
+                "encounter_id": encounter.pk,
+                "patient_name": encounter.patient.full_name,
+                "patient_id": encounter.patient_id,
+                "date": encounter.encounter_date.strftime("%d/%m/%Y"),
+                "study_type": encounter.study_type,
+                "deleted_at": timezone.localtime(encounter.deleted_at).strftime("%d/%m/%Y %H:%M"),
+                "days_remaining": days_remaining(encounter.deleted_at),
+                "patient_deleted": bool(encounter.patient.deleted_at),
+            }
+            for encounter in deleted_encounters
+        ],
+    }
+
+
+@login_required
+@permission_required("clinic.manage_agenda", raise_exception=True)
+def recycle_bin_api(request):
+    """Read-only Next payload for the 30-day clinical recycle bin."""
+    if request.method != "GET":
+        return JsonResponse({"ok": False, "message": "Metodo no permitido."}, status=405)
+    return JsonResponse(get_recycle_bin_payload(request))
+
+
+@login_required
+@permission_required("clinic.manage_agenda", raise_exception=True)
+@require_POST
+def recycle_bin_action_api(request):
+    """Restore is safe by default; permanent deletion keeps its separate permission."""
+    try:
+        payload = get_agenda_api_payload(request)
+    except ValueError as error:
+        return JsonResponse({"ok": False, "message": str(error)}, status=400)
+
+    action = str(payload.get("action", "") or "").strip()
+    try:
+        record_id = int(payload.get("id"))
+    except (TypeError, ValueError):
+        record_id = None
+
+    if action not in {"restore_patient", "restore_encounter", "purge_patient", "purge_encounter"} or not record_id:
+        return JsonResponse({"ok": False, "message": "Accion de papelera no valida."}, status=400)
+
+    is_patient = action.endswith("patient")
+    permanently_delete = action.startswith("purge")
+    if permanently_delete and not request.user.has_perm("clinic.purge_clinical_data"):
+        return JsonResponse({"ok": False, "message": "No tenes permiso para eliminar datos definitivamente."}, status=403)
+
+    if is_patient:
+        patient = get_object_or_404(Patient.all_objects, pk=record_id, deleted_at__isnull=False)
+        patient_name = patient.full_name
+        if permanently_delete:
+            patient.delete()
+            message = f"Se elimino definitivamente a {patient_name}."
+        else:
+            restore_deleted_patient(patient)
+            message = f"Se restauro a {patient_name} con sus atenciones vinculadas."
+    else:
+        encounter = get_object_or_404(
+            Encounter.all_objects.select_related("patient"),
+            pk=record_id,
+            deleted_at__isnull=False,
+        )
+        patient_name = encounter.patient.full_name
+        if permanently_delete:
+            encounter.delete()
+            message = f"Se elimino definitivamente la atencion de {patient_name}."
+        else:
+            restore_deleted_encounter(encounter)
+            message = f"Se restauro la atencion de {patient_name}."
+
+    response = get_recycle_bin_payload(request)
+    response["message"] = message
+    return JsonResponse(response)
+
+
 @login_required
 def patient_detail_api(request, pk):
     """Read-only longitudinal patient history for the Next patient card."""
