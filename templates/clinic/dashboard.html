@@ -2129,6 +2129,12 @@
         text-align: center;
         font-variant-numeric: tabular-nums;
     }
+    .bronchodilator-reminder.is-ready .button.small {
+        background: #21814d;
+    }
+    .bronchodilator-reminder.is-ready .bronchodilator-reminder-label {
+        color: #16733f;
+    }
     .secretary-mode-table .attendance-button {
         width: 100%;
         min-height: 56px;
@@ -4037,17 +4043,19 @@
                 remainingSeconds = Math.max(0, Math.ceil((dueMilliseconds - new Date().getTime()) / 1000));
                 label.hidden = false;
                 if (remainingSeconds === 0) {
-                    label.innerHTML = "Listo";
+                    label.innerHTML = "Bronco listo para el post";
                     addClass(reminder, "is-ready");
                 } else {
-                    label.innerHTML = Math.ceil(remainingSeconds / 60) + " min";
+                    var minutes = Math.floor(remainingSeconds / 60);
+                    var seconds = remainingSeconds % 60;
+                    label.innerHTML = minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
                     removeClass(reminder, "is-ready");
                 }
             }
         }
 
         refreshBronchodilatorCountdowns();
-        window.setInterval(refreshBronchodilatorCountdowns, 15000);
+        window.setInterval(refreshBronchodilatorCountdowns, 1000);
 
         function getRowEncounterTime(row) {
             var value = row ? String(row.getAttribute("data-encounter-time") || "").trim() : "";

@@ -771,6 +771,7 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertEqual(self.encounter.bronchodilator_wait_minutes, 10)
         self.assertTrue(response.json()["bronchodilator_timer_active"])
         self.assertEqual(response.json()["bronchodilator_timer_label"], "Bronco: 10 min")
+        self.assertTrue(response.json()["bronchodilator_timer_due_at"].startswith("2026-06-05T11:10"))
 
     def test_bronchodilator_timer_can_be_cancelled(self):
         self.encounter.bronchodilator_administered_at = timezone.now()
