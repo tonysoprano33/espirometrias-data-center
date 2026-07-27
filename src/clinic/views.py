@@ -4264,6 +4264,175 @@ def statistics_view(request):
 
 
 @login_required
+def calendar_month_api(request):
+    """Read-only month payload used by the incremental Next.js calendar."""
+    today = timezone.localdate()
+    month_param = (request.GET.get("month") or "").strip()
+    date_param = (request.GET.get("date") or "").strip()
+
+    try:
+        current_month = (
+            datetime.strptime(month_param, "%Y-%m").date().replace(day=1)
+            if month_param
+            else today.replace(day=1)
+        )
+    except ValueError:
+        current_month = today.replace(day=1)
+
+    try:
+        selected_date = datetime.strptime(date_param, "%Y-%m-%d").date() if date_param else today
+    except ValueError:
+        selected_date = today
+
+    calendar_weeks = month_calendar.Calendar(firstweekday=0).monthdatescalendar(
+        current_month.year,
+        current_month.month,
+    )
+    range_start = calendar_weeks[0][0]
+    range_end = calendar_weeks[-1][-1]
+    encounters = unique_encounters_by_patient_day(
+        Encounter.objects.select_related("patient", "referring_physician", "spirometry_result", "vital_signs", "walk_test")
+        .prefetch_related("generated_reports__attachment")
+        .filter(encounter_date__range=(range_start, range_end))
+        .order_by("encounter_date", "encounter_time", "created_at")
+    )
+
+    encounters_by_date = {}
+    for encounter in encounters:
+        info = encounters_by_date.setdefault(
+            encounter.encounter_date,
+            {"encounters": [], "total": 0, "attended": 0, "no_show": 0, "mutual": 0},
+        )
+        info["encounters"].append(encounter)
+        info["total"] += 1
+        info["attended"] += int(bool(encounter.attended))
+        info["no_show"] += int(bool(encounter.no_show))
+        info["mutual"] += int(encounter.coverage_type == CoverageType.MUTUAL)
+
+    weeks = []
+    for week in calendar_weeks:
+        api_week = []
+        for day_value in week:
+            info = encounters_by_date.get(
+                day_value,
+                {"total": 0, "attended": 0, "no_show": 0, "mutual": 0},
+            )
+            total = info["total"]
+            attended = info["attended"]
+            no_show = info["no_show"]
+            api_week.append(
+                {
+                    "date": day_value.isoformat(),
+                    "day_number": day_value.day,
+                    "in_month": day_value.month == current_month.month,
+                    "today": day_value == today,
+                    "selected": day_value == selected_date,
+                    "total": total,
+                    "attended": attended,
+                    "no_show": no_show,
+                    "mutual": info["mutual"],
+                    "pending": max(total - attended - no_show, 0),
+                    "all_attended": total > 0 and attended == total,
+                }
+            )
+        weeks.append(api_week)
+
+    selected_encounters = list(encounters_by_date.get(selected_date, {}).get("encounters", []))
+    if not selected_encounters and not (range_start <= selected_date <= range_end):
+        selected_encounters = unique_encounters_by_patient_day(
+            Encounter.objects.select_related("patient", "referring_physician", "spirometry_result", "vital_signs", "walk_test")
+            .prefetch_related("generated_reports__attachment")
+            .filter(encounter_date=selected_date)
+            .order_by("encounter_time", "created_at")
+        )
+    selected_encounters = list(selected_encounters)
+    summary = summarize_encounter_list(selected_encounters)
+    return JsonResponse(
+        {
+            "ok": True,
+            "month": current_month.strftime("%Y-%m"),
+            "month_label": format_month_label(current_month),
+            "previous_month": (current_month - timedelta(days=1)).replace(day=1).strftime("%Y-%m"),
+            "next_month": (current_month + timedelta(days=32)).replace(day=1).strftime("%Y-%m"),
+            "selected_date": selected_date.isoformat(),
+            "selected_date_label": format_day_label(selected_date),
+            "weekdays": SPANISH_WEEKDAYS,
+            "weeks": weeks,
+            "summary": summary,
+            "rows": [get_row_state_payload(encounter) for encounter in selected_encounters],
+        }
+    )
+
+
+@login_required
+@permission_required("clinic.view_clinical_statistics", raise_exception=True)
+def month_statistics_api(request):
+    """Fast monthly dashboard payload for Next; detailed legacy tables remain available in Django."""
+    today = timezone.localdate()
+    month_param = (request.GET.get("month") or "").strip()
+    current_month_start = today.replace(day=1)
+    try:
+        selected_month_start = (
+            datetime.strptime(month_param, "%Y-%m").date().replace(day=1)
+            if month_param
+            else current_month_start
+        )
+    except ValueError:
+        selected_month_start = current_month_start
+    if selected_month_start > current_month_start:
+        selected_month_start = current_month_start
+
+    next_month_start = (selected_month_start + timedelta(days=32)).replace(day=1)
+    selected_month_end = min(next_month_start - timedelta(days=1), today)
+    selected_encounters = list(
+        unique_encounters_by_patient_day(
+            Encounter.objects.select_related("patient", "spirometry_result", "vital_signs", "walk_test")
+            .prefetch_related(
+                Prefetch(
+                    "events",
+                    queryset=EncounterEvent.objects.filter(event_type=EncounterEventType.IMPORT).only(
+                        "id", "encounter_id", "event_type", "metadata"
+                    ),
+                )
+            )
+            .filter(encounter_date__range=(selected_month_start, selected_month_end))
+            .order_by("encounter_date", "encounter_time", "created_at")
+        )
+    )
+    summary = summarize_encounter_list(selected_encounters)
+    clinical = build_month_clinical_summary(selected_encounters)
+    operational = build_operational_time_summary(selected_encounters)
+    mutuals = build_mutual_coverage_rows(selected_encounters)
+    diagnoses = build_diagnosis_distribution(
+        [encounter for encounter in selected_encounters if get_result_code_from_encounter(encounter)]
+    )
+    daily = []
+    for day_offset in range((selected_month_end - selected_month_start).days + 1):
+        day_value = selected_month_start + timedelta(days=day_offset)
+        day_encounters = [encounter for encounter in selected_encounters if encounter.encounter_date == day_value]
+        day_summary = summarize_encounter_list(day_encounters)
+        daily.append({"date": day_value.isoformat(), "label": format_day_label(day_value), **day_summary})
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "month": selected_month_start.strftime("%Y-%m"),
+            "month_label": format_month_label(selected_month_start),
+            "range_label": f"{selected_month_start:%d/%m/%Y} al {selected_month_end:%d/%m/%Y}",
+            "previous_month": (selected_month_start - timedelta(days=1)).replace(day=1).strftime("%Y-%m"),
+            "next_month": next_month_start.strftime("%Y-%m"),
+            "can_go_next": selected_month_start < current_month_start,
+            "summary": summary,
+            "clinical": clinical,
+            "operational": operational,
+            "mutuals": mutuals,
+            "diagnoses": diagnoses,
+            "daily": daily,
+        }
+    )
+
+
+@login_required
 def agenda_today_api(request):
     """Stable read API for the gradual Next.js agenda migration."""
     today = timezone.localdate()

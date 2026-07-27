@@ -217,6 +217,11 @@ export default function AgendaPreview() {
         </div>
         <div className="header-actions">
           <span className="mode">Sesion {data?.work_mode ?? "..."}</span>
+          <nav className="next-nav" aria-label="Navegacion nueva">
+            <a href="/">Agenda</a>
+            <a href="/calendario/">Calendario</a>
+            <a href="/estadistica/">Estadisticas</a>
+          </nav>
           <a className="back-link" href="/django/">Agenda actual</a>
         </div>
       </header>

@@ -923,6 +923,34 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertEqual(payload["rows"][0]["encounter_id"], self.encounter.pk)
         self.assertEqual(payload["rows"][0]["patient_name"], self.encounter.patient.full_name)
 
+    def test_next_calendar_api_returns_month_and_selected_day_rows(self):
+        response = self.client.get(
+            f"{reverse('clinic:calendar_month_api')}?month=2026-06&date=2026-06-05"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["month"], "2026-06")
+        self.assertEqual(payload["selected_date"], "2026-06-05")
+        self.assertEqual(payload["summary"]["total"], 1)
+        self.assertEqual(payload["rows"][0]["encounter_id"], self.encounter.pk)
+
+    def test_next_statistics_api_returns_monthly_clinical_metrics(self):
+        grant_clinic_permissions(self.user, "view_clinical_statistics")
+        self.encounter.attended = True
+        self.encounter.save(update_fields=["attended", "updated_at"])
+        SpirometryResult.objects.create(encounter=self.encounter, respiratory_pattern="Normal")
+
+        response = self.client.get(f"{reverse('clinic:month_statistics_api')}?month=2026-06")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["summary"]["total"], 1)
+        self.assertEqual(payload["clinical"]["with_result"], 1)
+        self.assertEqual(payload["diagnoses"][0]["code"], "N")
+
     def test_next_agenda_api_saves_rest_vitals_as_one_transaction(self):
         response = self.client.post(
             reverse("clinic:agenda_vitals_api", args=[self.encounter.pk]),

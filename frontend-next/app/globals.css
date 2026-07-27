@@ -94,6 +94,51 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .empty, .notice { padding: 22px; color: var(--muted); }
 .notice.error { color: #a13232; background: #fff1f1; border-radius: 10px; }.notice.success { color: #176b41; background: #edf9ef; border-radius: 10px; }
 
+/* Calendar and statistics stay compact so they work on older notebooks too. */
+.next-nav { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
+.next-nav a { padding: 8px 11px; border: 1px solid #c8dfe6; border-radius: 9px; color: #17667d; background: #f8fcfd; font: 800 .76rem "Trebuchet MS", sans-serif; text-decoration: none; }
+.next-nav a.is-current { color: #fff; border-color: #087f9b; background: #087f9b; }
+.calendar-next-toolbar, .statistics-next-head, .selected-day-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 16px; }
+.calendar-next-toolbar h2, .statistics-next-head h2, .selected-day-head h2, .statistics-panel h2 { margin: 2px 0 0; color: #123a4c; }
+.month-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.month-controls button { min-height: 38px; padding: 0 14px; border: 1px solid #b9d7e1; border-radius: 9px; color: #145e73; background: #fff; cursor: pointer; font: 800 .8rem "Trebuchet MS", sans-serif; }
+.month-controls button:hover:not(:disabled) { border-color: #087f9b; background: #e9f8fb; }
+.month-controls button:disabled { color: #9aaab0; background: #f2f5f6; cursor: not-allowed; }
+.calendar-next-board, .selected-day-card, .statistics-panel { padding: 18px; border: 1px solid #d5e5e9; border-radius: 16px; background: #fff; box-shadow: 0 10px 28px rgba(18, 72, 91, .06); }
+.calendar-next-weekdays, .calendar-next-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.calendar-next-weekdays { margin-bottom: 6px; color: #59747e; font: 800 .72rem "Trebuchet MS", sans-serif; text-align: center; text-transform: uppercase; }
+.calendar-next-day { min-height: 105px; padding: 10px; border: 1px solid #e1ecef; color: #123a4c; background: #fff; cursor: pointer; text-align: left; }
+.calendar-next-day:hover { position: relative; z-index: 1; border-color: #69b3c8; background: #f3fbfc; }
+.calendar-next-day strong, .calendar-next-day span, .calendar-next-day small { display: block; }
+.calendar-next-day strong { margin-bottom: 6px; font-size: 1.05rem; }
+.calendar-next-day span { color: #17667d; font: 800 .72rem "Trebuchet MS", sans-serif; }
+.calendar-next-day small { margin-top: 5px; color: #6b8189; font: 700 .66rem "Trebuchet MS", sans-serif; line-height: 1.25; }
+.calendar-next-day.outside { color: #abb7bc; background: #fafcfc; }
+.calendar-next-day.outside span, .calendar-next-day.outside small { color: #b3c0c4; }
+.calendar-next-day.today { box-shadow: inset 0 4px #2b99b5; }
+.calendar-next-day.selected { position: relative; z-index: 2; border-color: #087f9b; background: #dff4f7; box-shadow: inset 0 0 0 1px #087f9b; }
+.calendar-next-day.all-attended:not(.selected) { background: #eefaf2; }
+.calendar-next-day.has-patients:not(.all-attended):not(.selected) { background: #fffaf0; }
+.selected-day-card { margin-top: 18px; }
+.day-state { padding: 7px 10px; border-radius: 999px; color: #667982; background: #f1f4f5; font: 800 .74rem "Trebuchet MS", sans-serif; }
+.day-state.active { color: #176b41; background: #e5f8e9; }
+.summary-five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.calendar-row-list { margin-top: 12px; border-top: 1px solid #e2ecef; }
+.calendar-next-row { display: grid; grid-template-columns: 88px minmax(200px, 1.4fr) minmax(160px, 1fr) minmax(92px, .55fr) auto; align-items: center; gap: 12px; padding: 13px 4px; border-bottom: 1px solid #e5eff2; border-left: 5px solid #aab8be; }
+.calendar-next-row.attended { border-left-color: #3aa366; }.calendar-next-row.no-show { border-left-color: #cf6960; }.calendar-next-row.waiting { border-left-color: #e79a26; }
+.calendar-next-row time { padding-left: 9px; color: #125c73; font: 900 .92rem "Trebuchet MS", sans-serif; }
+.calendar-next-row strong, .calendar-next-row span { display: block; }.calendar-next-row span { margin-top: 3px; color: #71848b; font: 800 .72rem "Trebuchet MS", sans-serif; }
+.calendar-next-row .tags { gap: 5px; }.calendar-next-row .tags span { margin: 0; }.calendar-next-row .result { justify-self: start; min-width: 58px; }
+.statistics-next-head > div:first-child span { color: #6e8188; font: 700 .8rem "Trebuchet MS", sans-serif; }
+.stat-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }.stat-summary .metric strong { font-size: 1.8rem; }
+.statistics-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.statistics-panel { min-width: 0; margin-bottom: 16px; }.statistics-grid .statistics-panel { margin-bottom: 0; }
+.statistics-panel > div:first-child p { margin: 5px 0 16px; color: #687e87; font: 700 .78rem/1.35 "Trebuchet MS", sans-serif; }
+.operational-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.data-metric { min-width: 0; padding: 12px; border: 1px solid #dcebef; border-radius: 11px; background: #f8fcfc; }.data-metric span, .data-metric small { display: block; color: #698089; font: 800 .7rem "Trebuchet MS", sans-serif; }.data-metric strong { display: block; margin: 5px 0; color: #123a4c; font-size: 1.35rem; }
+.bar-list { display: grid; gap: 11px; }.bar-row { display: grid; grid-template-columns: minmax(100px, .9fr) minmax(90px, 1.35fr) 42px; align-items: center; gap: 8px; }.bar-row strong, .bar-row span { display: block; }.bar-row strong { color: #17495a; font-size: .82rem; }.bar-row div > span { margin-top: 2px; color: #70848b; font: 700 .68rem "Trebuchet MS", sans-serif; }.bar-track { display: block; overflow: hidden; height: 8px; border-radius: 8px; background: #e8f0f2; }.bar-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #1b9ab7, #44b984); }.bar-row > b { color: #17667d; font-size: .78rem; text-align: right; }
+.daily-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }.daily-list > div { padding: 11px; border: 1px solid #ddebef; border-radius: 10px; background: #fbfdfd; }.daily-list strong, .daily-list span, .daily-list b, .daily-list em { display: block; }.daily-list strong { color: #17495a; font-size: .8rem; }.daily-list span, .daily-list b, .daily-list em { margin-top: 4px; font: 800 .72rem "Trebuchet MS", sans-serif; }.daily-list span { color: #71838a; }.daily-list b { color: #197244; }.daily-list em { color: #b14b46; font-style: normal; }
+
 @media (max-width: 1120px) {
   .quick-form { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .quick-form .check-label, .quick-form .primary-action { grid-column: auto; }
@@ -102,6 +147,7 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
   .vitals-form { grid-template-columns: 68px auto 90px; align-items: center; }
   .row-actions { grid-template-columns: repeat(2, minmax(0, 130px)); }
   .result, .attendance { justify-self: start; }
+  .calendar-next-row { grid-template-columns: 75px minmax(170px, 1fr) auto; }.calendar-next-row .tags, .calendar-next-row .result, .calendar-next-row .row-actions { grid-column: 2 / -1; }.summary-five { grid-template-columns: repeat(3, minmax(0, 1fr)); }.statistics-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 720px) {
@@ -115,4 +161,5 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
   .patient-row { grid-template-columns: 64px minmax(0, 1fr); }
   .result, .attendance { grid-column: 2; }
   .row-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .next-nav { justify-content: flex-start; }.calendar-next-toolbar, .statistics-next-head, .selected-day-head { align-items: flex-start; flex-direction: column; }.calendar-next-board, .selected-day-card, .statistics-panel { padding: 13px; }.calendar-next-weekdays { font-size: .62rem; }.calendar-next-day { min-height: 78px; padding: 7px 5px; }.calendar-next-day strong { font-size: .88rem; }.calendar-next-day span { font-size: .62rem; }.calendar-next-day small { display: none; }.summary-five, .stat-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }.calendar-next-row { grid-template-columns: 62px minmax(0, 1fr); }.calendar-next-row .tags, .calendar-next-row .result, .calendar-next-row .row-actions { grid-column: 2; }.calendar-next-row .row-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }.operational-grid, .daily-list { grid-template-columns: 1fr 1fr; }.bar-row { grid-template-columns: minmax(95px, 1fr) minmax(70px, 1fr) 34px; }
 }
