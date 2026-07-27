@@ -995,6 +995,20 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertEqual(payload["vitals"]["rest"]["so2"], 98)
         self.assertIn("revision-medica", payload["legacy_review_url"])
 
+    def test_next_review_result_api_saves_final_code(self):
+        grant_clinic_permissions(self.user, "review_medically")
+
+        response = self.client.post(
+            reverse("clinic:doctor_review_result_api", args=[self.encounter.pk]),
+            data=json.dumps({"respiratory_result": "RMOL"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.encounter.refresh_from_db()
+        self.assertEqual(get_result_code_from_encounter(self.encounter), "RMOL")
+        self.assertEqual(self.encounter.status, EncounterStatus.REVISADA)
+
     def test_next_agenda_api_saves_rest_vitals_as_one_transaction(self):
         response = self.client.post(
             reverse("clinic:agenda_vitals_api", args=[self.encounter.pk]),

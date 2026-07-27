@@ -5604,6 +5604,7 @@ def doctor_review_detail_api(request, pk):
     queue_info = build_doctor_review_queue(encounter.encounter_date, encounter)
     previous_encounter = queue_info["previous_encounter"]
     next_encounter = queue_info["next_encounter"]
+    can_print, print_block_reason = get_print_readiness(encounter, ignore_attendance=True)
     return JsonResponse(
         {
             "ok": True,
@@ -5630,11 +5631,49 @@ def doctor_review_detail_api(request, pk):
             "suggestion": suggestion,
             "vitals": build_review_vitals_context(encounter),
             "legacy_review_url": reverse("clinic:doctor_review_detail", args=[encounter.pk]),
+            "print_url": reverse("clinic:encounter_print", args=[encounter.pk]),
+            "can_print": can_print,
+            "print_block_reason": print_block_reason,
+            "result_code_options": [code for code, _label in RESULT_CODE_SUGGESTIONS],
             "previous": {"id": previous_encounter.pk, "name": previous_encounter.patient.full_name} if previous_encounter else None,
             "next": {"id": next_encounter.pk, "name": next_encounter.patient.full_name} if next_encounter else None,
             "pending_total": queue_info["pending_total"],
         }
     )
+
+
+@login_required
+@permission_required("clinic.review_medically", raise_exception=True)
+@require_POST
+def doctor_review_result_api(request, pk):
+    """Save the doctor's final code using the same clinical fields as the classic review form."""
+    try:
+        payload = get_agenda_api_payload(request)
+    except ValueError as error:
+        return JsonResponse({"ok": False, "message": str(error)}, status=400)
+    raw_result = str(payload.get("respiratory_result", "") or "")
+    parsed_result = parse_result_code(raw_result)
+    if parsed_result is None or not parsed_result["canonical_code"]:
+        return JsonResponse(
+            {"ok": False, "message": "Usa un codigo valido: N, OL, OM, OMS, OS, RL, RM, RMS, RS o mixto."},
+            status=400,
+        )
+    encounter = get_object_or_404(Encounter.objects.select_related("patient", "spirometry_result"), pk=pk)
+    spirometry_result = apply_result_code_to_spirometry(encounter, parsed_result["canonical_code"])
+    previous_attendance_label = get_attendance_label(encounter)
+    encounter.attended = True
+    if encounter.attended_at is None:
+        encounter.attended_at = timezone.now()
+    encounter.no_show = False
+    encounter.status = EncounterStatus.REVISADA
+    encounter.updated_by = request.user
+    encounter.validated_by = request.user
+    encounter.validated_at = timezone.now()
+    encounter.save(update_fields=["attended", "attended_at", "no_show", "status", "updated_by", "validated_by", "validated_at", "updated_at"])
+    if previous_attendance_label != get_attendance_label(encounter):
+        record_encounter_event(encounter, EncounterEventType.ATTENDANCE, "Asistencia actualizada automaticamente", actor=request.user, details="Se marco como atendido al guardar la revision medica desde Next.")
+    record_encounter_event(encounter, EncounterEventType.REVIEW, "Revision medica validada", actor=request.user, details=f"Resultado validado: {get_result_code_from_encounter(encounter) or '-'}")
+    return JsonResponse({"ok": True, "message": "Resultado medico guardado.", "result_code": get_result_code_from_encounter(encounter), "result_label": get_result_label_from_encounter(encounter)})
 
 
 @login_required

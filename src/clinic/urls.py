@@ -20,6 +20,7 @@ urlpatterns = [
     path("api/v1/pacientes/", views.patient_search_api, name="patient_search_api"),
     path("api/v1/revision-medica/", views.doctor_review_queue_api, name="doctor_review_queue_api"),
     path("api/v1/revision-medica/<int:pk>/", views.doctor_review_detail_api, name="doctor_review_detail_api"),
+    path("api/v1/revision-medica/<int:pk>/resultado/", views.doctor_review_result_api, name="doctor_review_result_api"),
     path("calendario/", views.calendar_view, name="calendar"),
     path("estadistica/", views.statistics_view, name="statistics"),
     path("pacientes/", views.patient_list, name="patient_list"),
