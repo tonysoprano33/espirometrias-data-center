@@ -93,12 +93,17 @@ def build_database_config():
 
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-me")
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
-IS_PRODUCTION = os.getenv("VERCEL", "").lower() in {"1", "true"} or os.getenv(
-    "APP_ENV", ""
-).lower() == "production"
+IS_PRODUCTION = (
+    os.getenv("VERCEL", "").lower() in {"1", "true"}
+    or os.getenv("RENDER", "").lower() in {"1", "true"}
+    or os.getenv("APP_ENV", "").lower() == "production"
+)
 ALLOWED_HOSTS = [
     host.strip() for host in os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost,testserver").split(",") if host.strip()
 ]
+render_external_hostname = env_value("RENDER_EXTERNAL_HOSTNAME")
+if render_external_hostname and render_external_hostname not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(render_external_hostname)
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
     for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")

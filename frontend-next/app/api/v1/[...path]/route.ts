@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const djangoOrigin = process.env.DJANGO_ORIGIN || "http://127.0.0.1:8000";
+const djangoBypassSecret = process.env.DJANGO_BYPASS_SECRET;
 
 const FORWARDED_REQUEST_HEADERS = [
   "accept",
@@ -40,6 +41,9 @@ async function proxyToDjango(
   // public scheme so Django keeps its secure-session and CSRF guarantees.
   headers.set("x-forwarded-proto", "https");
   headers.set("x-forwarded-host", request.headers.get("host") || "");
+  if (djangoBypassSecret) {
+    headers.set("x-vercel-protection-bypass", djangoBypassSecret);
+  }
 
   const upstream = await fetch(url, {
     method: request.method,

@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: clinica-espiro-api
+    runtime: python
+    plan: starter
+    buildCommand: bash build-render.sh
+    preDeployCommand: python src/manage.py migrate --noinput
+    startCommand: gunicorn --chdir src config.wsgi:application
+    healthCheckPath: /healthz/
+    autoDeployTrigger: commit
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.11
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: attachments
+      - key: USE_SUPABASE_STORAGE
+        value: "True"
+      - key: ROLE_SESSION_PASSWORD
+        sync: false
+      - key: ALLOWED_HOSTS
+        value: espirometrias-data-center.vercel.app
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://espirometrias-data-center.vercel.app
+      - key: SECURE_SSL_REDIRECT
+        value: "True"
+      - key: SESSION_COOKIE_SECURE
+        value: "True"
+      - key: CSRF_COOKIE_SECURE
+        value: "True"

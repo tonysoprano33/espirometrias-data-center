@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.http import Http404
 from django.http import FileResponse
+from django.http import JsonResponse
 from django.urls import include, path
 
 from clinic.auth_views import RoleLoginView
@@ -26,7 +27,13 @@ def favicon_file(request, filename):
     return FileResponse(file_path.open("rb"), content_type=content_type)
 
 
+def health_check(request):
+    """Una sonda publica minima para el hosting, sin datos clinicos ni sesion."""
+    return JsonResponse({"ok": True, "service": "clinica-espiro-api"})
+
+
 urlpatterns = [
+    path("healthz/", health_check, name="health_check"),
     path("favicon.svg", favicon_file, {"filename": "favicon.svg"}),
     path("favicon-32.png", favicon_file, {"filename": "favicon-32.png"}),
     path("favicon.ico", favicon_file, {"filename": "favicon.ico"}),
