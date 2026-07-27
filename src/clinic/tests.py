@@ -963,6 +963,23 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertEqual(payload["rows"][0]["full_name"], "Paciente API")
         self.assertEqual(payload["rows"][0]["dni"], "30.111.222")
 
+    def test_next_review_queue_api_prioritizes_attended_patient_with_pdf(self):
+        grant_clinic_permissions(self.user, "review_medically")
+        Attachment.objects.create(
+            encounter=self.encounter,
+            file_kind=AttachmentKind.PDF_RESULTADO,
+            original_name="resultado.pdf",
+        )
+        self.encounter.attended = True
+        self.encounter.save(update_fields=["attended", "updated_at"])
+
+        response = self.client.get(reverse("clinic:doctor_review_queue_api"), {"date": "2026-06-05"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["counters"]["pending"], 1)
+        self.assertEqual(payload["rows"][0]["review_state"], "pending")
+
     def test_next_agenda_api_saves_rest_vitals_as_one_transaction(self):
         response = self.client.post(
             reverse("clinic:agenda_vitals_api", args=[self.encounter.pk]),

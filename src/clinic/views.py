@@ -5499,6 +5499,99 @@ def doctor_review_list(request):
 
 @login_required
 @permission_required("clinic.review_medically", raise_exception=True)
+def doctor_review_queue_api(request):
+    """Read-only review queue for Next; the diagnostic form remains in Django until parity is verified."""
+    search_query = (request.GET.get("q") or "").strip()
+    date_param = (request.GET.get("date") or "").strip()
+    today = timezone.localdate()
+    try:
+        selected_date = datetime.strptime(date_param, "%Y-%m-%d").date() if date_param else today
+    except ValueError:
+        selected_date = today
+    try:
+        page_number = max(int(request.GET.get("page", "1")), 1)
+    except (TypeError, ValueError):
+        page_number = 1
+
+    encounters_qs = Encounter.objects.select_related("patient", "spirometry_result").prefetch_related("attachments")
+    counter_qs = Encounter.objects.prefetch_related("attachments")
+    if search_query:
+        encounter_filter = Q(patient__full_name__icontains=search_query) | Q(patient__dni__icontains=search_query)
+        encounters_qs = encounters_qs.filter(encounter_filter)
+        counter_qs = counter_qs.filter(encounter_filter)
+    else:
+        encounters_qs = encounters_qs.filter(encounter_date=selected_date)
+        counter_qs = counter_qs.filter(encounter_date=selected_date)
+    encounters = unique_encounters_by_patient_day(encounters_qs.order_by("-encounter_date", "-created_at"))
+    done_statuses = get_doctor_review_done_statuses()
+    counters = {"pending": 0, "missing_pdf": 0, "done": 0}
+    for encounter in unique_encounters_by_patient_day(counter_qs.order_by("-encounter_date", "-created_at")):
+        if encounter.status in done_statuses:
+            counters["done"] += 1
+        elif encounter.attended and encounter_has_review_pdf(encounter):
+            counters["pending"] += 1
+        else:
+            counters["missing_pdf"] += 1
+
+    queue_rows = []
+    for encounter in encounters:
+        has_pdf = encounter_has_review_pdf(encounter)
+        is_done = encounter.status in done_statuses
+        if is_done:
+            review_state, label, help_text, action_label, priority = (
+                "done", "Resultado listo", f"Resultado cargado: {get_result_code_from_encounter(encounter) or 'N/A'}.", "Ver revision", 3
+            )
+        elif encounter.attended and has_pdf:
+            review_state, label, help_text, action_label, priority = (
+                "pending", "Revisar ahora", "Paciente atendido con PDF cargado. Falta que el medico marque el resultado.", "Revisar PDF", 1
+            )
+        else:
+            review_state, label, help_text, action_label, priority = (
+                "missing_pdf", "Sin PDF / no atendido", "Todavia no esta listo para revision medica.", "Abrir ficha", 2
+            )
+        file_status = get_result_file_status(encounter, get_latest_result_attachment(encounter))
+        queue_rows.append(
+            {
+                "encounter_id": encounter.pk,
+                "date": encounter.encounter_date.isoformat(),
+                "date_short": encounter.encounter_date.strftime("%d/%m"),
+                "time": encounter.encounter_time.strftime("%H:%M") if encounter.encounter_time else "Sin hora",
+                "patient_name": encounter.patient.full_name,
+                "dni": formatear_dni(encounter.patient.dni) if encounter.patient.dni else "Sin DNI",
+                "study_type": encounter.study_type,
+                "coverage_type": encounter.coverage_type,
+                "medical_control_today": encounter.medical_control_today,
+                "review_state": review_state,
+                "state_label": label,
+                "state_help": help_text,
+                "file_status": file_status["label"],
+                "file_status_key": file_status["key"],
+                "action_label": action_label,
+                "review_url": reverse("clinic:doctor_review_detail", args=[encounter.pk]),
+                "priority": priority,
+            }
+        )
+    queue_rows.sort(key=lambda row: (row["priority"], row["date"], row["time"]))
+    page_obj = Paginator(queue_rows, 20).get_page(page_number)
+    return JsonResponse(
+        {
+            "ok": True,
+            "date": selected_date.isoformat(),
+            "date_label": format_day_label(selected_date),
+            "today": today.isoformat(),
+            "query": search_query,
+            "counters": counters,
+            "page": page_obj.number,
+            "pages": page_obj.paginator.num_pages,
+            "has_previous": page_obj.has_previous(),
+            "has_next": page_obj.has_next(),
+            "rows": list(page_obj.object_list),
+        }
+    )
+
+
+@login_required
+@permission_required("clinic.review_medically", raise_exception=True)
 def doctor_review_detail(request, pk):
     encounter = get_object_or_404(
         Encounter.objects.select_related(

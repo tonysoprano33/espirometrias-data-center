@@ -222,6 +222,7 @@ export default function AgendaPreview() {
             <a href="/calendario/">Calendario</a>
             <a href="/estadistica/">Estadisticas</a>
             <a href="/pacientes/">Pacientes</a>
+            <a href="/revision-medica/">Revision medica</a>
           </nav>
           <a className="back-link" href="/django/">Agenda actual</a>
         </div>
