@@ -1,5 +1,6 @@
 from datetime import date, datetime, time
 from io import BytesIO
+import json
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -921,6 +922,62 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertEqual(payload["summary"]["total"], 1)
         self.assertEqual(payload["rows"][0]["encounter_id"], self.encounter.pk)
         self.assertEqual(payload["rows"][0]["patient_name"], self.encounter.patient.full_name)
+
+    def test_next_agenda_api_saves_rest_vitals_as_one_transaction(self):
+        response = self.client.post(
+            reverse("clinic:agenda_vitals_api", args=[self.encounter.pk]),
+            data=json.dumps({"group": "rest", "so2": 98, "fc": 76}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.encounter.refresh_from_db()
+        self.assertTrue(self.encounter.attended)
+        self.assertEqual(self.encounter.vital_signs.so2_rest, 98)
+        self.assertEqual(self.encounter.vital_signs.fc_rest, 76)
+        self.assertEqual(response.json()["attendance_label"], "Atendido")
+
+    def test_next_agenda_api_updates_a_field_only_when_requested(self):
+        response = self.client.post(
+            reverse("clinic:agenda_inline_field_api", args=[self.encounter.pk]),
+            data=json.dumps({"field_name": "encounter_time", "value": "1530"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.encounter.refresh_from_db()
+        self.assertEqual(self.encounter.encounter_time, time(15, 30))
+        self.assertEqual(response.json()["encounter_time"], "15:30")
+
+    def test_next_agenda_api_requires_duplicate_choice_before_creating(self):
+        existing = Patient.objects.create(full_name="PEREZ, JUAN", dni="30111222")
+        payload = {
+            "patient_name": "NOMBRE OCR",
+            "patient_dni": "30.111.222",
+            "encounter_time": "12:00",
+            "study_type": StudyType.CICLOMETRIA,
+            "coverage_type": CoverageType.PARTICULAR,
+        }
+        with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
+            response = self.client.post(
+                reverse("clinic:agenda_quick_add_api"),
+                data=json.dumps(payload),
+                content_type="application/json",
+            )
+
+            self.assertEqual(response.status_code, 409)
+            self.assertTrue(response.json()["needs_duplicate_choice"])
+            self.assertEqual(Encounter.objects.count(), 1)
+
+            response = self.client.post(
+                reverse("clinic:agenda_quick_add_api"),
+                data=json.dumps({**payload, "duplicate_action": "use_existing", "patient_id": existing.pk}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Encounter.objects.count(), 2)
+        self.assertEqual(Encounter.objects.get(pk=response.json()["encounter_id"]).patient_id, existing.pk)
 
     def test_espirometrista_dashboard_uses_review_bands_instead_of_a_duplicate_status(self):
         SpirometryResult.objects.create(encounter=self.encounter, respiratory_pattern="Normal")

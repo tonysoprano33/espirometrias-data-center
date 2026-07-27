@@ -4293,6 +4293,204 @@ def agenda_today_api(request):
     )
 
 
+def get_agenda_api_payload(request):
+    """Read JSON or form data for the versioned agenda API."""
+    if request.content_type and request.content_type.startswith("application/json"):
+        try:
+            payload = json.loads(request.body.decode("utf-8") or "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ValueError("El cuerpo JSON de la agenda no es valido.") from error
+        if not isinstance(payload, dict):
+            raise ValueError("La agenda espera un objeto JSON.")
+        return payload
+    return request.POST
+
+
+def serialize_duplicate_candidates(candidates):
+    return [
+        {
+            "patient_id": candidate["patient"].pk,
+            "patient_name": candidate["patient"].full_name,
+            "dni_display": formatear_dni(candidate["patient"].dni) if candidate["patient"].dni else "Sin DNI",
+            "match_summary": candidate["match_summary"],
+            "coverage_hint": candidate["coverage_hint"],
+            "can_use": candidate["can_use"],
+        }
+        for candidate in candidates
+    ]
+
+
+def agenda_api_row_response(encounter, *, status=200, message=""):
+    payload = {"ok": True, "message": message}
+    payload.update(get_row_state_payload(encounter))
+    return JsonResponse(payload, status=status)
+
+
+@login_required
+@permission_required("clinic.manage_agenda", raise_exception=True)
+@require_POST
+def agenda_quick_add_api(request):
+    """Create an encounter through the same validated service as the Django form."""
+    try:
+        payload = get_agenda_api_payload(request)
+    except ValueError as error:
+        return JsonResponse({"ok": False, "message": str(error)}, status=400)
+
+    quick_data = {
+        "patient_name": payload.get("patient_name", ""),
+        "patient_dni": payload.get("patient_dni", ""),
+        "encounter_time": payload.get("encounter_time", ""),
+        "study_type": payload.get("study_type", StudyType.CICLOMETRIA),
+        "coverage_type": payload.get("coverage_type", CoverageType.PARTICULAR),
+        "referring_physician": payload.get("referring_physician", ""),
+        "distance_meters": payload.get("distance_meters", 200),
+        "completed": payload.get("completed", True),
+        "borg_final": payload.get("borg_final", 1),
+        "medical_control_today": payload.get("medical_control_today", False),
+        "no_show": True,
+    }
+    form = QuickEncounterForm(quick_data)
+    if not form.is_valid():
+        return JsonResponse(
+            {"ok": False, "message": "Revisa los datos del paciente.", "errors": form.errors.get_json_data()},
+            status=400,
+        )
+
+    candidates = find_possible_patient_duplicates(
+        form.cleaned_data["patient_name"],
+        form.cleaned_data.get("patient_dni", ""),
+    )
+    duplicate_action = str(payload.get("duplicate_action", "") or "")
+    selected_patient = None
+    force_new_patient = False
+    if candidates and not duplicate_action:
+        return JsonResponse(
+            {
+                "ok": False,
+                "needs_duplicate_choice": True,
+                "message": "Encontramos una posible historia existente. Elegi antes de agendar.",
+                "candidates": serialize_duplicate_candidates(candidates),
+            },
+            status=409,
+        )
+    if duplicate_action == "use_existing":
+        try:
+            selected_patient_id = int(payload.get("patient_id"))
+        except (TypeError, ValueError):
+            selected_patient_id = None
+        selected_match = next(
+            (
+                candidate
+                for candidate in candidates
+                if candidate["patient"].pk == selected_patient_id and candidate["can_use"]
+            ),
+            None,
+        )
+        if selected_match is None:
+            return JsonResponse({"ok": False, "message": "La historia elegida ya no coincide con los datos."}, status=400)
+        selected_patient = selected_match["patient"]
+    elif duplicate_action == "create_new":
+        if any(candidate["same_dni"] for candidate in candidates):
+            return JsonResponse({"ok": False, "message": "Ese DNI ya pertenece a una historia existente."}, status=400)
+        if any(candidate["same_name"] for candidate in candidates) and not form.cleaned_data.get("patient_dni"):
+            return JsonResponse(
+                {"ok": False, "message": "Para crear una historia nueva con ese nombre, completa un DNI distinto."},
+                status=400,
+            )
+        force_new_patient = True
+
+    try:
+        encounter = save_quick_encounter(
+            form,
+            request.user,
+            selected_patient=selected_patient,
+            force_new_patient=force_new_patient,
+        )
+    except ValueError as error:
+        return JsonResponse({"ok": False, "message": str(error)}, status=400)
+    return agenda_api_row_response(encounter, status=201, message=f"Paciente agendado: {encounter.patient.full_name}")
+
+
+@login_required
+@permission_required("clinic.manage_agenda", raise_exception=True)
+@require_POST
+def agenda_attendance_api(request, pk):
+    encounter = get_object_or_404(Encounter.objects.select_related("patient"), pk=pk)
+    cycle_attendance(encounter, request.user)
+    return agenda_api_row_response(encounter, message="Asistencia actualizada.")
+
+
+@login_required
+@permission_required("clinic.manage_agenda", raise_exception=True)
+@require_POST
+def agenda_vitals_api(request, pk):
+    try:
+        payload = get_agenda_api_payload(request)
+        encounter = save_vitals_group_values(
+            encounter_id=pk,
+            group_name=str(payload.get("group", "") or ""),
+            so2_raw=str(payload.get("so2", "") or ""),
+            fc_raw=str(payload.get("fc", "") or ""),
+            request_user=request.user,
+        )
+    except (Encounter.DoesNotExist, ValueError) as error:
+        return JsonResponse({"ok": False, "message": str(error) or "No se pudieron guardar los signos vitales."}, status=400)
+    return agenda_api_row_response(encounter, message="Signos vitales guardados.")
+
+
+@login_required
+@permission_required("clinic.manage_agenda", raise_exception=True)
+@require_POST
+def agenda_inline_field_api(request, pk):
+    try:
+        payload = get_agenda_api_payload(request)
+    except ValueError as error:
+        return JsonResponse({"ok": False, "message": str(error)}, status=400)
+    field_name = str(payload.get("field_name", "") or "").strip()
+    allowed_fields = {
+        "patient_name",
+        "patient_dni",
+        "encounter_time",
+        "study_type",
+        "coverage_type",
+        "referring_physician",
+        "respiratory_result",
+    }
+    if field_name not in allowed_fields:
+        return JsonResponse({"ok": False, "message": "Ese campo no se puede actualizar desde la agenda."}, status=400)
+    encounter = get_object_or_404(Encounter.objects.select_related("patient"), pk=pk)
+    try:
+        update_inline_field(
+            encounter=encounter,
+            field_name=field_name,
+            raw_value=str(payload.get("value", "") or ""),
+            request_user=request.user,
+            manual_save=True,
+        )
+    except ValueError as error:
+        return JsonResponse({"ok": False, "message": str(error)}, status=400)
+    encounter.refresh_from_db()
+    return agenda_api_row_response(encounter, message="Dato actualizado.")
+
+
+@login_required
+@permission_required("clinic.manage_agenda", raise_exception=True)
+@require_POST
+def agenda_medical_control_api(request, pk):
+    encounter = get_object_or_404(Encounter.objects.select_related("patient"), pk=pk)
+    encounter.medical_control_today = not encounter.medical_control_today
+    encounter.updated_by = request.user
+    encounter.save(update_fields=["medical_control_today", "updated_by", "updated_at"])
+    record_encounter_event(
+        encounter,
+        EncounterEventType.UPDATED,
+        "Control medico actualizado",
+        actor=request.user,
+        details=f"Control medico hoy: {'si' if encounter.medical_control_today else 'no'}.",
+    )
+    return agenda_api_row_response(encounter, message="Control medico actualizado.")
+
+
 @login_required
 def patient_list(request):
     purge_expired_recycle_bin()

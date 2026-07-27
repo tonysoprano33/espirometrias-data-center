@@ -26,6 +26,24 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .mode { background: #e8f6fb; color: #0c607a; }
 .back-link { border: 1px solid #bed6df; color: #176b84; text-decoration: none; background: #fff; }
 
+.quick-panel, .duplicate-panel { margin-bottom: 18px; padding: 18px; border: 1px solid #bde0e7; border-radius: 18px; background: linear-gradient(135deg, #f1fbff, #ffffff 58%, #f6fcf8); }
+.quick-panel h2, .duplicate-panel h2 { margin-bottom: 0; }
+.quick-form { display: grid; grid-template-columns: minmax(170px, 1.45fr) minmax(130px, .8fr) 110px 130px 130px auto auto; gap: 10px; align-items: end; margin-top: 14px; }
+.quick-form label { display: grid; gap: 5px; color: #426574; font: 800 .72rem "Trebuchet MS", sans-serif; text-transform: uppercase; letter-spacing: .04em; }
+.quick-form input, .quick-form select { min-width: 0; height: 42px; padding: 8px 10px; border: 1px solid #c9dde4; border-radius: 10px; color: var(--ink); background: #fff; font: 700 .95rem "Trebuchet MS", sans-serif; }
+.quick-form .check-label { display: flex; min-height: 42px; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid #c6e3ea; border-radius: 10px; background: #edf9fc; text-transform: none; letter-spacing: 0; white-space: nowrap; }
+.quick-form .check-label input { width: auto; height: auto; }
+.primary-action, .secondary-action { min-height: 42px; border: 0; border-radius: 10px; cursor: pointer; font: 800 .86rem "Trebuchet MS", sans-serif; }
+.primary-action { padding: 0 15px; color: #fff; background: #087f9b; box-shadow: 0 8px 16px rgba(8, 127, 155, .18); white-space: nowrap; }
+.primary-action:disabled, .secondary-action:disabled, .duplicate-actions button:disabled { cursor: wait; opacity: .6; }
+.duplicate-panel { border-color: #efc26d; background: #fff9e9; }
+.duplicate-panel p { margin: 12px 0; color: #66513b; }
+.duplicate-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.duplicate-actions button { max-width: 320px; padding: 10px 12px; border: 1px solid #d9ab4b; border-radius: 10px; color: #704600; background: #fff; cursor: pointer; font: 800 .8rem "Trebuchet MS", sans-serif; text-align: left; }
+.duplicate-actions button small { display: block; margin-top: 4px; color: #846f57; font-weight: 700; }
+.duplicate-actions .secondary-action { padding: 0 13px; color: #16596d; border-color: #acd4df; background: #eaf8fc; text-align: center; }
+.duplicate-actions .text-action { color: #586f79; border-color: transparent; background: transparent; text-decoration: underline; text-align: center; }
+
 .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
 .metric { padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
 .metric strong { display: block; font-size: 2rem; line-height: 1; }
@@ -40,7 +58,7 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .agenda-card-head small { color: var(--muted); font-family: "Trebuchet MS", sans-serif; }
 .patient-row {
   display: grid;
-  grid-template-columns: 80px minmax(210px, 1.7fr) minmax(165px, 1fr) 112px 112px 112px 106px;
+  grid-template-columns: 70px minmax(190px, 1.55fr) minmax(135px, .8fr) 150px 150px 108px 130px 100px;
   gap: 12px;
   align-items: center;
   min-height: 82px;
@@ -59,17 +77,29 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .tags span, .vitals span, .result, .attendance { padding: 6px 8px; border-radius: 8px; background: #f1f7f9; font: 800 .74rem "Trebuchet MS", sans-serif; }
 .tags .control { color: #974900; background: #fff1c8; }
 .vitals { display: grid; gap: 4px; }
+.vitals-form { display: grid; gap: 5px; }
+.vitals-form > span { color: #52717c; font: 800 .66rem "Trebuchet MS", sans-serif; text-transform: uppercase; }
+.vitals-form div { display: flex; align-items: center; gap: 5px; }
+.vitals-form input { width: 50px; min-width: 0; height: 31px; padding: 4px 6px; border: 1px solid #97dcdb; border-radius: 8px; color: #116d75; background: #e8fbfa; font: 800 .84rem "Trebuchet MS", sans-serif; text-align: center; }
+.vitals-form input + b + input { border-color: #ffc98e; color: #9a5507; background: #fff1df; }
+.vitals-form button { height: 28px; border: 0; border-radius: 8px; color: #fff; background: #087f9b; cursor: pointer; font: 800 .72rem "Trebuchet MS", sans-serif; }
 .result { background: #fff3b8; text-align: center; }
 .attendance { text-align: center; background: #edf7ef; }
+.attendance-actions { display: grid; gap: 5px; }
+.attendance-actions button { min-height: 30px; padding: 5px 7px; border: 1px solid #a8d8b8; border-radius: 8px; color: #157041; background: #eefaf0; cursor: pointer; font: 800 .74rem "Trebuchet MS", sans-serif; }
+.attendance-actions .control-toggle { color: #8f5b00; border-color: #ebca69; background: #fff8dc; font-size: .67rem; }
 .row-actions { display: grid; gap: 6px; }
 .row-actions a { display: block; padding: 7px 8px; border: 1px solid #bcd9e3; border-radius: 8px; color: #076b87; background: #f8fdff; text-align: center; text-decoration: none; font: 800 .74rem "Trebuchet MS", sans-serif; }
 .row-actions .print-link { color: #9b5100; border-color: #efc07c; background: #fff5df; }
 .empty, .notice { padding: 22px; color: var(--muted); }
-.notice.error { color: #a13232; background: #fff1f1; border-radius: 10px; }
+.notice.error { color: #a13232; background: #fff1f1; border-radius: 10px; }.notice.success { color: #176b41; background: #edf9ef; border-radius: 10px; }
 
 @media (max-width: 1120px) {
+  .quick-form { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .quick-form .check-label, .quick-form .primary-action { grid-column: auto; }
   .patient-row { grid-template-columns: 74px minmax(0, 1fr) auto; gap: 9px; }
-  .tags, .vitals, .row-actions { grid-column: 2 / -1; }
+  .tags, .vitals-form, .attendance-actions, .row-actions { grid-column: 2 / -1; }
+  .vitals-form { grid-template-columns: 68px auto 90px; align-items: center; }
   .row-actions { grid-template-columns: repeat(2, minmax(0, 130px)); }
   .result, .attendance { justify-self: start; }
 }
@@ -79,6 +109,9 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
   .agenda-header, .agenda-card-head { align-items: stretch; flex-direction: column; }
   .header-actions { justify-content: start; }
   .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .quick-form { grid-template-columns: 1fr 1fr; }
+  .quick-form label:first-child { grid-column: 1 / -1; }
+  .quick-form .primary-action { grid-column: 1 / -1; }
   .patient-row { grid-template-columns: 64px minmax(0, 1fr); }
   .result, .attendance { grid-column: 2; }
   .row-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
