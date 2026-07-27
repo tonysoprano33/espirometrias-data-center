@@ -2082,6 +2082,63 @@
         font-size: .84rem;
         font-weight: 800;
     }
+    .waiting-elapsed {
+        display: inline-flex;
+        align-items: center;
+        margin-top: 6px;
+        padding: 3px 8px;
+        border: 1px solid #efd68c;
+        border-radius: 999px;
+        background: #fff7d8;
+        color: #8a6100;
+        font-size: .72rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+    }
+    .bronchodilator-reminder {
+        overflow: hidden;
+        border: 1px solid #c9e4ee;
+        border-radius: 11px;
+        background: #f2fbff;
+    }
+    .bronchodilator-reminder summary {
+        padding: 7px 9px;
+        cursor: pointer;
+        color: #14647e;
+        font-size: .76rem;
+        font-weight: 850;
+        list-style: none;
+    }
+    .bronchodilator-reminder summary::-webkit-details-marker { display: none; }
+    .bronchodilator-reminder summary::after { content: "+"; float: right; font-size: .95rem; }
+    .bronchodilator-reminder[open] summary::after { content: "-"; }
+    .bronchodilator-reminder.is-ready { border-color: #79c998; background: #ecfbf1; }
+    .bronchodilator-reminder.is-active { border-color: #8ecce0; background: #eefaff; }
+    .bronchodilator-reminder form {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 6px;
+        align-items: center;
+        padding: 0 8px 8px;
+    }
+    .bronchodilator-reminder select {
+        min-width: 0;
+        min-height: 31px;
+        padding: 4px 6px;
+        font-size: .76rem;
+    }
+    .bronchodilator-reminder .button.small {
+        min-height: 31px;
+        padding: 5px 8px;
+        font-size: .72rem;
+    }
+    .bronchodilator-reminder .bronchodilator-clear {
+        grid-column: 1 / -1;
+        justify-self: start;
+        padding: 0;
+        color: #8b5c00;
+        font-size: .7rem;
+    }
     .secretary-mode-table .attendance-button {
         width: 100%;
         min-height: 56px;
@@ -2734,6 +2791,7 @@
                                     {% endif %}
                                 </button>
                             </form>
+                            <span class="waiting-elapsed" data-waiting-elapsed{% if not encounter.waiting_elapsed_label %} hidden{% endif %}>{{ encounter.waiting_elapsed_label }}</span>
                             {% if current_work_mode == "secretaria" %}
                             <form method="post" class="secretary-control-form" data-inline-ajax data-medical-control-form>
                                 {% csrf_token %}
@@ -2755,6 +2813,22 @@
                         <td class="td-actions" data-label="Acciones">
                             <div style="display:grid; gap:8px; min-width:150px;">
                                 <span class="agenda-print-action" data-print-link>{% if encounter.can_print_result %}<a class="button" href="{{ encounter.print_url }}" target="_blank" rel="noopener">Imprimir</a>{% else %}<span class="agenda-print-unavailable" title="{{ encounter.print_block_reason }}">Imprimir no disponible</span>{% endif %}</span>
+                                {% if current_work_mode == "espirometrista" %}
+                                <details class="bronchodilator-reminder{% if encounter.bronchodilator_administered_at %} is-active{% endif %}" data-bronchodilator-reminder>
+                                    <summary data-bronchodilator-label>Bronco: {% if encounter.bronchodilator_administered_at %}en curso{% else %}sin marcar{% endif %}</summary>
+                                    <form method="post" data-bronchodilator-timer-form>
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="start_bronchodilator_timer">
+                                        <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                        <select name="bronchodilator_wait_minutes" aria-label="Minutos de espera luego de aplicar broncodilatador" data-bronchodilator-minutes>
+                                            <option value="10"{% if encounter.bronchodilator_wait_minutes == 10 %} selected{% endif %}>10 min</option>
+                                            <option value="15"{% if encounter.bronchodilator_wait_minutes != 10 %} selected{% endif %}>15 min</option>
+                                        </select>
+                                        <button type="submit" class="button small" data-bronchodilator-start>{% if encounter.bronchodilator_administered_at %}Reiniciar{% else %}Marcar aplicado{% endif %}</button>
+                                        <button type="button" class="link-button bronchodilator-clear" data-bronchodilator-clear{% if not encounter.bronchodilator_administered_at %} hidden{% endif %}>Cancelar recordatorio</button>
+                                    </form>
+                                </details>
+                                {% endif %}
                                 <form method="post" action="{% url 'clinic:encounter_generate_report' encounter.pk %}" data-report-form>
                                     {% csrf_token %}
                                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
@@ -3285,6 +3359,29 @@
             }
         }
 
+        function updateWaitingElapsed(row, payload) {
+            const elapsed = row ? row.querySelector("[data-waiting-elapsed]") : null;
+            if (!elapsed) return;
+            const label = payload.waiting_elapsed_label || "";
+            elapsed.textContent = label;
+            elapsed.hidden = !label;
+        }
+
+        function updateBronchodilatorReminder(row, payload) {
+            const reminder = row ? row.querySelector("[data-bronchodilator-reminder]") : null;
+            if (!reminder || typeof payload.bronchodilator_timer_active === "undefined") return;
+            const label = reminder.querySelector("[data-bronchodilator-label]");
+            const start = reminder.querySelector("[data-bronchodilator-start]");
+            const clear = reminder.querySelector("[data-bronchodilator-clear]");
+            const select = reminder.querySelector("[data-bronchodilator-minutes]");
+            reminder.classList.toggle("is-active", Boolean(payload.bronchodilator_timer_active));
+            reminder.classList.toggle("is-ready", Boolean(payload.bronchodilator_timer_ready));
+            if (label) label.textContent = payload.bronchodilator_timer_label || "Bronco: sin marcar";
+            if (start) start.textContent = payload.bronchodilator_timer_active ? "Reiniciar" : "Marcar aplicado";
+            if (clear) clear.hidden = !payload.bronchodilator_timer_active;
+            if (select && payload.bronchodilator_wait_minutes) select.value = String(payload.bronchodilator_wait_minutes);
+        }
+
         function updatePatientDniChip(row, value) {
             if (!row) return;
             const chip = row.querySelector("[data-patient-dni-chip]");
@@ -3387,6 +3484,8 @@
             if (payload.attendance_label && attendanceButton) {
                 updateAttendanceButton(attendanceButton, payload);
             }
+            updateWaitingElapsed(row, payload);
+            updateBronchodilatorReminder(row, payload);
             if (typeof payload.medical_control_today !== "undefined") {
                 const controlButton = row.querySelector("[data-medical-control-button]");
                 if (controlButton) {
@@ -3910,6 +4009,36 @@
             if (payload.no_show) addClass(button, "no-show");
         }
 
+        function updateWaitingElapsed(row, payload) {
+            var elapsed = row && row.querySelector ? row.querySelector("[data-waiting-elapsed]") : null;
+            var label;
+            if (!elapsed) return;
+            label = payload.waiting_elapsed_label || "";
+            elapsed.innerHTML = escapeHtml(label);
+            elapsed.hidden = !label;
+        }
+
+        function updateBronchodilatorReminder(row, payload) {
+            var reminder = row && row.querySelector ? row.querySelector("[data-bronchodilator-reminder]") : null;
+            var label;
+            var start;
+            var clear;
+            var select;
+            if (!reminder || typeof payload.bronchodilator_timer_active === "undefined") return;
+            label = reminder.querySelector("[data-bronchodilator-label]");
+            start = reminder.querySelector("[data-bronchodilator-start]");
+            clear = reminder.querySelector("[data-bronchodilator-clear]");
+            select = reminder.querySelector("[data-bronchodilator-minutes]");
+            if (payload.bronchodilator_timer_active) addClass(reminder, "is-active");
+            else removeClass(reminder, "is-active");
+            if (payload.bronchodilator_timer_ready) addClass(reminder, "is-ready");
+            else removeClass(reminder, "is-ready");
+            if (label) label.innerHTML = escapeHtml(payload.bronchodilator_timer_label || "Bronco: sin marcar");
+            if (start) start.innerHTML = payload.bronchodilator_timer_active ? "Reiniciar" : "Marcar aplicado";
+            if (clear) clear.hidden = !payload.bronchodilator_timer_active;
+            if (select && payload.bronchodilator_wait_minutes) select.value = String(payload.bronchodilator_wait_minutes);
+        }
+
         function getRowEncounterTime(row) {
             var value = row ? String(row.getAttribute("data-encounter-time") || "").trim() : "";
             return value || "99:99";
@@ -4062,6 +4191,8 @@
             setInlineValue(row, "fc_post", payload.fc_post);
             setDniValue(row, payload);
             updateAttendance(row, payload);
+            updateWaitingElapsed(row, payload);
+            updateBronchodilatorReminder(row, payload);
             refreshAgendaAttendanceSummary();
             updateReport(row, payload);
             if (window.espiroAgendaCollapse && typeof window.espiroAgendaCollapse.syncRow === "function") {
@@ -4232,6 +4363,54 @@
                     form.setAttribute("data-live-saving", "0");
                 }
             );
+            return false;
+        }
+
+        function submitBronchodilatorTimer(form, action) {
+            var row = closestAttr(form, "data-encounter-row");
+            var hiddenAction = form.querySelector ? form.querySelector('input[name="action"]') : null;
+            var start = form.querySelector ? form.querySelector("[data-bronchodilator-start]") : null;
+            var clear = form.querySelector ? form.querySelector("[data-bronchodilator-clear]") : null;
+            var previousAction = hiddenAction ? hiddenAction.value : "";
+            if (!form || form.getAttribute("data-live-saving") === "1") return;
+            if (hiddenAction) hiddenAction.value = action || "start_bronchodilator_timer";
+            form.setAttribute("data-live-saving", "1");
+            if (start) start.disabled = true;
+            if (clear) clear.disabled = true;
+            postForm(
+                form,
+                function (payload) {
+                    updateRow(row, payload);
+                    form.setAttribute("data-live-saving", "0");
+                    if (start) start.disabled = false;
+                    if (clear) clear.disabled = false;
+                    if (hiddenAction) hiddenAction.value = previousAction || "start_bronchodilator_timer";
+                },
+                function () {
+                    form.setAttribute("data-live-saving", "0");
+                    if (start) start.disabled = false;
+                    if (clear) clear.disabled = false;
+                    if (hiddenAction) hiddenAction.value = previousAction || "start_bronchodilator_timer";
+                }
+            );
+        }
+
+        function handleBronchodilatorSubmit(event) {
+            var form = event.target || event.srcElement;
+            if (!hasAttr(form, "data-bronchodilator-timer-form")) return;
+            stopEvent(event);
+            submitBronchodilatorTimer(form, "start_bronchodilator_timer");
+            return false;
+        }
+
+        function handleBronchodilatorClear(event) {
+            var target = event.target || event.srcElement;
+            var button = closestAttr(target, "data-bronchodilator-clear");
+            var form;
+            if (!button) return;
+            stopEvent(event);
+            form = button.form || closestTag(button, "form");
+            if (form) submitBronchodilatorTimer(form, "clear_bronchodilator_timer");
             return false;
         }
 
@@ -4959,8 +5138,10 @@
 
         addEvent(document, "click", handleAttendanceClick, true);
         addEvent(document, "click", handleVitalsSaveClick, true);
+        addEvent(document, "click", handleBronchodilatorClear, true);
         addEvent(document, "submit", handleReportSubmit, true);
         addEvent(document, "submit", handleDeleteSubmit, true);
+        addEvent(document, "submit", handleBronchodilatorSubmit, true);
         addEvent(document, "input", capNumericInputs, true);
         addEvent(document, "keyup", capNumericInputs, true);
 

@@ -1193,8 +1193,22 @@ def save_vitals_group_values(*, encounter_id, group_name, so2_raw, fc_raw, reque
         setattr(vital, fc_field, fc_value)
         vital.save(update_fields=[so2_field, fc_field, "updated_at"])
 
+        now = timezone.now()
         encounter.updated_by = request_user
-        encounter.save(update_fields=["updated_by", "updated_at"])
+        encounter_update_fields = ["updated_by", "updated_at"]
+        if group_name == "rest" and rest_vital_signs_are_complete(vital) and not encounter.first_vitals_recorded_at:
+            encounter.first_vitals_recorded_at = now
+            encounter_update_fields.append("first_vitals_recorded_at")
+        if (
+            group_name == "post"
+            and encounter.study_type == StudyType.CICLOMETRIA
+            and getattr(vital, "so2_post", None) is not None
+            and getattr(vital, "fc_post", None) is not None
+            and not encounter.discharged_at
+        ):
+            encounter.discharged_at = now
+            encounter_update_fields.append("discharged_at")
+        encounter.save(update_fields=encounter_update_fields)
         if (old_so2, old_fc) != (so2_value, fc_value):
             record_encounter_event(
                 encounter,
@@ -1217,6 +1231,71 @@ def save_vitals_group_values(*, encounter_id, group_name, so2_raw, fc_raw, reque
                 details="Se marco como atendido al guardar SO2 y FC completos en reposo.",
             )
     return encounter
+
+
+def get_operational_minutes(started_at, finished_at):
+    """Return a non-negative rounded duration only when both operational marks exist."""
+    if not started_at or not finished_at:
+        return None
+    elapsed_seconds = (finished_at - started_at).total_seconds()
+    if elapsed_seconds < 0:
+        return None
+    return int(round(elapsed_seconds / 60))
+
+
+def get_bronchodilator_timer_payload(encounter, *, now=None):
+    now = now or timezone.now()
+    started_at = encounter.bronchodilator_administered_at
+    wait_minutes = int(encounter.bronchodilator_wait_minutes or 15)
+    if not started_at:
+        return {
+            "bronchodilator_timer_active": False,
+            "bronchodilator_timer_ready": False,
+            "bronchodilator_timer_remaining_minutes": None,
+            "bronchodilator_timer_label": "Bronco: sin marcar",
+            "bronchodilator_wait_minutes": wait_minutes,
+        }
+
+    due_at = started_at + timedelta(minutes=wait_minutes)
+    remaining_seconds = max(0, int((due_at - now).total_seconds()))
+    remaining_minutes = (remaining_seconds + 59) // 60
+    is_ready = remaining_seconds == 0
+    return {
+        "bronchodilator_timer_active": True,
+        "bronchodilator_timer_ready": is_ready,
+        "bronchodilator_timer_remaining_minutes": remaining_minutes,
+        "bronchodilator_timer_label": "Bronco: listo" if is_ready else f"Bronco: {remaining_minutes} min",
+        "bronchodilator_wait_minutes": wait_minutes,
+    }
+
+
+def build_operational_time_summary(encounters):
+    """Summarize only fully timestamped operational stages for the selected period."""
+    wait_minutes = []
+    care_minutes = []
+    total_minutes = []
+    for encounter in encounters:
+        wait = get_operational_minutes(encounter.waiting_started_at, encounter.first_vitals_recorded_at)
+        care = get_operational_minutes(encounter.first_vitals_recorded_at, encounter.discharged_at)
+        total = get_operational_minutes(encounter.waiting_started_at, encounter.discharged_at)
+        if wait is not None:
+            wait_minutes.append(wait)
+        if care is not None:
+            care_minutes.append(care)
+        if total is not None:
+            total_minutes.append(total)
+
+    def average(values):
+        return round(mean(values)) if values else None
+
+    return {
+        "waiting_average_minutes": average(wait_minutes),
+        "care_average_minutes": average(care_minutes),
+        "total_average_minutes": average(total_minutes),
+        "waiting_samples": len(wait_minutes),
+        "care_samples": len(care_minutes),
+        "total_samples": len(total_minutes),
+    }
 
 
 def parse_optional_time(raw_value):
@@ -1246,6 +1325,8 @@ def get_row_state_payload(encounter):
     vital = getattr(encounter, "vital_signs", None)
     current_physician = getattr(encounter, "referring_physician", None)
     default_physician = get_default_physician()
+    waiting_minutes = get_operational_minutes(encounter.waiting_started_at, timezone.now())
+    is_waiting = not encounter.attended and not encounter.no_show and encounter.waiting_started_at is not None
     payload = {
         "encounter_id": encounter.pk,
         "status": encounter.status,
@@ -1255,6 +1336,9 @@ def get_row_state_payload(encounter):
         "no_show": encounter.no_show,
         "attendance_label": get_attendance_label(encounter),
         "attended_at": encounter.attended_at.isoformat() if encounter.attended_at else "",
+        "waiting_started_at": encounter.waiting_started_at.isoformat() if encounter.waiting_started_at else "",
+        "waiting_elapsed_minutes": waiting_minutes if is_waiting else None,
+        "waiting_elapsed_label": f"Esperando {waiting_minutes} min" if is_waiting else "",
         "result_label": get_result_label_from_encounter(encounter),
         "result_code": get_result_code_from_encounter(encounter),
         "study_type": encounter.study_type,
@@ -1285,6 +1369,7 @@ def get_row_state_payload(encounter):
         "has_generated_reports": encounter.generated_reports.exists(),
         "report_button_label": "Regenerar informe" if encounter.generated_reports.exists() else "Generar informe",
     }
+    payload.update(get_bronchodilator_timer_payload(encounter))
     payload.update(get_latest_report_info(encounter))
     return payload
 
@@ -1515,10 +1600,21 @@ def cycle_attendance(encounter, request_user):
         encounter.attended = False
         encounter.no_show = False
         encounter.attended_at = None
+        encounter.waiting_started_at = timezone.now()
 
     sync_attendance_status(encounter)
     encounter.updated_by = request_user
-    encounter.save(update_fields=["attended", "attended_at", "no_show", "status", "updated_by", "updated_at"])
+    encounter.save(
+        update_fields=[
+            "attended",
+            "attended_at",
+            "no_show",
+            "waiting_started_at",
+            "status",
+            "updated_by",
+            "updated_at",
+        ]
+    )
     new_label = get_attendance_label(encounter)
     if previous_label != new_label:
         record_encounter_event(
@@ -3387,6 +3483,9 @@ def dashboard(request):
     today_encounters = sort_dashboard_encounters(today_encounters)
     for encounter in today_encounters:
         encounter.result_code = get_result_code_from_encounter(encounter)
+        is_waiting = not encounter.attended and not encounter.no_show and encounter.waiting_started_at is not None
+        elapsed_minutes = get_operational_minutes(encounter.waiting_started_at, timezone.now()) if is_waiting else None
+        encounter.waiting_elapsed_label = f"Esperando {elapsed_minutes} min" if elapsed_minutes is not None else ""
         encounter.status_css_class = get_status_badge_class(encounter.status)
         encounter.review_visual_state = get_agenda_review_visual_state(encounter)
         encounter.can_generate_report, encounter.report_block_reason = get_report_readiness(encounter)
@@ -3582,6 +3681,60 @@ def dashboard(request):
                 "field_name": f"vitals_{request.POST.get('vitals_group', '')}",
                 "message": "Signos vitales guardados.",
             }
+            payload.update(get_row_state_payload(encounter))
+            if is_ajax_request(request):
+                return JsonResponse(payload)
+            messages.success(request, payload["message"])
+            return redirect("clinic:dashboard")
+        elif action == "start_bronchodilator_timer":
+            physician_form = ReferringPhysicianForm(initial={"active": True})
+            encounter = get_object_or_404(
+                Encounter.objects.select_related("patient", "spirometry_result", "vital_signs", "walk_test")
+                .prefetch_related("generated_reports__attachment"),
+                pk=request.POST.get("encounter_id"),
+            )
+            raw_wait_minutes = str(request.POST.get("bronchodilator_wait_minutes", "15")).strip()
+            if raw_wait_minutes not in {"10", "15"}:
+                message = "Elegí una espera de 10 o 15 minutos."
+                if is_ajax_request(request):
+                    return JsonResponse({"ok": False, "message": message}, status=400)
+                messages.error(request, message)
+                return redirect("clinic:dashboard")
+            encounter.bronchodilator_wait_minutes = int(raw_wait_minutes)
+            encounter.bronchodilator_administered_at = timezone.now()
+            encounter.updated_by = request.user
+            encounter.save(
+                update_fields=[
+                    "bronchodilator_wait_minutes",
+                    "bronchodilator_administered_at",
+                    "updated_by",
+                    "updated_at",
+                ]
+            )
+            record_encounter_event(
+                encounter,
+                EncounterEventType.UPDATED,
+                "Recordatorio de broncodilatador iniciado",
+                actor=request.user,
+                details=f"Espera visual de {encounter.bronchodilator_wait_minutes} minutos.",
+            )
+            payload = {"ok": True, "message": "Recordatorio de broncodilatador iniciado."}
+            payload.update(get_row_state_payload(encounter))
+            if is_ajax_request(request):
+                return JsonResponse(payload)
+            messages.success(request, payload["message"])
+            return redirect("clinic:dashboard")
+        elif action == "clear_bronchodilator_timer":
+            physician_form = ReferringPhysicianForm(initial={"active": True})
+            encounter = get_object_or_404(
+                Encounter.objects.select_related("patient", "spirometry_result", "vital_signs", "walk_test")
+                .prefetch_related("generated_reports__attachment"),
+                pk=request.POST.get("encounter_id"),
+            )
+            encounter.bronchodilator_administered_at = None
+            encounter.updated_by = request.user
+            encounter.save(update_fields=["bronchodilator_administered_at", "updated_by", "updated_at"])
+            payload = {"ok": True, "message": "Recordatorio de broncodilatador cancelado."}
             payload.update(get_row_state_payload(encounter))
             if is_ajax_request(request):
                 return JsonResponse(payload)
@@ -4080,6 +4233,7 @@ def statistics_view(request):
     month_diagnosis_rows = build_diagnosis_distribution(
         [encounter for encounter in selected_month_encounters if get_result_code_from_encounter(encounter)]
     )
+    operational_time_summary = build_operational_time_summary(selected_month_encounters)
 
     context = {
         "today": today,
@@ -4097,6 +4251,7 @@ def statistics_view(request):
         "mutual_coverage_rows": mutual_coverage_rows,
         "month_clinical_summary": month_clinical_summary,
         "month_diagnosis_rows": month_diagnosis_rows,
+        "operational_time_summary": operational_time_summary,
         "profile_summary": profile_summary,
         "month_profile_summary": month_profile_summary,
         "latest_profiled_patients": profiled_patients[:10],

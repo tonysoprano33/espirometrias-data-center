@@ -13,6 +13,11 @@
         grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 14px;
     }
+    .statistics-operational-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+    }
     .statistics-insight {
         position: relative;
         overflow: hidden;
@@ -439,6 +444,7 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 10px;
         }
+        .statistics-operational-grid { grid-template-columns: 1fr; gap: 10px; }
         .statistics-insight {
             padding: 14px 14px 12px;
             border-radius: 18px;
@@ -560,6 +566,24 @@
         <span class="label">Cobertura mutual</span>
         <strong>{{ current_month_summary.mutual }}</strong>
         <p>{{ current_month_summary.mutual_percent }}% de las atenciones fueron por mutual.</p>
+    </article>
+</section>
+
+<section class="statistics-operational-grid statistics-section" aria-label="Tiempos operativos del mes">
+    <article class="statistics-insight statistics-insight--warning">
+        <span class="label">Espera promedio</span>
+        <strong>{% if operational_time_summary.waiting_average_minutes is not None %}{{ operational_time_summary.waiting_average_minutes }} min{% else %}-{% endif %}</strong>
+        <p>Desde el estado Esperando hasta cargar SO2 y FC de reposo. {{ operational_time_summary.waiting_samples }} registro(s) completos.</p>
+    </article>
+    <article class="statistics-insight statistics-insight--info">
+        <span class="label">Atencion promedio</span>
+        <strong>{% if operational_time_summary.care_average_minutes is not None %}{{ operational_time_summary.care_average_minutes }} min{% else %}-{% endif %}</strong>
+        <p>Desde los primeros signos hasta cerrar la ciclometria con los datos post. {{ operational_time_summary.care_samples }} registro(s) completos.</p>
+    </article>
+    <article class="statistics-insight statistics-insight--success">
+        <span class="label">Tiempo total</span>
+        <strong>{% if operational_time_summary.total_average_minutes is not None %}{{ operational_time_summary.total_average_minutes }} min{% else %}-{% endif %}</strong>
+        <p>Tiempo de permanencia medido solo cuando se completaron ambas etapas. {{ operational_time_summary.total_samples }} registro(s) completos.</p>
     </article>
 </section>
 

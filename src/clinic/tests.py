@@ -24,6 +24,7 @@ from .pdf_intake import (
 from .services import build_reports_for_encounter, build_walk_measurement_rows, construir_informe_espirometria, normalizar_medico
 from .views import (
     build_drapp_import_preview,
+    build_operational_time_summary,
     extract_drapp_rows_from_browser_ocr,
     extract_drapp_rows_from_ocr_lines,
     extract_drapp_rows_from_text,
@@ -692,6 +693,98 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertEqual(self.encounter.status, EncounterStatus.CARGADA)
         self.assertEqual(self.encounter.vital_signs.so2_rest, 100)
         self.assertEqual(self.encounter.vital_signs.fc_rest, 77)
+        self.assertIsNotNone(self.encounter.first_vitals_recorded_at)
+
+    def test_waiting_to_post_vitals_records_operational_timestamps_once(self):
+        self.encounter.no_show = True
+        self.encounter.status = EncounterStatus.NO_LLEGO
+        self.encounter.save(update_fields=["no_show", "status", "updated_at"])
+        waiting_time = timezone.make_aware(datetime(2026, 6, 5, 10, 0))
+        rest_time = timezone.make_aware(datetime(2026, 6, 5, 10, 7))
+        post_time = timezone.make_aware(datetime(2026, 6, 5, 10, 31))
+
+        with patch("clinic.views.timezone.now", return_value=waiting_time):
+            waiting_response = self.client.post(
+                reverse("clinic:dashboard"),
+                {"action": "toggle_attendance", "encounter_id": self.encounter.pk},
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
+        self.assertEqual(waiting_response.status_code, 200)
+        self.encounter.refresh_from_db()
+        self.assertFalse(self.encounter.attended)
+        self.assertFalse(self.encounter.no_show)
+        self.assertEqual(self.encounter.waiting_started_at, waiting_time)
+        self.assertEqual(waiting_response.json()["waiting_elapsed_label"], "Esperando 0 min")
+
+        with patch("clinic.views.timezone.now", return_value=rest_time):
+            rest_response = self.client.post(
+                reverse("clinic:dashboard"),
+                {
+                    "action": "save_vitals_group",
+                    "encounter_id": self.encounter.pk,
+                    "vitals_group": "rest",
+                    "so2": "98",
+                    "fc": "76",
+                },
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
+        self.assertEqual(rest_response.status_code, 200)
+        self.encounter.refresh_from_db()
+        self.assertEqual(self.encounter.first_vitals_recorded_at, rest_time)
+
+        with patch("clinic.views.timezone.now", return_value=post_time):
+            post_response = self.client.post(
+                reverse("clinic:dashboard"),
+                {
+                    "action": "save_vitals_group",
+                    "encounter_id": self.encounter.pk,
+                    "vitals_group": "post",
+                    "so2": "96",
+                    "fc": "104",
+                },
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
+        self.assertEqual(post_response.status_code, 200)
+        self.encounter.refresh_from_db()
+        self.assertEqual(self.encounter.discharged_at, post_time)
+        summary = build_operational_time_summary([self.encounter])
+        self.assertEqual(summary["waiting_average_minutes"], 7)
+        self.assertEqual(summary["care_average_minutes"], 24)
+        self.assertEqual(summary["total_average_minutes"], 31)
+
+    def test_bronchodilator_reminder_is_optional_and_does_not_change_report_data(self):
+        timer_time = timezone.make_aware(datetime(2026, 6, 5, 11, 0))
+        with patch("clinic.views.timezone.now", return_value=timer_time):
+            response = self.client.post(
+                reverse("clinic:dashboard"),
+                {
+                    "action": "start_bronchodilator_timer",
+                    "encounter_id": self.encounter.pk,
+                    "bronchodilator_wait_minutes": "10",
+                },
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.encounter.refresh_from_db()
+        self.assertEqual(self.encounter.bronchodilator_administered_at, timer_time)
+        self.assertEqual(self.encounter.bronchodilator_wait_minutes, 10)
+        self.assertTrue(response.json()["bronchodilator_timer_active"])
+        self.assertEqual(response.json()["bronchodilator_timer_label"], "Bronco: 10 min")
+
+    def test_bronchodilator_timer_can_be_cancelled(self):
+        self.encounter.bronchodilator_administered_at = timezone.now()
+        self.encounter.save(update_fields=["bronchodilator_administered_at", "updated_at"])
+        response = self.client.post(
+            reverse("clinic:dashboard"),
+            {"action": "clear_bronchodilator_timer", "encounter_id": self.encounter.pk},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.encounter.refresh_from_db()
+        self.assertIsNone(self.encounter.bronchodilator_administered_at)
+        self.assertFalse(response.json()["bronchodilator_timer_active"])
 
     def test_invalid_vitals_batch_rolls_back_both_values(self):
         self.encounter.no_show = True
@@ -801,6 +894,19 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertIn('name="fc"', html)
         self.assertIn('title="Guardar SO2 y FC en reposo"', html)
         self.assertIn('title="Guardar SO2 y FC post"', html)
+
+    def test_espirometrista_dashboard_renders_discreet_operational_tools(self):
+        session = self.client.session
+        session["clinic_work_mode"] = "espirometrista"
+        session.save()
+        with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
+            response = self.client.get(reverse("clinic:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn("data-waiting-elapsed", html)
+        self.assertIn("data-bronchodilator-reminder", html)
+        self.assertIn("start_bronchodilator_timer", html)
 
     def test_espirometrista_dashboard_uses_review_bands_instead_of_a_duplicate_status(self):
         SpirometryResult.objects.create(encounter=self.encounter, respiratory_pattern="Normal")
@@ -3189,6 +3295,15 @@ class StatisticsMonthNavigationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
         self.assertIn("Mes actual", html)
+
+    def test_statistics_shows_operational_time_section(self):
+        response = self.client.get(f"{reverse('clinic:statistics')}?month=2026-06")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn("Espera promedio", html)
+        self.assertIn("Atencion promedio", html)
+        self.assertIn("Tiempo total", html)
 
 
 class ClinicalPatientSearchTests(TestCase):

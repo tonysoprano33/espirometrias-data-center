@@ -207,6 +207,11 @@ class Encounter(TimeStampedModel):
     attended = models.BooleanField("Atendido", default=False)
     attended_at = models.DateTimeField("Atendido el", blank=True, null=True)
     no_show = models.BooleanField("No llego", default=False)
+    waiting_started_at = models.DateTimeField("Comenzo a esperar el", blank=True, null=True)
+    first_vitals_recorded_at = models.DateTimeField("Primeros signos cargados el", blank=True, null=True)
+    discharged_at = models.DateTimeField("Finalizo la atencion el", blank=True, null=True)
+    bronchodilator_administered_at = models.DateTimeField("Broncodilatador aplicado el", blank=True, null=True)
+    bronchodilator_wait_minutes = models.PositiveSmallIntegerField("Espera de broncodilatador", default=15)
     technician_notes = models.TextField("Notas del espirometrista", blank=True)
     medical_control_today = models.BooleanField("Control medico hoy", default=False)
     created_by = models.ForeignKey(
