@@ -18,6 +18,9 @@ type AgendaRow = {
   fc_rest: string;
   so2_post: string;
   fc_post: string;
+  patient_url: string;
+  print_url: string;
+  can_print_result: boolean;
 };
 
 type AgendaPayload = {
@@ -51,6 +54,7 @@ export default function AgendaPreview() {
     const load = async () => {
       try {
         const response = await fetch("/api/v1/agenda/hoy/", { cache: "no-store" });
+        if (response.status === 401) throw new Error("Inicia sesion para abrir la agenda nueva.");
         if (!response.ok) throw new Error("No se pudo actualizar la agenda.");
         const payload = await response.json() as AgendaPayload;
         if (active) {
@@ -76,11 +80,14 @@ export default function AgendaPreview() {
     <main className="agenda-shell">
       <header className="agenda-header">
         <div>
-          <p className="eyebrow">Clinica Espiro · Vista nueva</p>
+          <p className="eyebrow">Clinica Espiro · Agenda nueva</p>
           <h1>Pacientes de hoy</h1>
           <p className="subtitle">Actualiza datos sin recargar la página ni mover tu lugar de trabajo.</p>
         </div>
-        <span className="mode">Sesión {data?.work_mode ?? "..."}</span>
+        <div className="header-actions">
+          <span className="mode">Sesion {data?.work_mode ?? "..."}</span>
+          <a className="back-link" href="/django/">Agenda actual</a>
+        </div>
       </header>
 
       {error && <p className="notice error">{error}</p>}
@@ -119,6 +126,10 @@ export default function AgendaPreview() {
                   </div>
                   <span className="result">{row.result_code || "Sin resultado"}</span>
                   <span className="attendance">{row.attendance_label}</span>
+                  <div className="row-actions">
+                    <a href={`/django${row.patient_url}`}>Abrir ficha</a>
+                    {row.can_print_result && <a className="print-link" href={`/django${row.print_url}`}>Imprimir</a>}
+                  </div>
                 </article>
               ))}
               {!data.rows.length && <p className="empty">No hay pacientes cargados para hoy.</p>}

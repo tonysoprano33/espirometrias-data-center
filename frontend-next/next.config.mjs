@@ -20,6 +20,19 @@ const nextConfig = {
         source: "/logout/",
         destination: `${djangoOrigin}/logout/`,
       },
+      // Temporary bridge to the proven Django screens while Next remains read-only.
+      {
+        source: "/django/:path*",
+        destination: `${djangoOrigin}/:path*`,
+      },
+      {
+        source: "/static/:path*",
+        destination: `${djangoOrigin}/static/:path*`,
+      },
+      {
+        source: "/media/:path*",
+        destination: `${djangoOrigin}/media/:path*`,
+      },
     ];
   },
 };
