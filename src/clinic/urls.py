@@ -18,6 +18,7 @@ urlpatterns = [
     path("api/v1/calendario/", views.calendar_month_api, name="calendar_month_api"),
     path("api/v1/estadistica/", views.month_statistics_api, name="month_statistics_api"),
     path("api/v1/pacientes/", views.patient_search_api, name="patient_search_api"),
+    path("api/v1/pacientes/<int:pk>/", views.patient_detail_api, name="patient_detail_api"),
     path("api/v1/revision-medica/", views.doctor_review_queue_api, name="doctor_review_queue_api"),
     path("api/v1/revision-medica/<int:pk>/", views.doctor_review_detail_api, name="doctor_review_detail_api"),
     path("api/v1/revision-medica/<int:pk>/resultado/", views.doctor_review_result_api, name="doctor_review_result_api"),

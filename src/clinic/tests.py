@@ -963,6 +963,22 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertEqual(payload["rows"][0]["full_name"], "Paciente API")
         self.assertEqual(payload["rows"][0]["dni"], "30.111.222")
 
+    def test_next_patient_detail_api_returns_longitudinal_history(self):
+        patient = Patient.objects.create(full_name="Historia Next", dni="30111222")
+        first = Encounter.objects.create(patient=patient, encounter_date=date(2026, 6, 1), study_type=StudyType.ESPIROMETRIA)
+        latest = Encounter.objects.create(patient=patient, encounter_date=date(2026, 7, 1), study_type=StudyType.CICLOMETRIA)
+        VitalSigns.objects.create(encounter=latest, so2_rest=98, fc_rest=74, so2_post=95, fc_post=91)
+        SpirometryResult.objects.create(encounter=latest, respiratory_pattern="Normal")
+
+        response = self.client.get(reverse("clinic:patient_detail_api", args=[patient.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["patient"]["dni"], "30.111.222")
+        self.assertEqual([row["encounter_id"] for row in payload["encounters"]], [latest.pk, first.pk])
+        self.assertEqual(payload["encounters"][0]["result_code"], "N")
+        self.assertEqual(payload["encounters"][0]["vitals"]["so2_post"], 95)
+
     def test_next_review_queue_api_prioritizes_attended_patient_with_pdf(self):
         grant_clinic_permissions(self.user, "review_medically")
         Attachment.objects.create(

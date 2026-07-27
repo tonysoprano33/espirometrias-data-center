@@ -4888,6 +4888,79 @@ def patient_search_api(request):
 
 
 @login_required
+def patient_detail_api(request, pk):
+    """Read-only longitudinal patient history for the Next patient card."""
+    patient = get_object_or_404(Patient, pk=pk)
+    encounters = list(
+        patient.encounters.select_related("vital_signs", "walk_test", "spirometry_result", "referring_physician")
+        .prefetch_related("attachments", "generated_reports__attachment")
+        .order_by("encounter_date", "encounter_time", "created_at")
+    )
+    rows = []
+    previous_encounter = None
+    for encounter in encounters:
+        progression = describe_progression(previous_encounter, encounter) if previous_encounter else {
+            "label": "Base",
+            "tone": "muted",
+            "detail": "Primer estudio disponible para comparar.",
+        }
+        latest_attachment = get_latest_result_attachment(encounter)
+        report_info = get_latest_report_info(encounter)
+        vital = getattr(encounter, "vital_signs", None)
+        rows.append(
+            {
+                "encounter_id": encounter.pk,
+                "date": encounter.encounter_date.strftime("%d/%m/%Y"),
+                "time": encounter.encounter_time.strftime("%H:%M") if encounter.encounter_time else "Sin hora",
+                "study_type": encounter.study_type,
+                "coverage": encounter.coverage_name or encounter.coverage_type,
+                "result_code": get_result_code_from_encounter(encounter) or "-",
+                "attendance": get_attendance_label(encounter),
+                "progression": progression,
+                "vitals": {
+                    "so2_rest": getattr(vital, "so2_rest", None),
+                    "fc_rest": getattr(vital, "fc_rest", None),
+                    "so2_post": getattr(vital, "so2_post", None),
+                    "fc_post": getattr(vital, "fc_post", None),
+                },
+                "file": {
+                    "present": bool(latest_attachment),
+                    "url": safe_attachment_url(latest_attachment) if latest_attachment else "",
+                    "name": latest_attachment.original_name if latest_attachment else "",
+                    "status": get_result_file_status(encounter, latest_attachment)["label"],
+                },
+                "reports": {
+                    "complete_url": report_info["complete_report_url"],
+                    "mutual_url": report_info["mutual_report_url"],
+                },
+                "review_url": reverse("clinic:doctor_review_detail", args=[encounter.pk]),
+                "print_url": reverse("clinic:encounter_print", args=[encounter.pk]),
+                "can_print": get_print_readiness(encounter, ignore_attendance=True)[0],
+            }
+        )
+        previous_encounter = encounter
+
+    rows.reverse()
+    return JsonResponse(
+        {
+            "ok": True,
+            "patient": {
+                "id": patient.pk,
+                "name": patient.full_name,
+                "dni": formatear_dni(patient.dni) if patient.dni else "-",
+                "phone": patient.phone or "-",
+                "birth_date": patient.birth_date.strftime("%d/%m/%Y") if patient.birth_date else "-",
+                "gender": patient.gender or "-",
+                "bmi": patient.bmi if patient.bmi is not None else "-",
+            },
+            "encounters": rows,
+            "can_manage": request.user.has_perm("clinic.manage_agenda"),
+            "legacy_url": reverse("clinic:patient_detail", args=[patient.pk]),
+        }
+    )
+
+
+@login_required
 def patient_detail(request, pk):
     purge_expired_recycle_bin()
     if request.method == "POST":
