@@ -1047,7 +1047,8 @@
         .espirometrista-agenda .coverage-cell[data-label="Cobertura"] { width: 9%; }
         .espirometrista-agenda .coverage-cell[data-label="Dr. deriva"] { width: 13%; }
         .espirometrista-agenda td[data-label="SO2 / FC reposo"],
-        .espirometrista-agenda td[data-label="SO2 / FC post"] { width: 7%; }
+        .espirometrista-agenda td[data-label="SO2 / FC post"] { width: 6%; }
+        .espirometrista-agenda .bronchodilator-cell { width: 8%; }
         .espirometrista-agenda .col-attendance,
         .espirometrista-agenda .attendance-cell { width: 7%; }
         .espirometrista-agenda .td-actions { width: 9%; }
@@ -1468,7 +1469,8 @@
             grid-template-columns: 32px 66px minmax(120px, 1.35fr) minmax(82px, .72fr) minmax(80px, .58fr) minmax(80px, .58fr) 72px minmax(96px, .55fr);
             grid-template-areas:
                 "toggle time patient dni result attendance status actions"
-                "toggle study coverage doctor rest post post actions";
+                "toggle study coverage doctor rest post post actions"
+                "toggle bronco bronco bronco bronco bronco bronco actions";
             align-items: center;
             gap: 6px;
             min-height: 96px;
@@ -1528,6 +1530,8 @@
         .responsive-table-wrap.notebook-stack .coverage-cell[data-label="Dr. deriva"] { grid-area: doctor; }
         .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"] { grid-area: rest; }
         .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"] { grid-area: post; }
+        .responsive-table-wrap.notebook-stack .bronchodilator-cell { grid-area: bronco; }
+        .responsive-table-wrap.notebook-stack .bronchodilator-cell .bronchodilator-reminder { width: 100%; }
         .responsive-table-wrap.notebook-stack .result-cell { grid-area: result; }
         .responsive-table-wrap.notebook-stack .attendance-cell { grid-area: attendance; }
         .responsive-table-wrap.notebook-stack .status-cell { grid-area: status; }
@@ -2598,6 +2602,7 @@
                     {% if current_work_mode != "secretaria" %}
                         <th>Dr. deriva</th>
                         <th class="col-vitals">SO2 / FC reposo</th>
+                        <th class="col-vitals">Broncodilatador</th>
                         <th class="col-vitals">SO2 / FC post</th>
                         <th class="col-result">Resultado</th>
                     {% endif %}
@@ -2741,6 +2746,26 @@
                                 <button type="submit" class="button small vitals-save-button" title="Guardar SO2 y FC en reposo">Guardar</button>
                             </form>
                         </td>
+                        <td class="bronchodilator-cell" data-label="Broncodilatador">
+                            {% if current_work_mode == "espirometrista" %}
+                            <details class="bronchodilator-reminder{% if encounter.bronchodilator_administered_at %} is-active{% endif %}" data-bronchodilator-reminder>
+                                <summary data-bronchodilator-label>Bronco: {% if encounter.bronchodilator_administered_at %}en curso{% else %}sin marcar{% endif %}</summary>
+                                <form method="post" data-bronchodilator-timer-form>
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="start_bronchodilator_timer">
+                                    <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                    <select name="bronchodilator_wait_minutes" aria-label="Minutos de espera luego de aplicar broncodilatador" data-bronchodilator-minutes>
+                                        <option value="10"{% if encounter.bronchodilator_wait_minutes == 10 %} selected{% endif %}>10 min</option>
+                                        <option value="15"{% if encounter.bronchodilator_wait_minutes != 10 %} selected{% endif %}>15 min</option>
+                                    </select>
+                                    <button type="submit" class="button small" data-bronchodilator-start>{% if encounter.bronchodilator_administered_at %}Reiniciar{% else %}Marcar aplicado{% endif %}</button>
+                                    <button type="button" class="link-button bronchodilator-clear" data-bronchodilator-clear{% if not encounter.bronchodilator_administered_at %} hidden{% endif %}>Cancelar recordatorio</button>
+                                </form>
+                            </details>
+                            {% else %}
+                            <span class="muted">-</span>
+                            {% endif %}
+                        </td>
                         <td class="vitals-cell" data-label="SO2 / FC post">
                             <form method="post" class="vitals-manual-group" data-inline-ajax data-vitals-batch="1" data-vitals-group="post" data-post-fields {% if encounter.study_type != "Ciclometria" %}style="display:none;"{% endif %}>
                                 {% csrf_token %}
@@ -2813,22 +2838,6 @@
                         <td class="td-actions" data-label="Acciones">
                             <div style="display:grid; gap:8px; min-width:150px;">
                                 <span class="agenda-print-action" data-print-link>{% if encounter.can_print_result %}<a class="button" href="{{ encounter.print_url }}" target="_blank" rel="noopener">Imprimir</a>{% else %}<span class="agenda-print-unavailable" title="{{ encounter.print_block_reason }}">Imprimir no disponible</span>{% endif %}</span>
-                                {% if current_work_mode == "espirometrista" %}
-                                <details class="bronchodilator-reminder{% if encounter.bronchodilator_administered_at %} is-active{% endif %}" data-bronchodilator-reminder>
-                                    <summary data-bronchodilator-label>Bronco: {% if encounter.bronchodilator_administered_at %}en curso{% else %}sin marcar{% endif %}</summary>
-                                    <form method="post" data-bronchodilator-timer-form>
-                                        {% csrf_token %}
-                                        <input type="hidden" name="action" value="start_bronchodilator_timer">
-                                        <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
-                                        <select name="bronchodilator_wait_minutes" aria-label="Minutos de espera luego de aplicar broncodilatador" data-bronchodilator-minutes>
-                                            <option value="10"{% if encounter.bronchodilator_wait_minutes == 10 %} selected{% endif %}>10 min</option>
-                                            <option value="15"{% if encounter.bronchodilator_wait_minutes != 10 %} selected{% endif %}>15 min</option>
-                                        </select>
-                                        <button type="submit" class="button small" data-bronchodilator-start>{% if encounter.bronchodilator_administered_at %}Reiniciar{% else %}Marcar aplicado{% endif %}</button>
-                                        <button type="button" class="link-button bronchodilator-clear" data-bronchodilator-clear{% if not encounter.bronchodilator_administered_at %} hidden{% endif %}>Cancelar recordatorio</button>
-                                    </form>
-                                </details>
-                                {% endif %}
                                 <form method="post" action="{% url 'clinic:encounter_generate_report' encounter.pk %}" data-report-form>
                                     {% csrf_token %}
                                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
@@ -2875,7 +2884,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="{% if current_work_mode == 'secretaria' %}6{% elif current_work_mode == 'espirometrista' %}12{% else %}13{% endif %}">Todavia no hay pacientes cargados para hoy.</td>
+                        <td colspan="{% if current_work_mode == 'secretaria' %}6{% elif current_work_mode == 'espirometrista' %}13{% else %}14{% endif %}">Todavia no hay pacientes cargados para hoy.</td>
                     </tr>
                 {% endfor %}
             </tbody>
