@@ -2816,7 +2816,9 @@
                                     {% endif %}
                                 </button>
                             </form>
+                            {% if current_work_mode != "secretaria" %}
                             <span class="waiting-elapsed" data-waiting-elapsed{% if not encounter.waiting_elapsed_label %} hidden{% endif %}>{{ encounter.waiting_elapsed_label }}</span>
+                            {% endif %}
                             {% if current_work_mode == "secretaria" %}
                             <form method="post" class="secretary-control-form" data-inline-ajax data-medical-control-form>
                                 {% csrf_token %}

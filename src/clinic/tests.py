@@ -949,6 +949,7 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertNotIn('name="action" value="save_vitals_group"', html)
         self.assertNotIn("Resultado rapido:", html)
         self.assertNotIn('href="#agregar-paciente"', html)
+        self.assertNotIn('<span class="waiting-elapsed"', html)
         self.assertIn('name="medical_control_today"', html)
         self.assertIn('name="action" value="toggle_medical_control"', html)
 
