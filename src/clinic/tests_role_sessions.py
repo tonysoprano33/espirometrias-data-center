@@ -38,6 +38,8 @@ class FixedRoleSessionTests(TestCase):
         self.assertContains(response, "Secretaría")
         self.assertContains(response, "secretary-agenda")
         self.assertNotContains(response, "Pegar Drapp")
+        self.assertContains(response, 'data-logout-dialog-open')
+        self.assertContains(response, 'id="session-logout-dialog"')
 
     def test_doctor_role_opens_medical_review_and_cannot_be_switched_by_post(self):
         login_response = self.client.post(

@@ -111,6 +111,34 @@
             font-size: .83rem;
             font-weight: 800;
         }
+        button.work-mode-session {
+            font: inherit;
+            cursor: pointer;
+        }
+        button.work-mode-session:hover,
+        button.work-mode-session:focus-visible {
+            border-color: var(--brand);
+            box-shadow: 0 0 0 3px var(--focus), 0 5px 14px rgba(16,43,60,.06);
+        }
+        .session-logout-dialog {
+            width: min(420px, calc(100vw - 32px));
+            padding: 0;
+            border: 1px solid #bfd8e2;
+            border-radius: 18px;
+            color: var(--ink);
+            box-shadow: var(--shadow-soft);
+        }
+        .session-logout-dialog::backdrop { background: rgba(16,43,60,.38); }
+        .session-logout-dialog-content { padding: 22px; }
+        .session-logout-dialog h2 { margin: 0 0 7px; font-size: 1.28rem; }
+        .session-logout-dialog p { margin: 0; color: var(--muted); }
+        .session-logout-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 9px;
+            margin-top: 20px;
+        }
+        .session-logout-actions form { margin: 0; }
         .login-role-picker {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1203,10 +1231,17 @@
                     <small>Agenda respiratoria e informes</small>
                 </div>
                 {% if request.user.is_authenticated %}
+                    {% if current_work_mode == "secretaria" or current_work_mode == "medico" %}
+                    <button class="work-mode-session" type="button" data-logout-dialog-open aria-haspopup="dialog" title="Cerrar sesión">
+                        <span>Sesion</span>
+                        <strong>{{ current_work_mode_label }}</strong>
+                    </button>
+                    {% else %}
                     <div class="work-mode-session" aria-label="Sesion activa">
                         <span>Sesion</span>
                         <strong>{{ current_work_mode_label }}</strong>
                     </div>
+                    {% endif %}
                 {% endif %}
             </div>
             <nav class="nav">
@@ -1226,6 +1261,22 @@
             </nav>
         </div>
     </header>
+    {% if request.user.is_authenticated and current_work_mode != "espirometrista" %}
+    <dialog id="session-logout-dialog" class="session-logout-dialog" aria-labelledby="session-logout-title">
+        <div class="session-logout-dialog-content">
+            <p class="pill">Sesion {{ current_work_mode_label }}</p>
+            <h2 id="session-logout-title">¿Querés cerrar sesión?</h2>
+            <p>Vas a volver a la pantalla de ingreso.</p>
+            <div class="session-logout-actions">
+                <form method="dialog"><button class="button alt" type="submit">Cancelar</button></form>
+                <form method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button class="button" type="submit">Cerrar sesión</button>
+                </form>
+            </div>
+        </div>
+    </dialog>
+    {% endif %}
     <main class="shell">
         {% if messages %}
             <div class="messages">
@@ -1240,6 +1291,12 @@
         <script>
             (() => {
                 const currentMode = "{{ current_work_mode }}";
+                const logoutDialog = document.getElementById("session-logout-dialog");
+                const logoutDialogOpen = document.querySelector("[data-logout-dialog-open]");
+
+                if (logoutDialog && logoutDialogOpen) {
+                    logoutDialogOpen.addEventListener("click", () => logoutDialog.showModal());
+                }
 
                 const applyMode = (mode) => {
                     document.getElementById("site-topbar").dataset.workMode = mode;
