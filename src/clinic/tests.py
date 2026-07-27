@@ -979,6 +979,22 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertEqual(payload["encounters"][0]["result_code"], "N")
         self.assertEqual(payload["encounters"][0]["vitals"]["so2_post"], 95)
 
+    def test_next_patient_report_api_generates_existing_document_artifacts(self):
+        patient = Patient.objects.create(full_name="Informe Next", dni="30111222")
+        encounter = Encounter.objects.create(patient=patient, encounter_date=date(2026, 7, 1), study_type=StudyType.ESPIROMETRIA)
+        VitalSigns.objects.create(encounter=encounter, so2_rest=98, fc_rest=72)
+        SpirometryResult.objects.create(encounter=encounter, respiratory_pattern="Normal")
+
+        response = self.client.post(
+            reverse("clinic:patient_report_generate_api", args=[patient.pk, encounter.pk]),
+            data=json.dumps({"scope": "complete"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        self.assertTrue(GeneratedReport.objects.filter(encounter=encounter).exists())
+
     def test_next_review_queue_api_prioritizes_attended_patient_with_pdf(self):
         grant_clinic_permissions(self.user, "review_medically")
         Attachment.objects.create(

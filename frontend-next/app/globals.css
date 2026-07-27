@@ -190,3 +190,7 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
   .next-file-upload { align-items: stretch; flex-direction: column; }
   .patient-history-head { align-items: stretch; flex-direction: column; }.patient-profile-next { grid-template-columns: repeat(2, minmax(0, 1fr)); }.history-encounter { grid-template-columns: 72px minmax(0, 1fr); }.history-vitals, .history-actions { grid-column: 2; justify-content: flex-start; }
 }
+
+.history-actions button { padding: 7px 8px; border: 0; border-radius: 8px; color: #fff; background: #087f9b; cursor: pointer; font: 800 .68rem "Trebuchet MS", sans-serif; }
+.history-actions button:last-child { background: #b36a08; }
+.history-actions button:disabled { color: #71858d; background: #dce8eb; cursor: wait; }

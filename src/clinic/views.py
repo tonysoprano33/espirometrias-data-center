@@ -4936,6 +4936,7 @@ def patient_detail_api(request, pk):
                 "review_url": reverse("clinic:doctor_review_detail", args=[encounter.pk]),
                 "print_url": reverse("clinic:encounter_print", args=[encounter.pk]),
                 "can_print": get_print_readiness(encounter, ignore_attendance=True)[0],
+                "can_generate_report": get_report_readiness(encounter, ignore_attendance=True)[0],
             }
         )
         previous_encounter = encounter
@@ -4958,6 +4959,60 @@ def patient_detail_api(request, pk):
             "legacy_url": reverse("clinic:patient_detail", args=[patient.pk]),
         }
     )
+
+
+@login_required
+@permission_required("clinic.manage_agenda", raise_exception=True)
+@require_POST
+def patient_report_generate_api(request, pk, encounter_id):
+    """Generate the existing validated documents from the Next patient history."""
+    try:
+        payload = get_agenda_api_payload(request)
+    except ValueError as error:
+        return JsonResponse({"ok": False, "message": str(error)}, status=400)
+    scope = str(payload.get("scope", "complete") or "complete")
+    if scope not in {"complete", "mutual"}:
+        return JsonResponse({"ok": False, "message": "Tipo de informe no valido."}, status=400)
+
+    patient = get_object_or_404(Patient, pk=pk)
+    encounter = get_object_or_404(
+        patient.encounters.select_related("patient", "referring_physician", "vital_signs", "walk_test", "spirometry_result"),
+        pk=encounter_id,
+    )
+    can_generate, block_reason = get_report_readiness(encounter, ignore_attendance=True)
+    if not can_generate:
+        return JsonResponse({"ok": False, "message": f"No se puede generar el informe. {block_reason}."}, status=409)
+
+    flags = get_encounter_inconsistencies(encounter)
+    if flags and not bool(payload.get("confirm_inconsistencies")):
+        return JsonResponse(
+            {"ok": False, "message": "Revisa las advertencias antes de generar.", "flags": flags, "requires_confirmation": True},
+            status=409,
+        )
+    try:
+        artifacts = build_report_artifacts_for_scope(encounter, scope)
+        if not artifacts:
+            return JsonResponse({"ok": False, "message": "No hay informe de mutual disponible para esta atencion."}, status=409)
+        generated_count = save_generated_report_artifacts(encounter, artifacts, request.user)
+    except Exception as error:
+        return JsonResponse({"ok": False, "message": f"No se pudo generar el informe: {error}"}, status=500)
+
+    if not encounter.attended:
+        encounter.attended = True
+        encounter.no_show = False
+        sync_attendance_status(encounter)
+    encounter.status = EncounterStatus.INFORME_GENERADO
+    encounter.updated_by = request.user
+    encounter.save(update_fields=["attended", "no_show", "status", "updated_by", "updated_at"])
+    record_encounter_event(
+        encounter,
+        EncounterEventType.REPORT,
+        "Informe mutual generado" if scope == "mutual" else "Informe completo generado",
+        actor=request.user,
+        details=f"Se generaron {generated_count} archivo(s) desde la ficha Next.",
+        metadata={"generated_count": generated_count, "scope": scope},
+    )
+    return JsonResponse({"ok": True, "message": "Informe generado correctamente.", "generated_count": generated_count})
 
 
 @login_required
