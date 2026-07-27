@@ -5592,6 +5592,53 @@ def doctor_review_queue_api(request):
 
 @login_required
 @permission_required("clinic.review_medically", raise_exception=True)
+def doctor_review_detail_api(request, pk):
+    """Clinical review data for Next without changing the established diagnostic workflow."""
+    encounter = get_object_or_404(
+        Encounter.objects.select_related("patient", "spirometry_result", "vital_signs", "walk_test").prefetch_related("attachments"),
+        pk=pk,
+    )
+    attachment = get_latest_result_attachment(encounter)
+    file_status = get_result_file_status(encounter, attachment)
+    suggestion = build_stored_suggestion_context(getattr(encounter, "spirometry_result", None)) or {}
+    queue_info = build_doctor_review_queue(encounter.encounter_date, encounter)
+    previous_encounter = queue_info["previous_encounter"]
+    next_encounter = queue_info["next_encounter"]
+    return JsonResponse(
+        {
+            "ok": True,
+            "encounter_id": encounter.pk,
+            "patient_name": encounter.patient.full_name,
+            "dni": formatear_dni(encounter.patient.dni) if encounter.patient.dni else "Sin DNI",
+            "date": encounter.encounter_date.isoformat(),
+            "date_label": format_day_label(encounter.encounter_date),
+            "time": encounter.encounter_time.strftime("%H:%M") if encounter.encounter_time else "Sin hora",
+            "study_type": encounter.study_type,
+            "coverage_type": encounter.coverage_type,
+            "result_code": get_result_code_from_encounter(encounter),
+            "result_label": get_result_label_from_encounter(encounter),
+            "medical_control_today": encounter.medical_control_today,
+            "technician_notes": encounter.technician_notes or "",
+            "bronchodilator_positive": bool(getattr(getattr(encounter, "spirometry_result", None), "bronchodilator_positive", False)),
+            "file": {
+                "present": bool(attachment),
+                "url": safe_attachment_url(attachment) if attachment else "",
+                "name": attachment.original_name if attachment else "",
+                "is_image": bool(attachment and is_result_image_attachment(attachment)),
+                "status": file_status,
+            },
+            "suggestion": suggestion,
+            "vitals": build_review_vitals_context(encounter),
+            "legacy_review_url": reverse("clinic:doctor_review_detail", args=[encounter.pk]),
+            "previous": {"id": previous_encounter.pk, "name": previous_encounter.patient.full_name} if previous_encounter else None,
+            "next": {"id": next_encounter.pk, "name": next_encounter.patient.full_name} if next_encounter else None,
+            "pending_total": queue_info["pending_total"],
+        }
+    )
+
+
+@login_required
+@permission_required("clinic.review_medically", raise_exception=True)
 def doctor_review_detail(request, pk):
     encounter = get_object_or_404(
         Encounter.objects.select_related(

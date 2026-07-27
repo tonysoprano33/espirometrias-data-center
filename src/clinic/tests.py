@@ -980,6 +980,21 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertEqual(payload["counters"]["pending"], 1)
         self.assertEqual(payload["rows"][0]["review_state"], "pending")
 
+    def test_next_review_detail_api_returns_vitals_and_legacy_workflow(self):
+        grant_clinic_permissions(self.user, "review_medically")
+        self.encounter.attended = True
+        self.encounter.save(update_fields=["attended", "updated_at"])
+        VitalSigns.objects.create(encounter=self.encounter, so2_rest=98, fc_rest=72, so2_post=94, fc_post=90)
+        SpirometryResult.objects.create(encounter=self.encounter, respiratory_pattern="Normal", suggested_code="N")
+
+        response = self.client.get(reverse("clinic:doctor_review_detail_api", args=[self.encounter.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["result_code"], "N")
+        self.assertEqual(payload["vitals"]["rest"]["so2"], 98)
+        self.assertIn("revision-medica", payload["legacy_review_url"])
+
     def test_next_agenda_api_saves_rest_vitals_as_one_transaction(self):
         response = self.client.post(
             reverse("clinic:agenda_vitals_api", args=[self.encounter.pk]),
