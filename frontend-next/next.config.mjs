@@ -2,15 +2,14 @@ const djangoOrigin = process.env.DJANGO_ORIGIN || "http://127.0.0.1:8000";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Django's URL configuration uses trailing slashes. Keep them in Next too so
+  // API rewrites do not bounce forever between Next (no slash) and Django.
+  trailingSlash: true,
   turbopack: {
     root: process.cwd(),
   },
   async rewrites() {
     return [
-      {
-        source: "/api/v1/:path*",
-        destination: `${djangoOrigin}/api/v1/:path*`,
-      },
       // Keep the Django session on the same browser origin during local QA.
       {
         source: "/login/",
