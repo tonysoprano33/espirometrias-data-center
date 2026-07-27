@@ -777,6 +777,17 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertIn('[data-work-mode-visible][hidden]', html)
         self.assertIn('id="site-topbar"', html)
 
+    def test_dashboard_uses_safe_background_agenda_sync_without_scroll_reset(self):
+        with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
+            response = self.client.get(reverse("clinic:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn('data-agenda-sync-notice', html)
+        self.assertIn('window.setInterval(pollRows, 15000)', html)
+        self.assertIn('espiro-agenda-scroll-y', html)
+        self.assertIn('skipReorder: true, preserveViewport: true', html)
+
     def test_dashboard_renders_manual_save_buttons_for_vitals(self):
         with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
             response = self.client.get(reverse("clinic:dashboard"))

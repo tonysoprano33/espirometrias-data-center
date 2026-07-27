@@ -2066,10 +2066,21 @@
         margin: 0 0 14px;
     }
     .secretary-agenda .agenda-head { order: 1; }
+    .secretary-agenda .agenda-sync-notice { order: 1; }
     .secretary-agenda .agenda-attendance-summary { order: 2; }
     .secretary-agenda .secretary-mode-table { order: 3; }
     .secretary-mode-table .attendance-cell {
         min-width: 180px;
+    }
+    .agenda-sync-notice {
+        margin: 0 0 10px;
+        padding: 8px 12px;
+        border: 1px solid #f0c268;
+        border-radius: 10px;
+        background: #fff7dc;
+        color: #7b4b08;
+        font-size: .84rem;
+        font-weight: 800;
     }
     .secretary-mode-table .attendance-button {
         width: 100%;
@@ -2236,6 +2247,9 @@
             <a class="button alt" href="{% url 'clinic:daily_print' %}" target="_blank" rel="noopener">Imprimir todo el dia</a>
         {% endif %}
     </div>
+    <p class="agenda-sync-notice" data-agenda-sync-notice hidden>
+        Hay cambios nuevos en la agenda. Se actualizará al terminar de editar.
+    </p>
     <section class="agenda-attendance-summary" aria-label="Resumen de pacientes de hoy">
         <div class="agenda-count total"><strong data-agenda-count="total">{{ attendance_summary.total }}</strong><span>Pacientes hoy</span></div>
         <div class="agenda-count attended"><strong data-agenda-count="attended">{{ attendance_summary.attended }}</strong><span>Atendidos</span></div>
@@ -4001,13 +4015,14 @@
             }
         }
 
-        function updateRow(row, payload) {
+        function updateRow(row, payload, options) {
             var statusCell;
             var historyLink;
             var activeElement;
             var keepFocus;
             var rowTop;
             var nextTop;
+            options = options || {};
             if (!row || !payload) return;
             if (typeof payload.attended !== "undefined") {
                 row.setAttribute("data-attended", payload.attended ? "1" : "0");
@@ -4052,7 +4067,7 @@
             if (window.espiroAgendaCollapse && typeof window.espiroAgendaCollapse.syncRow === "function") {
                 window.espiroAgendaCollapse.syncRow(row);
             }
-            reorderAgendaRows();
+            if (!options.skipReorder) reorderAgendaRows();
             nextTop = row.getBoundingClientRect ? row.getBoundingClientRect().top : rowTop;
             if (keepFocus) {
                 try {
@@ -4063,7 +4078,7 @@
                     } catch (focusError) {}
                 }
             }
-            if (window.scrollBy && nextTop !== rowTop) {
+            if (!options.preserveViewport && window.scrollBy && nextTop !== rowTop) {
                 window.scrollBy(0, nextTop - rowTop);
             }
 
@@ -4835,6 +4850,76 @@
             });
         }
 
+        function renderedAgendaIds() {
+            var rows = document.querySelectorAll ? document.querySelectorAll("[data-encounter-row]") : [];
+            var ids = [];
+            var i;
+            for (i = 0; i < rows.length; i += 1) {
+                ids.push(String(rows[i].getAttribute("data-encounter-id") || ""));
+            }
+            ids.sort();
+            return ids;
+        }
+
+        function payloadAgendaIds(rows) {
+            var ids = [];
+            var i;
+            for (i = 0; i < rows.length; i += 1) {
+                ids.push(String(rows[i].encounter_id || ""));
+            }
+            ids.sort();
+            return ids;
+        }
+
+        function sameAgendaIds(currentIds, nextIds) {
+            var i;
+            if (currentIds.length !== nextIds.length) return false;
+            for (i = 0; i < currentIds.length; i += 1) {
+                if (currentIds[i] !== nextIds[i]) return false;
+            }
+            return true;
+        }
+
+        function hasPendingAgendaEdit() {
+            var active = document.activeElement;
+            var dirty = document.querySelector ? document.querySelector('form[data-inline-ajax][data-dirty="1"], form[data-inline-ajax][data-submitting="1"]') : null;
+            if (dirty) return true;
+            return !!(
+                active &&
+                active.closest &&
+                active.closest("[data-encounter-row]") &&
+                /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName || "")
+            );
+        }
+
+        function setAgendaSyncNotice(visible) {
+            var notice = document.querySelector ? document.querySelector("[data-agenda-sync-notice]") : null;
+            if (notice) notice.hidden = !visible;
+        }
+
+        function refreshAgendaPreservingScroll() {
+            try {
+                window.sessionStorage.setItem("espiro-agenda-scroll-y", String(window.scrollY || window.pageYOffset || 0));
+            } catch (error) {}
+            window.location.reload();
+        }
+
+        function restoreAgendaScroll() {
+            var saved;
+            var position;
+            try {
+                saved = window.sessionStorage.getItem("espiro-agenda-scroll-y");
+                window.sessionStorage.removeItem("espiro-agenda-scroll-y");
+            } catch (error) {
+                return;
+            }
+            position = parseInt(saved || "", 10);
+            if (isNaN(position)) return;
+            window.setTimeout(function () {
+                window.scrollTo(0, position);
+            }, 0);
+        }
+
         function pollRows() {
             var xhr;
             if (!window.XMLHttpRequest) return;
@@ -4854,9 +4939,19 @@
                     return;
                 }
                 rows = payload.rows || [];
+                if (!sameAgendaIds(renderedAgendaIds(), payloadAgendaIds(rows))) {
+                    if (hasPendingAgendaEdit()) {
+                        setAgendaSyncNotice(true);
+                        return;
+                    }
+                    setAgendaSyncNotice(false);
+                    refreshAgendaPreservingScroll();
+                    return;
+                }
+                setAgendaSyncNotice(false);
                 for (i = 0; i < rows.length; i += 1) {
                     row = findRowById(rows[i].encounter_id);
-                    updateRow(row, rows[i]);
+                    updateRow(row, rows[i], { skipReorder: true, preserveViewport: true });
                 }
             };
             xhr.send(null);
@@ -4876,8 +4971,9 @@
         installDrappPasteZone();
         installDrappBrowserOcr();
         refreshAgendaAttendanceSummary();
+        restoreAgendaScroll();
 
-        window.setInterval(pollRows, 60000);
+        window.setInterval(pollRows, 15000);
         window.setTimeout(pollRows, 3000);
         addEvent(document, "visibilitychange", function () {
             if (!document.hidden) pollRows();
