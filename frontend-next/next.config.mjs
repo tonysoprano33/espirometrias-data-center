@@ -9,30 +9,18 @@ const nextConfig = {
     root: process.cwd(),
   },
   async rewrites() {
-    return [
-      // Keep the Django session on the same browser origin during local QA.
-      {
-        source: "/login/",
-        destination: `${djangoOrigin}/login/`,
-      },
-      {
-        source: "/logout/",
-        destination: `${djangoOrigin}/logout/`,
-      },
-      // Temporary bridge to the proven Django screens while Next remains read-only.
-      {
-        source: "/django/:path*",
-        destination: `${djangoOrigin}/:path*`,
-      },
-      {
-        source: "/static/:path*",
-        destination: `${djangoOrigin}/static/:path*`,
-      },
-      {
-        source: "/media/:path*",
-        destination: `${djangoOrigin}/media/:path*`,
-      },
-    ];
+    // Clinical work stays on the proven Django interface until each Next
+    // screen is functionally equivalent. Applying this before filesystem
+    // routing keeps every legacy link, report, PDF and session on the same
+    // public domain instead of mixing two incompatible UIs.
+    return {
+      beforeFiles: [
+        {
+          source: "/:path*",
+          destination: `${djangoOrigin}/:path*`,
+        },
+      ],
+    };
   },
 };
 
