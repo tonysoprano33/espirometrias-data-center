@@ -15,9 +15,9 @@ class FixedRoleSessionTests(TestCase):
         doctor = self.User.objects.get(username="medico")
         technician = self.User.objects.get(username="espirometro")
 
-        self.assertTrue(secretary.check_password("espirometriamarconi123"))
-        self.assertTrue(doctor.check_password("espirometriamarconi123"))
-        self.assertTrue(technician.check_password("espirometriamarconi123"))
+        self.assertTrue(secretary.check_password("123"))
+        self.assertTrue(doctor.check_password("123"))
+        self.assertTrue(technician.check_password("123"))
         self.assertTrue(secretary.has_perm("clinic.manage_agenda"))
         self.assertFalse(secretary.has_perm("clinic.review_medically"))
         self.assertTrue(doctor.has_perm("clinic.review_medically"))
@@ -44,7 +44,7 @@ class FixedRoleSessionTests(TestCase):
     def test_doctor_role_opens_medical_review_and_cannot_be_switched_by_post(self):
         login_response = self.client.post(
             reverse("login"),
-            {"username": "medico", "password": "espirometriamarconi123"},
+            {"username": "medico", "password": "123"},
         )
         self.assertRedirects(login_response, reverse("clinic:doctor_review_list"))
 
