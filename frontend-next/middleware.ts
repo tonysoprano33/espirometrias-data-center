@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const djangoOrigin = process.env.DJANGO_ORIGIN || "https://clinica-espiro-api.onrender.com";
+
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  // Until the migration is complete, every clinical route belongs to the
-  // established Django app. This includes secondary actions such as print,
-  // inline agenda updates and report downloads, not only the main screens.
-  if (pathname === "/django" || pathname.startsWith("/django/")) {
-    return NextResponse.next();
-  }
-
-  const target = new URL(`/django${pathname}${search}`, request.url);
+  // The Django application is the stable production UI. A browser redirect,
+  // rather than a Vercel rewrite, preserves Django's own routes, sessions,
+  // PDF downloads and form actions without proxy-induced 404/500 failures.
+  const target = new URL(`${pathname}${search}`, djangoOrigin);
   return NextResponse.redirect(target, 307);
 }
 
 export const config = {
-  matcher: ["/((?!_next|api|login|logout|static|media|favicon.ico).*)"],
+  matcher: ["/((?!_next|api|static|media|favicon.ico).*)"],
 };
