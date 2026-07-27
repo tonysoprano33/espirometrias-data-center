@@ -14,6 +14,9 @@ const nextConfig = {
       // the Next migration is completed privately.
       { source: "/login/", destination: `${djangoOrigin}/login/` },
       { source: "/logout/", destination: `${djangoOrigin}/logout/` },
+      // :path* is empty at /django/ and would otherwise produce a // URL.
+      { source: "/django", destination: `${djangoOrigin}/` },
+      { source: "/django/", destination: `${djangoOrigin}/` },
       // Preserve Django's trailing slash convention. Without it Django sends
       // visitors back to the public route and creates a redirect loop.
       { source: "/django/:path*/", destination: `${djangoOrigin}/:path*/` },
