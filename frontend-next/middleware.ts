@@ -1,25 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const djangoOnlyPaths = new Set([
-  "/",
-  "/calendario/",
-  "/estadistica/",
-  "/pacientes/",
-  "/revision-medica/",
-  "/papelera/",
-  "/admin/",
-]);
-
-function shouldUseDjango(pathname: string) {
-  return djangoOnlyPaths.has(pathname)
-    || pathname.startsWith("/pacientes/")
-    || pathname.startsWith("/revision-medica/")
-    || pathname.startsWith("/papelera/");
-}
-
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  if (!shouldUseDjango(pathname) || pathname.startsWith("/django/")) {
+  // Until the migration is complete, every clinical route belongs to the
+  // established Django app. This includes secondary actions such as print,
+  // inline agenda updates and report downloads, not only the main screens.
+  if (pathname === "/django" || pathname.startsWith("/django/")) {
     return NextResponse.next();
   }
 
