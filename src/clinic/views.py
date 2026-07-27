@@ -1254,6 +1254,7 @@ def get_bronchodilator_timer_payload(encounter, *, now=None):
             "bronchodilator_timer_remaining_minutes": None,
             "bronchodilator_timer_label": "Bronco: sin marcar",
             "bronchodilator_wait_minutes": wait_minutes,
+            "bronchodilator_timer_due_at": "",
         }
 
     due_at = started_at + timedelta(minutes=wait_minutes)
@@ -1266,6 +1267,7 @@ def get_bronchodilator_timer_payload(encounter, *, now=None):
         "bronchodilator_timer_remaining_minutes": remaining_minutes,
         "bronchodilator_timer_label": "Bronco: listo" if is_ready else f"Bronco: {remaining_minutes} min",
         "bronchodilator_wait_minutes": wait_minutes,
+        "bronchodilator_timer_due_at": due_at.isoformat(),
     }
 
 

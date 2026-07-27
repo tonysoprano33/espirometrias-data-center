@@ -1054,6 +1054,7 @@
         .espirometrista-agenda .coverage-cell[data-label="Dr. deriva"] { width: 13%; }
         .espirometrista-agenda td[data-label="SO2 / FC reposo"],
         .espirometrista-agenda td[data-label="SO2 / FC post"] { width: 6%; }
+        .espirometrista-agenda .bronchodilator-cell { width: 6%; }
         .espirometrista-agenda .col-attendance,
         .espirometrista-agenda .attendance-cell { width: 7%; }
         .espirometrista-agenda .td-actions { width: 9%; }
@@ -1075,7 +1076,7 @@
             grid-template-columns: 32px 66px minmax(120px, 1.35fr) minmax(82px, .72fr) minmax(76px, .52fr) minmax(86px, .55fr) minmax(120px, .7fr) minmax(120px, .7fr);
             grid-template-areas:
                 "toggle time patient dni result attendance actions actions"
-                "toggle study coverage doctor rest post actions actions";
+                "toggle study coverage doctor rest bronco post actions";
         }
     }
     @media (max-width: 1680px) and (min-width: 901px) {
@@ -1098,7 +1099,7 @@
         .responsive-table-wrap.notebook-stack [data-encounter-row],
         .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed {
             display: grid;
-            grid-template-columns: 38px 76px 150px 98px 72px 72px 142px 98px 98px 108px 92px 92px 160px;
+            grid-template-columns: 38px 76px 150px 98px 72px 72px 142px 90px 86px 90px 108px 92px 92px 160px;
             align-items: center;
             column-gap: 0;
         }
@@ -1115,11 +1116,12 @@
         .responsive-table-wrap.notebook-stack .coverage-cell[data-label="Cobertura"] { grid-column: 6; }
         .responsive-table-wrap.notebook-stack .coverage-cell[data-label="Dr. deriva"] { grid-column: 7; }
         .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"] { grid-column: 8; }
-        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"] { grid-column: 9; }
-        .responsive-table-wrap.notebook-stack .result-cell { grid-column: 10; }
-        .responsive-table-wrap.notebook-stack .attendance-cell { grid-column: 11; }
-        .responsive-table-wrap.notebook-stack .status-cell { grid-column: 12; }
-        .responsive-table-wrap.notebook-stack .td-actions { grid-column: 13; }
+        .responsive-table-wrap.notebook-stack .bronchodilator-cell { grid-column: 9; }
+        .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"] { grid-column: 10; }
+        .responsive-table-wrap.notebook-stack .result-cell { grid-column: 11; }
+        .responsive-table-wrap.notebook-stack .attendance-cell { grid-column: 12; }
+        .responsive-table-wrap.notebook-stack .status-cell { grid-column: 13; }
+        .responsive-table-wrap.notebook-stack .td-actions { grid-column: 14; }
         .responsive-table-wrap.notebook-stack thead th,
         .responsive-table-wrap.notebook-stack [data-encounter-row] > td,
         .responsive-table-wrap.notebook-stack [data-encounter-row].is-collapsed > td {
@@ -1337,7 +1339,7 @@
         }
         .responsive-table-wrap.notebook-stack thead tr,
         .responsive-table-wrap.notebook-stack [data-encounter-row] {
-            grid-template-columns: 34px 70px 138px 90px 60px 60px 126px 90px 90px 98px 82px 82px 146px;
+            grid-template-columns: 34px 70px 138px 90px 60px 60px 126px 84px 78px 84px 98px 82px 82px 146px;
             column-gap: 0;
         }
         .responsive-table-wrap.notebook-stack [data-encounter-row] {
@@ -1474,7 +1476,7 @@
             grid-template-columns: 32px 66px minmax(120px, 1.35fr) minmax(82px, .72fr) minmax(80px, .58fr) minmax(80px, .58fr) 72px minmax(96px, .55fr);
             grid-template-areas:
                 "toggle time patient dni result attendance status actions"
-                "toggle study coverage doctor rest post post actions";
+                "toggle study coverage doctor rest bronco post actions";
             align-items: center;
             gap: 6px;
             min-height: 96px;
@@ -1533,6 +1535,7 @@
         .responsive-table-wrap.notebook-stack .coverage-cell[data-label="Cobertura"] { grid-area: coverage; }
         .responsive-table-wrap.notebook-stack .coverage-cell[data-label="Dr. deriva"] { grid-area: doctor; }
         .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC reposo"] { grid-area: rest; }
+        .responsive-table-wrap.notebook-stack .bronchodilator-cell { grid-area: bronco; }
         .responsive-table-wrap.notebook-stack td[data-label="SO2 / FC post"] { grid-area: post; }
         .responsive-table-wrap.notebook-stack .result-cell { grid-area: result; }
         .responsive-table-wrap.notebook-stack .attendance-cell { grid-area: attendance; }
@@ -2101,6 +2104,31 @@
         font-weight: 800;
         font-variant-numeric: tabular-nums;
     }
+    .waiting-elapsed[hidden],
+    .bronchodilator-reminder-label[hidden] {
+        display: none !important;
+    }
+    .bronchodilator-reminder {
+        display: grid;
+        gap: 3px;
+        width: 100%;
+    }
+    .bronchodilator-reminder .button.small {
+        width: 100%;
+        min-height: 32px;
+        padding: 5px 6px;
+        border-radius: 10px;
+        background: #3d9db9;
+        box-shadow: none;
+        font-size: .7rem;
+    }
+    .bronchodilator-reminder-label {
+        color: #0d6f8a;
+        font-size: .66rem;
+        font-weight: 850;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+    }
     .secretary-mode-table .attendance-button {
         width: 100%;
         min-height: 56px;
@@ -2560,6 +2588,7 @@
                     {% if current_work_mode != "secretaria" %}
                         <th>Dr. deriva</th>
                         <th class="col-vitals">SO2 / FC reposo</th>
+                        <th class="col-vitals">Bronco</th>
                         <th class="col-vitals">SO2 / FC post</th>
                         <th class="col-result">Resultado</th>
                     {% endif %}
@@ -2703,6 +2732,16 @@
                                 <button type="submit" class="button small vitals-save-button" title="Guardar SO2 y FC en reposo">Guardar</button>
                             </form>
                         </td>
+                        <td class="bronchodilator-cell" data-label="Bronco">
+                            <form method="post" class="bronchodilator-reminder" data-bronchodilator-timer-form data-bronchodilator-due-at="{% if encounter.bronchodilator_administered_at %}{{ encounter.bronchodilator_administered_at|date:'c' }}{% endif %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="start_bronchodilator_timer">
+                                <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
+                                <input type="hidden" name="bronchodilator_wait_minutes" value="10">
+                                <button type="submit" class="button small" data-bronchodilator-start>Bronco</button>
+                                <span class="bronchodilator-reminder-label" data-bronchodilator-label{% if not encounter.bronchodilator_administered_at %} hidden{% endif %}>{% if encounter.bronchodilator_administered_at %}10 min{% endif %}</span>
+                            </form>
+                        </td>
                         <td class="vitals-cell" data-label="SO2 / FC post">
                             <form method="post" class="vitals-manual-group" data-inline-ajax data-vitals-batch="1" data-vitals-group="post" data-post-fields {% if encounter.study_type != "Ciclometria" %}style="display:none;"{% endif %}>
                                 {% csrf_token %}
@@ -2753,9 +2792,6 @@
                                     {% endif %}
                                 </button>
                             </form>
-                            {% if current_work_mode != "secretaria" %}
-                            <span class="waiting-elapsed" data-waiting-elapsed{% if not encounter.waiting_elapsed_label %} hidden{% endif %}>{{ encounter.waiting_elapsed_label }}</span>
-                            {% endif %}
                             {% if current_work_mode == "secretaria" %}
                             <form method="post" class="secretary-control-form" data-inline-ajax data-medical-control-form>
                                 {% csrf_token %}
@@ -3320,14 +3356,14 @@
             if (!reminder || typeof payload.bronchodilator_timer_active === "undefined") return;
             const label = reminder.querySelector("[data-bronchodilator-label]");
             const start = reminder.querySelector("[data-bronchodilator-start]");
-            const clear = reminder.querySelector("[data-bronchodilator-clear]");
-            const select = reminder.querySelector("[data-bronchodilator-minutes]");
             reminder.classList.toggle("is-active", Boolean(payload.bronchodilator_timer_active));
             reminder.classList.toggle("is-ready", Boolean(payload.bronchodilator_timer_ready));
-            if (label) label.textContent = payload.bronchodilator_timer_label || "Bronco: sin marcar";
-            if (start) start.textContent = payload.bronchodilator_timer_active ? "Reiniciar" : "Marcar aplicado";
-            if (clear) clear.hidden = !payload.bronchodilator_timer_active;
-            if (select && payload.bronchodilator_wait_minutes) select.value = String(payload.bronchodilator_wait_minutes);
+            reminder.dataset.bronchodilatorDueAt = payload.bronchodilator_timer_due_at || "";
+            if (label) {
+                label.textContent = payload.bronchodilator_timer_label || "";
+                label.hidden = !payload.bronchodilator_timer_active;
+            }
+            if (start) start.textContent = "Bronco";
         }
 
         function updatePatientDniChip(row, value) {
@@ -3970,22 +4006,48 @@
             var reminder = row && row.querySelector ? row.querySelector("[data-bronchodilator-reminder]") : null;
             var label;
             var start;
-            var clear;
-            var select;
             if (!reminder || typeof payload.bronchodilator_timer_active === "undefined") return;
             label = reminder.querySelector("[data-bronchodilator-label]");
             start = reminder.querySelector("[data-bronchodilator-start]");
-            clear = reminder.querySelector("[data-bronchodilator-clear]");
-            select = reminder.querySelector("[data-bronchodilator-minutes]");
             if (payload.bronchodilator_timer_active) addClass(reminder, "is-active");
             else removeClass(reminder, "is-active");
             if (payload.bronchodilator_timer_ready) addClass(reminder, "is-ready");
             else removeClass(reminder, "is-ready");
-            if (label) label.innerHTML = escapeHtml(payload.bronchodilator_timer_label || "Bronco: sin marcar");
-            if (start) start.innerHTML = payload.bronchodilator_timer_active ? "Reiniciar" : "Marcar aplicado";
-            if (clear) clear.hidden = !payload.bronchodilator_timer_active;
-            if (select && payload.bronchodilator_wait_minutes) select.value = String(payload.bronchodilator_wait_minutes);
+            reminder.setAttribute("data-bronchodilator-due-at", payload.bronchodilator_timer_due_at || "");
+            if (label) {
+                label.innerHTML = escapeHtml(payload.bronchodilator_timer_label || "");
+                label.hidden = !payload.bronchodilator_timer_active;
+            }
+            if (start) start.innerHTML = "Bronco";
         }
+
+        function refreshBronchodilatorCountdowns() {
+            var reminders = document.querySelectorAll ? document.querySelectorAll("[data-bronchodilator-reminder]") : [];
+            var i;
+            for (i = 0; i < reminders.length; i += 1) {
+                var reminder = reminders[i];
+                var label = reminder.querySelector ? reminder.querySelector("[data-bronchodilator-label]") : null;
+                var dueAt = reminder.getAttribute("data-bronchodilator-due-at") || "";
+                var dueMilliseconds = dueAt ? new Date(dueAt).getTime() : NaN;
+                var remainingSeconds;
+                if (!label || isNaN(dueMilliseconds)) {
+                    if (label) label.hidden = true;
+                    continue;
+                }
+                remainingSeconds = Math.max(0, Math.ceil((dueMilliseconds - new Date().getTime()) / 1000));
+                label.hidden = false;
+                if (remainingSeconds === 0) {
+                    label.innerHTML = "Listo";
+                    addClass(reminder, "is-ready");
+                } else {
+                    label.innerHTML = Math.ceil(remainingSeconds / 60) + " min";
+                    removeClass(reminder, "is-ready");
+                }
+            }
+        }
+
+        refreshBronchodilatorCountdowns();
+        window.setInterval(refreshBronchodilatorCountdowns, 15000);
 
         function getRowEncounterTime(row) {
             var value = row ? String(row.getAttribute("data-encounter-time") || "").trim() : "";

@@ -895,7 +895,7 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertIn('title="Guardar SO2 y FC en reposo"', html)
         self.assertIn('title="Guardar SO2 y FC post"', html)
 
-    def test_espirometrista_dashboard_hides_bronchodilator_control_but_keeps_operational_tracking(self):
+    def test_espirometrista_dashboard_renders_compact_bronchodilator_button_without_wait_chip(self):
         session = self.client.session
         session["clinic_work_mode"] = "espirometrista"
         session.save()
@@ -904,9 +904,10 @@ class DashboardInlineUpdateTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
-        self.assertIn("data-waiting-elapsed", html)
-        self.assertNotIn('<td class="bronchodilator-cell"', html)
-        self.assertNotIn('<th class="col-vitals">Broncodilatador</th>', html)
+        self.assertIn('<td class="bronchodilator-cell"', html)
+        self.assertIn('<th class="col-vitals">Bronco</th>', html)
+        self.assertIn('data-bronchodilator-timer-form', html)
+        self.assertNotIn('<span class="waiting-elapsed"', html)
 
     def test_espirometrista_dashboard_uses_review_bands_instead_of_a_duplicate_status(self):
         SpirometryResult.objects.create(encounter=self.encounter, respiratory_pattern="Normal")
