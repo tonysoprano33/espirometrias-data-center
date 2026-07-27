@@ -4264,6 +4264,36 @@ def statistics_view(request):
 
 
 @login_required
+def agenda_today_api(request):
+    """Stable read API for the gradual Next.js agenda migration."""
+    today = timezone.localdate()
+    encounters = (
+        Encounter.objects.select_related("patient", "referring_physician", "spirometry_result", "vital_signs", "walk_test")
+        .prefetch_related("generated_reports__attachment")
+        .filter(encounter_date=today)
+        .order_by("encounter_time", "created_at")
+    )
+    encounters = sort_dashboard_encounters(unique_encounters_by_patient_day(encounters))
+    rows = [get_row_state_payload(encounter) for encounter in encounters]
+    summary = {
+        "total": len(rows),
+        "attended": sum(1 for row in rows if row["attended"]),
+        "no_show": sum(1 for row in rows if row["no_show"]),
+    }
+    summary["waiting"] = summary["total"] - summary["attended"] - summary["no_show"]
+    return JsonResponse(
+        {
+            "ok": True,
+            "date": today.isoformat(),
+            "work_mode": get_work_mode(request),
+            "summary": summary,
+            "rows": rows,
+            "checked_at": timezone.now().isoformat(),
+        }
+    )
+
+
+@login_required
 def patient_list(request):
     purge_expired_recycle_bin()
     query = request.GET.get("q", "").strip()

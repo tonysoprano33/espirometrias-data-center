@@ -910,6 +910,18 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertIn('data-bronchodilator-timer-form', html)
         self.assertNotIn('<span class="waiting-elapsed"', html)
 
+    def test_next_agenda_api_returns_today_rows_and_summary(self):
+        with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
+            response = self.client.get(reverse("clinic:agenda_today_api"))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["date"], "2026-06-05")
+        self.assertEqual(payload["summary"]["total"], 1)
+        self.assertEqual(payload["rows"][0]["encounter_id"], self.encounter.pk)
+        self.assertEqual(payload["rows"][0]["patient_name"], self.encounter.patient.full_name)
+
     def test_espirometrista_dashboard_uses_review_bands_instead_of_a_duplicate_status(self):
         SpirometryResult.objects.create(encounter=self.encounter, respiratory_pattern="Normal")
         session = self.client.session
