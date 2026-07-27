@@ -217,8 +217,8 @@ LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "clinic:dashboard"
 LOGOUT_REDIRECT_URL = "login"
 # Temporary shared access code for the three clinic work-station accounts.
-# Keep the production environment variable in sync before replacing this with
-# individual staff credentials.
-ROLE_SESSION_PASSWORD = env_value("ROLE_SESSION_PASSWORD", "123")
+# It is intentionally fixed while the Render environment still has the legacy
+# value, so a login cannot silently restore the previous password.
+ROLE_SESSION_PASSWORD = "123"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
