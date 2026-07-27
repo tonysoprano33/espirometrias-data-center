@@ -92,7 +92,7 @@ export default function CalendarPage() {
   return <main className="agenda-shell calendar-next">
     <header className="agenda-header">
       <div><p className="eyebrow">Agenda mensual</p><h1>Calendario</h1><p className="subtitle">Consulta los dias, estados y pacientes sin recargar toda la aplicacion.</p></div>
-      <div className="header-actions"><nav className="next-nav" aria-label="Navegacion nueva"><a href="/">Agenda</a><a className="is-current" href="/calendario/">Calendario</a><a href="/estadistica/">Estadisticas</a></nav><a className="back-link" href="/django/calendario/">Vista actual</a></div>
+      <div className="header-actions"><nav className="next-nav" aria-label="Navegacion nueva"><a href="/">Agenda</a><a className="is-current" href="/calendario/">Calendario</a><a href="/estadistica/">Estadisticas</a><a href="/pacientes/">Pacientes</a></nav><a className="back-link" href="/django/calendario/">Vista actual</a></div>
     </header>
     {error && <p className="notice error" role="alert">{error}</p>}
     {!data && !error && <p className="notice">Cargando calendario...</p>}

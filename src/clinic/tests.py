@@ -951,6 +951,18 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertEqual(payload["clinical"]["with_result"], 1)
         self.assertEqual(payload["diagnoses"][0]["code"], "N")
 
+    def test_next_patient_search_api_supports_dni_and_pagination(self):
+        patient = Patient.objects.create(full_name="Paciente API", dni="30111222", phone="2664000000")
+        Encounter.objects.create(patient=patient, encounter_date=timezone.localdate())
+
+        response = self.client.get(reverse("clinic:patient_search_api"), {"q": "30.111.222", "page": 1})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual(payload["rows"][0]["full_name"], "Paciente API")
+        self.assertEqual(payload["rows"][0]["dni"], "30.111.222")
+
     def test_next_agenda_api_saves_rest_vitals_as_one_transaction(self):
         response = self.client.post(
             reverse("clinic:agenda_vitals_api", args=[self.encounter.pk]),

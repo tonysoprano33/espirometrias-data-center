@@ -17,6 +17,7 @@ urlpatterns = [
     path("api/v1/agenda/<int:pk>/control-medico/", views.agenda_medical_control_api, name="agenda_medical_control_api"),
     path("api/v1/calendario/", views.calendar_month_api, name="calendar_month_api"),
     path("api/v1/estadistica/", views.month_statistics_api, name="month_statistics_api"),
+    path("api/v1/pacientes/", views.patient_search_api, name="patient_search_api"),
     path("calendario/", views.calendar_view, name="calendar"),
     path("estadistica/", views.statistics_view, name="statistics"),
     path("pacientes/", views.patient_list, name="patient_list"),

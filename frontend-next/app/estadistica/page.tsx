@@ -41,7 +41,7 @@ export default function StatisticsPage() {
   }, [month]);
 
   return <main className="agenda-shell statistics-next">
-    <header className="agenda-header"><div><p className="eyebrow">Analisis operativo</p><h1>Estadisticas</h1><p className="subtitle">Indicadores mensuales de actividad, cobertura y resultados ya guardados.</p></div><div className="header-actions"><nav className="next-nav" aria-label="Navegacion nueva"><a href="/">Agenda</a><a href="/calendario/">Calendario</a><a className="is-current" href="/estadistica/">Estadisticas</a></nav><a className="back-link" href="/django/estadistica/">Analisis completo</a></div></header>
+    <header className="agenda-header"><div><p className="eyebrow">Analisis operativo</p><h1>Estadisticas</h1><p className="subtitle">Indicadores mensuales de actividad, cobertura y resultados ya guardados.</p></div><div className="header-actions"><nav className="next-nav" aria-label="Navegacion nueva"><a href="/">Agenda</a><a href="/calendario/">Calendario</a><a className="is-current" href="/estadistica/">Estadisticas</a><a href="/pacientes/">Pacientes</a></nav><a className="back-link" href="/django/estadistica/">Analisis completo</a></div></header>
     {error && <p className="notice error" role="alert">{error}</p>}{!data && !error && <p className="notice">Calculando estadisticas...</p>}
     {data && <>
       <section className="statistics-next-head"><div><p className="eyebrow">Periodo</p><h2>{data.month_label}</h2><span>{data.range_label}</span></div><div className="month-controls"><button onClick={() => setMonth(data.previous_month)}>Anterior</button><button disabled={!data.can_go_next} onClick={() => setMonth(data.next_month)}>Siguiente</button></div></section>

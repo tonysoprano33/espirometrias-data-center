@@ -4809,6 +4809,85 @@ def patient_list(request):
 
 
 @login_required
+def patient_search_api(request):
+    """Read-only, paginated patient search for the incremental Next application."""
+    query = (request.GET.get("q") or "").strip()
+    try:
+        page_number = max(int(request.GET.get("page", "1")), 1)
+    except (TypeError, ValueError):
+        page_number = 1
+
+    patients = Patient.objects.annotate(
+        encounter_count=Count("encounters", filter=Q(encounters__deleted_at__isnull=True), distinct=True),
+        last_encounter_date=Max("encounters__encounter_date", filter=Q(encounters__deleted_at__isnull=True)),
+    )
+    if query:
+        normalized_document = normalize_document_number(query)
+        identity_match = Q(full_name__icontains=query) | Q(dni__icontains=query) | Q(patient_code__icontains=query)
+        if normalized_document and normalized_document != query:
+            identity_match |= Q(dni__icontains=normalized_document) | Q(patient_code__icontains=normalized_document)
+
+        encounter_match = (
+            Q(encounters__coverage_name__icontains=query)
+            | Q(encounters__coverage_type__icontains=query)
+            | Q(encounters__spirometry_result__respiratory_pattern__icontains=query)
+            | Q(encounters__spirometry_result__obstruction_grade__icontains=query)
+            | Q(encounters__spirometry_result__restriction_grade__icontains=query)
+        )
+        parsed_result = parse_result_code(query)
+        if parsed_result:
+            result_match = Q(encounters__spirometry_result__respiratory_pattern=parsed_result["pattern"])
+            if parsed_result["obstruction_grade"]:
+                result_match &= Q(encounters__spirometry_result__obstruction_grade=parsed_result["obstruction_grade"])
+            if parsed_result["restriction_grade"]:
+                result_match &= Q(encounters__spirometry_result__restriction_grade=parsed_result["restriction_grade"])
+            encounter_match |= result_match
+
+        for date_format in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+            try:
+                encounter_match |= Q(encounters__encounter_date=datetime.strptime(query, date_format).date())
+                break
+            except ValueError:
+                continue
+        encounter_match &= Q(encounters__deleted_at__isnull=True)
+        historical_import_match = Q(
+            events__event_type=EncounterEventType.IMPORT,
+            events__encounter__deleted_at__isnull=True,
+            events__metadata__coverage_raw__icontains=query,
+        )
+        patients = patients.filter(identity_match | encounter_match | historical_import_match)
+
+    page_obj = Paginator(patients.distinct().order_by("full_name"), 20).get_page(page_number)
+    can_manage = request.user.has_perm("clinic.manage_agenda")
+    return JsonResponse(
+        {
+            "ok": True,
+            "query": query,
+            "total": page_obj.paginator.count,
+            "page": page_obj.number,
+            "pages": page_obj.paginator.num_pages,
+            "has_previous": page_obj.has_previous(),
+            "has_next": page_obj.has_next(),
+            "rows": [
+                {
+                    "patient_id": patient.pk,
+                    "full_name": patient.full_name,
+                    "dni": formatear_dni(patient.dni) if patient.dni else "-",
+                    "phone": patient.phone or "-",
+                    "patient_code": patient.patient_code or "-",
+                    "encounter_count": patient.encounter_count,
+                    "last_encounter_date": patient.last_encounter_date.strftime("%d/%m/%Y") if patient.last_encounter_date else "-",
+                    "detail_url": reverse("clinic:patient_detail", args=[patient.pk]),
+                    "edit_url": reverse("clinic:patient_edit", args=[patient.pk]),
+                    "can_manage": can_manage,
+                }
+                for patient in page_obj.object_list
+            ],
+        }
+    )
+
+
+@login_required
 def patient_detail(request, pk):
     purge_expired_recycle_bin()
     if request.method == "POST":
