@@ -2297,7 +2297,7 @@
             <h1 class="section-title">Pacientes del dia</h1>
         </div>
         {% if current_work_mode != "secretaria" %}
-            <a class="button alt" href="{% url 'clinic:daily_print' %}" target="_blank" rel="noopener">Imprimir todo el dia</a>
+            <a class="button alt" href="{% url 'clinic:daily_print' %}?auto=1" target="_blank" rel="noopener">Imprimir todo el dia</a>
         {% endif %}
     </div>
     <p class="agenda-sync-notice" data-agenda-sync-notice hidden>

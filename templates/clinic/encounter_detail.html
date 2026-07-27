@@ -30,7 +30,7 @@
         <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;">
             <div class="pill">{{ encounter.status }}</div>
             {% if can_print_result %}
-                <a class="button alt" href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a>
+                <a class="button alt" href="{% url 'clinic:encounter_print' encounter.pk %}?auto=1" target="_blank" rel="noopener">Imprimir</a>
             {% else %}
                 <span class="encounter-pill-soft" title="{{ print_block_reason }}">Impresion no disponible</span>
             {% endif %}

@@ -415,7 +415,7 @@
                                 {% if perms.clinic.manage_agenda %}<a href="{% url 'clinic:encounter_edit' encounter.pk %}?next={% url 'clinic:patient_detail' patient.pk %}">Editar atencion</a>{% endif %}
                                 {% if perms.clinic.review_medically %}<a href="{% url 'clinic:doctor_review_detail' encounter.pk %}">Revision</a>{% endif %}
                                 {% if encounter.can_print_result %}
-                                    <a href="{% url 'clinic:encounter_print' encounter.pk %}" target="_blank" rel="noopener">Imprimir</a>
+                                    <a href="{% url 'clinic:encounter_print' encounter.pk %}?auto=1" target="_blank" rel="noopener">Imprimir</a>
                                 {% else %}
                                     <span class="muted" title="{{ encounter.print_block_reason }}">Imprimir no disponible</span>
                                 {% endif %}

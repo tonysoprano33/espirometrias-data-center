@@ -1356,7 +1356,9 @@ def get_row_state_payload(encounter):
         "patient_dni_display": formatear_dni(encounter.patient.dni) if encounter.patient.dni else "Completar DNI",
         "medical_control_today": encounter.medical_control_today,
         "patient_url": reverse("clinic:patient_detail", args=[encounter.patient_id]),
-        "print_url": reverse("clinic:encounter_print", args=[encounter.pk]),
+        # The agenda action should open the native print dialog, not leave the
+        # operator on an intermediate document-preview screen.
+        "print_url": reverse("clinic:encounter_print", args=[encounter.pk]) + "?auto=1",
         "so2_rest": "" if getattr(vital, "so2_rest", None) is None else str(vital.so2_rest),
         "fc_rest": "" if getattr(vital, "fc_rest", None) is None else str(vital.fc_rest),
         "so2_post": "" if getattr(vital, "so2_post", None) is None else str(vital.so2_post),
@@ -5043,7 +5045,7 @@ def patient_detail_api(request, pk):
                     "mutual_url": report_info["mutual_report_url"],
                 },
                 "review_url": reverse("clinic:doctor_review_detail", args=[encounter.pk]),
-                "print_url": reverse("clinic:encounter_print", args=[encounter.pk]),
+                "print_url": reverse("clinic:encounter_print", args=[encounter.pk]) + "?auto=1",
                 "can_print": get_print_readiness(encounter, ignore_attendance=True)[0],
                 "can_generate_report": get_report_readiness(encounter, ignore_attendance=True)[0],
             }
@@ -5873,7 +5875,7 @@ def doctor_review_detail_api(request, pk):
             "suggestion": suggestion,
             "vitals": build_review_vitals_context(encounter),
             "legacy_review_url": reverse("clinic:doctor_review_detail", args=[encounter.pk]),
-            "print_url": reverse("clinic:encounter_print", args=[encounter.pk]),
+            "print_url": reverse("clinic:encounter_print", args=[encounter.pk]) + "?auto=1",
             "can_print": can_print,
             "print_block_reason": print_block_reason,
             "result_code_options": [code for code, _label in RESULT_CODE_SUGGESTIONS],
