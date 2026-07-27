@@ -21,6 +21,12 @@ const HOP_BY_HOP_RESPONSE_HEADERS = new Set([
   "transfer-encoding",
 ]);
 
+function isLoginRedirect(response: Response) {
+  if (response.status < 300 || response.status >= 400) return false;
+  const location = response.headers.get("location") || "";
+  return location.startsWith("/login/") || location.includes("/login/");
+}
+
 async function proxyToDjango(
   request: NextRequest,
   context: { params: Promise<{ path: string[] }> },
@@ -55,6 +61,16 @@ async function proxyToDjango(
     redirect: "manual",
     cache: "no-store",
   });
+
+  // A browser fetch does not navigate when Django redirects an expired session
+  // to /login/. Return JSON instead so the client can send the user to login
+  // explicitly rather than rendering every list as empty.
+  if (isLoginRedirect(upstream)) {
+    return Response.json(
+      { ok: false, code: "authentication_required", message: "Inicia sesion para cargar los datos." },
+      { status: 401, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 
   const responseHeaders = new Headers();
   upstream.headers.forEach((value, key) => {

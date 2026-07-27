@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useEffect, useState } from "react";
+import { apiFetch } from "../lib/api-client";
 
 type MetricRow = { name?: string; code?: string; label: string; total: number; share_percent?: number; attendance_percent?: number; with_result?: number; percent?: number };
 type StatisticsPayload = {
@@ -30,7 +31,7 @@ export default function StatisticsPage() {
     let active = true;
     const load = async () => {
       try {
-        const response = await fetch(`/api/v1/estadistica/${month ? `?month=${month}` : ""}`, { cache: "no-store", credentials: "same-origin" });
+        const response = await apiFetch(`/api/v1/estadistica/${month ? `?month=${month}` : ""}`, { cache: "no-store" });
         if (!response.ok) throw new Error(response.status === 403 ? "Esta sesion no tiene acceso a estadisticas." : "No se pudieron cargar las estadisticas.");
         const payload = await response.json() as StatisticsPayload;
         if (!active) return;

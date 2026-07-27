@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiFetch } from "../../lib/api-client";
 
 type Detail = {
   patient_name: string; dni: string; date_label: string; time: string; study_type: string; coverage_type: string;
@@ -33,7 +34,7 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
     if (!id) return;
     let active = true;
     setError("");
-    fetch(`/api/v1/revision-medica/${id}/`, { credentials: "same-origin" })
+    apiFetch(`/api/v1/revision-medica/${id}/`)
       .then(async (response) => {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.message || "No se pudo cargar la ficha.");
@@ -50,8 +51,8 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
     if (!result || !id) return;
     setSaving(true);
     try {
-      const response = await fetch(`/api/v1/revision-medica/${id}/resultado/`, {
-        method: "POST", credentials: "same-origin",
+      const response = await apiFetch(`/api/v1/revision-medica/${id}/resultado/`, {
+        method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
         body: JSON.stringify({ respiratory_result: result }),
       });
@@ -73,8 +74,8 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
     try {
       const form = new FormData();
       form.append("pdf_file", selectedFile);
-      const response = await fetch(`/api/v1/revision-medica/${id}/archivo/`, {
-        method: "POST", credentials: "same-origin", headers: { "X-CSRFToken": csrfToken() }, body: form,
+      const response = await apiFetch(`/api/v1/revision-medica/${id}/archivo/`, {
+        method: "POST", headers: { "X-CSRFToken": csrfToken() }, body: form,
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message || "No se pudo subir el archivo.");

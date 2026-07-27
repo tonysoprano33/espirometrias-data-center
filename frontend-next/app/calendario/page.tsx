@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiFetch } from "../lib/api-client";
 
 type CalendarRow = {
   encounter_id: number;
@@ -68,7 +69,7 @@ export default function CalendarPage() {
         const params = new URLSearchParams();
         if (month) params.set("month", month);
         if (selectedDate) params.set("date", selectedDate);
-        const response = await fetch(`/api/v1/calendario/?${params.toString()}`, { cache: "no-store", credentials: "same-origin" });
+        const response = await apiFetch(`/api/v1/calendario/?${params.toString()}`, { cache: "no-store" });
         if (!response.ok) throw new Error(response.status === 403 ? "Esta sesion no tiene acceso al calendario." : "No se pudo cargar el calendario.");
         const payload = await response.json() as CalendarPayload;
         if (!active) return;

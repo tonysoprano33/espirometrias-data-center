@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { apiFetch } from "./lib/api-client";
 
 type AgendaRow = {
   encounter_id: number;
@@ -77,7 +78,7 @@ function csrfToken() {
 }
 
 async function postAgenda(path: string, body: object) {
-  const response = await fetch(path, {
+  const response = await apiFetch(path, {
     method: "POST",
     credentials: "same-origin",
     headers: {
@@ -105,7 +106,7 @@ export default function AgendaPreview() {
     let active = true;
     const load = async () => {
       try {
-        const response = await fetch("/api/v1/agenda/hoy/", { cache: "no-store", credentials: "same-origin" });
+        const response = await apiFetch("/api/v1/agenda/hoy/", { cache: "no-store" });
         if (response.status === 401) throw new Error("Inicia sesion para abrir la agenda nueva.");
         if (!response.ok) throw new Error("No se pudo actualizar la agenda.");
         const payload = await response.json() as AgendaPayload;

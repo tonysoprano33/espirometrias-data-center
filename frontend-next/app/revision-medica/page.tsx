@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { apiFetch } from "../lib/api-client";
 
 type ReviewRow = {
   encounter_id: number;
@@ -37,7 +38,7 @@ export default function ReviewQueuePage() {
         const params = new URLSearchParams({ page: String(page) });
         if (date) params.set("date", date);
         if (submittedQuery) params.set("q", submittedQuery);
-        const response = await fetch(`/api/v1/revision-medica/?${params.toString()}`, { cache: "no-store", credentials: "same-origin" });
+        const response = await apiFetch(`/api/v1/revision-medica/?${params.toString()}`, { cache: "no-store" });
         if (!response.ok) throw new Error(response.status === 403 ? "Esta sesion no puede abrir Revision medica." : "No se pudo cargar la cola del medico.");
         const payload = await response.json() as ReviewPayload;
         if (!active) return;

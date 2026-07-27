@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiFetch } from "../lib/api-client";
 
 type DeletedPatient = { patient_id: number; name: string; dni: string; deleted_at: string; days_remaining: number; encounter_count: number };
 type DeletedEncounter = { encounter_id: number; patient_name: string; patient_id: number; date: string; study_type: string; deleted_at: string; days_remaining: number; patient_deleted: boolean };
@@ -16,7 +17,7 @@ export default function RecycleBinPage() {
   const [busy, setBusy] = useState("");
 
   const load = async () => {
-    const response = await fetch("/api/v1/papelera/", { cache: "no-store", credentials: "same-origin" });
+    const response = await apiFetch("/api/v1/papelera/", { cache: "no-store" });
     if (!response.ok) throw new Error("No se pudo abrir la papelera.");
     setData(await response.json() as TrashPayload);
   };
@@ -28,8 +29,8 @@ export default function RecycleBinPage() {
     if (irreversible && !window.confirm(`Eliminar definitivamente ${label}? Esta accion no se puede deshacer.`)) return;
     setBusy(`${action}-${id}`); setError("");
     try {
-      const response = await fetch("/api/v1/papelera/accion/", {
-        method: "POST", credentials: "same-origin",
+      const response = await apiFetch("/api/v1/papelera/accion/", {
+        method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRFToken": decodeURIComponent(csrfToken()) },
         body: JSON.stringify({ action, id }),
       });
