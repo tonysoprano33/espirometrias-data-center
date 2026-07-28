@@ -25,6 +25,10 @@ function formatDni(value: string | null) {
   return new Intl.NumberFormat("es-AR").format(Number(value));
 }
 
+function shortStudy(value: AgendaEntry["study_type"]) {
+  return value === "Ciclometria" ? "Ciclometria" : "Espirometria";
+}
+
 export default async function AgendaPage() {
   const { profile } = await requireProfile(["admin", "secretaria", "espirometrista"]);
   const supabase = await createClient();
@@ -59,17 +63,31 @@ export default async function AgendaPage() {
           <div className="agenda-count waiting"><strong>{summary.esperando}</strong><span>Esperando</span></div>
         </section>
         <NewAgendaPatientForm today={today} role={profile.role} />
-        {entries.length === 0 ? (
-          <p className="empty">Todavia no hay pacientes cargados para hoy.</p>
-        ) : entries.map((entry) => (
-          <article className={`legacy-agenda-row ${entry.attendance_status}`} key={entry.encounter_id}>
-            <time>{entry.encounter_time?.slice(0, 5) || "--:--"}</time>
-            <div className="legacy-patient"><strong>{entry.patient_name}</strong><span>{formatDni(entry.dni)}</span></div>
-            <span className="legacy-study">{entry.study_type}</span>
-            <span className="legacy-coverage">{entry.coverage_type === "Mutual" ? entry.coverage_name || "Mutual" : "Particular"}</span>
-            <div className="legacy-attendance"><strong className={entry.attendance_status}>{attendanceLabel[entry.attendance_status]}</strong>{entry.medical_control_today && <span>Control medico hoy</span>}</div>
-          </article>
-        ))}
+        <section className={`agenda-work-grid ${profile.role === "secretaria" ? "is-secretary" : "is-operator"}`} aria-label="Pacientes del día">
+          <div className="agenda-work-head">
+            <span>Hora</span><span>Paciente</span><span>DNI</span><span>Estudio</span><span>Cobertura</span>
+            {profile.role !== "secretaria" && <><span>Dr. deriva</span><span>SO2 / FC reposo</span><span>Bronco</span><span>SO2 / FC post</span><span>Resultado</span></>}
+            <span>Asistencia</span>{profile.role !== "secretaria" && <><span>Estado</span><span>Acciones</span></>}
+          </div>
+          {entries.length === 0 ? <p className="empty">Todavía no hay pacientes cargados para hoy.</p> : entries.map((entry) => (
+            <article className={`agenda-work-row ${entry.attendance_status}`} key={entry.encounter_id}>
+              <time><b>{entry.encounter_time?.slice(0, 5) || "--:--"}</b><span>◷</span></time>
+              <label className="agenda-name"><input defaultValue={entry.patient_name} disabled /><span className="sr-only">Paciente</span></label>
+              <strong className="agenda-dni">{formatDni(entry.dni)}</strong>
+              <select aria-label="Estudio" defaultValue={entry.study_type} disabled><option>{shortStudy(entry.study_type)}</option></select>
+              <select aria-label="Cobertura" defaultValue={entry.coverage_type} disabled><option>{entry.coverage_type === "Mutual" ? entry.coverage_name || "Mutual" : "Particular"}</option></select>
+              {profile.role !== "secretaria" && <>
+                <label className="agenda-physician"><input defaultValue="Dr. Gustavo Piguillem" disabled /><small>Escribí y elegí un doctor.</small></label>
+                <div className="agenda-vitals"><span className="so2">-</span><b>/</b><span className="fc">-</span><button disabled>Guardar</button></div>
+                <button className="agenda-bronco" disabled>Bronco</button>
+                <div className="agenda-vitals"><span className="so2">-</span><b>/</b><span className="fc">-</span><button disabled>Guardar</button></div>
+                <label className="agenda-result"><input placeholder="N, OL, RL, RLOMS..." disabled /></label>
+              </>}
+              <div className="agenda-attendance"><strong className={entry.attendance_status}>{attendanceLabel[entry.attendance_status]}</strong>{entry.medical_control_today && <span>Control hoy</span>}</div>
+              {profile.role !== "secretaria" && <><span className="agenda-status">{entry.attendance_status === "atendido" ? "Cargada" : "Pendiente"}</span><div className="agenda-actions"><button className="agenda-print" disabled>Imprimir</button><span>Editar</span><span>Revisión</span><span>Eliminar</span></div></>}
+            </article>
+          ))}
+        </section>
       </section>
     </main>
   );
