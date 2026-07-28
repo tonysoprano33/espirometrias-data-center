@@ -2,6 +2,7 @@ import { createClient } from "../../lib/supabase/server";
 import { requireProfile } from "../../lib/auth/require-profile";
 import { NewAgendaPatientForm } from "./new-agenda-patient-form";
 import { OperatorAgendaRow } from "./operator-agenda-row";
+import Link from "next/link";
 
 type AgendaEntry = {
   encounter_id: string;
@@ -64,7 +65,7 @@ export default async function AgendaPage() {
   return <main className="shell">
     <section className={`card agenda-card ${profile.role === "secretaria" ? "secretary-agenda" : "espirometrista-agenda"}`}>
       <div className="agenda-head"><div><p className="pill">Agenda {today.split("-").reverse().join("/")}</p><h1 className="section-title">Pacientes del dia</h1></div>
-        {profile.role !== "secretaria" && <button className="button alt" type="button" disabled title="La impresion se habilita al portar los informes a Next.">Imprimir todo el dia</button>}
+        {profile.role !== "secretaria" && <Link className="button alt print-day-button" href={`/api/print-day?date=${today}`} target="_blank">Imprimir todo el dia</Link>}
       </div>
       {error && <p className="notice error">No se pudo cargar la agenda: {error.message}</p>}
       <section className="agenda-attendance-summary" aria-label="Resumen de pacientes de hoy">

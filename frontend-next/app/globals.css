@@ -350,6 +350,7 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .button:hover { background: linear-gradient(135deg, #076a83, #087e99); }
 .button:disabled { cursor: not-allowed; opacity: .58; }
 .button.alt { color: #fff; background: linear-gradient(135deg, #e58717, #f2a52e); }
+.print-day-button { display: inline-flex; align-items: center; text-decoration: none; }
 .shell { width: 100%; padding: 18px 24px 30px; }
 .card { border: 1px solid #c7e2e8; border-radius: 18px; background: rgba(255,255,255,.88); box-shadow: 0 16px 32px rgba(16,43,60,.08); }
 .agenda-card { padding: 16px; overflow: visible; }
