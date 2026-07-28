@@ -450,6 +450,14 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .medical-suggestion { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 10px; border: 1px solid #9ed8e5; border-radius: 10px; background: #eafbfd; }
 .medical-suggestion div { display: grid; gap: 3px; }.medical-suggestion small { color: #4c7884; font: 800 .65rem "Trebuchet MS", sans-serif; text-transform: uppercase; }.medical-suggestion strong { color: #08718a; font-size: 1.2rem; }.medical-suggestion span { color: #5f7980; font: 700 .7rem/1.25 "Trebuchet MS", sans-serif; }.medical-suggestion button { min-height: 34px; padding: 0 9px; border: 0; border-radius: 7px; color: #fff; background: #319db6; cursor: pointer; font: 800 .68rem "Trebuchet MS", sans-serif; }
 .compact-action { border: 0; padding: 6px 8px; border-radius: 7px; cursor: pointer; font: 800 .68rem "Trebuchet MS", sans-serif; }
+.agenda-actions { align-items: center; gap: 6px; }
+.agenda-actions a, .agenda-actions button { display: inline-flex; min-height: 30px; align-items: center; justify-content: center; padding: 0 9px; border: 1px solid #b9dce5; border-radius: 8px; color: #0d6e87; background: #f2fbfd; cursor: pointer; font: 900 .68rem "Trebuchet MS", sans-serif; text-decoration: none; transition: border-color .15s ease, background .15s ease, transform .15s ease; }
+.agenda-actions a:hover, .agenda-actions button:hover:not(:disabled) { border-color: #087f9b; background: #e1f5f9; transform: translateY(-1px); }
+.agenda-actions .print-action { color: #fff; border-color: #e58a1d; background: linear-gradient(135deg, #e48615, #f2a32a); box-shadow: 0 4px 10px rgba(228,134,21,.16); }
+.agenda-actions .print-action:hover { border-color: #c96f08; background: linear-gradient(135deg, #d9770b, #ed961e); }
+.agenda-actions .compact-action, .agenda-actions .danger { color: #a13d37; border-color: #efc4bf; background: #fff4f2; }
+.agenda-actions .compact-action:hover, .agenda-actions .danger:hover:not(:disabled) { border-color: #d96b60; background: #ffe9e5; }
+.agenda-actions button:disabled { cursor: wait; opacity: .6; }
 .calendar-row-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .edit-encounter { position: relative; }
 .edit-encounter summary { padding: 6px 8px; border-radius: 7px; color: #0b6e8a; background: #e8f7fb; cursor: pointer; font: 800 .68rem "Trebuchet MS", sans-serif; list-style: none; }
