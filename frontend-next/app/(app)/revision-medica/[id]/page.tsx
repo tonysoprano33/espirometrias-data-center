@@ -5,6 +5,7 @@ import { createClient } from "../../../lib/supabase/server";
 import { MedicalResultForm } from "./medical-result-form";
 import { SourceFileForm } from "./source-file-form";
 import { TechnicianNoteForm } from "./technician-note-form";
+import { PdfPreview } from "./pdf-preview";
 
 type DetailPageProps = { params: Promise<{ id: string }> };
 type QueueEntry = { encounter_id: string; encounter_time: string | null; patient_name: string; has_result: boolean; has_source_file: boolean; attendance_status: string };
@@ -90,7 +91,7 @@ export default async function MedicalReviewDetailPage({ params }: DetailPageProp
     <div className="review-detail-grid">
       <section className="review-document">
         <div className="document-status"><b>{source ? source.original_name : "Sin archivo original"}</b><span>{source ? `Archivo ${source.analysis_status}` : "La revision queda pendiente de PDF o foto"}</span>{sourceError && <small className="document-warning">El archivo figura en la base, pero no está disponible en Storage. Podés volver a subirlo desde esta ficha.</small>}{sourceUrl && <div className="document-actions"><a href={sourceUrl} target="_blank" rel="noreferrer">Abrir archivo grande</a><a href={sourceUrl} download={source?.original_name} target="_blank" rel="noreferrer">Descargar archivo</a></div>}</div>
-        {sourceUrl && source?.file_kind.includes("pdf") ? <iframe title="PDF de la espirometria" src={sourceUrl} /> : sourceUrl ? <img src={sourceUrl} alt="Resultado de espirometria" /> : <div className="document-empty">Todavia no hay un documento para visualizar.</div>}
+        {sourceUrl && source?.file_kind.includes("pdf") ? <PdfPreview url={sourceUrl} name={source.original_name} /> : sourceUrl ? <img src={sourceUrl} alt="Resultado de espirometria" /> : <div className="document-empty">Todavia no hay un documento para visualizar.</div>}
       </section>
 
       <aside className="review-clinical">
