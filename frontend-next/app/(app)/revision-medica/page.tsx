@@ -21,34 +21,50 @@ export default async function MedicalReviewPage() {
   const today = new Date().toISOString().slice(0, 10);
   const { data, error } = await supabase.rpc("medical_review_queue", { target_date: today });
   const entries = (data ?? []) as ReviewEntry[];
+  const withoutFile = entries.filter((entry) => entry.attendance_status !== "atendido" || !entry.has_source_file);
   const readyForReview = entries.filter((entry) => entry.attendance_status === "atendido" && entry.has_source_file && !entry.has_result);
+  const resolved = entries.filter((entry) => entry.has_result);
+  const dateLabel = new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${today}T12:00:00`));
 
   return (
-    <main className="next-screen">
-      <section className="next-page-heading">
-        <p className="eyebrow">Revision medica</p>
-        <h1>Cola de diagnostico</h1>
-        <p>Solo se muestran como pendientes las atenciones con archivo cargado y sin resultado final.</p>
-      </section>
-      {error && <p className="notice error">No se pudo cargar la cola: {error.message}</p>}
-      <section className="review-summary">
-        <strong>{readyForReview.length}</strong>
-        <span>pacientes pendientes de diagnostico</span>
-      </section>
-      <section className="review-list">
-        {entries.length === 0 && <p className="empty">No hay pacientes para revisar hoy.</p>}
-        {entries.map((entry) => {
-          const isReady = readyForReview.some((item) => item.encounter_id === entry.encounter_id);
-          return (
-            <article className={`review-row ${isReady ? "ready" : entry.has_result ? "resolved" : "waiting"}`} key={entry.encounter_id}>
-              <time>{entry.encounter_time?.slice(0, 5) || "--:--"}</time>
-              <div><strong>{entry.patient_name}</strong><span>{entry.study_type} · {entry.coverage_type}{entry.dni ? ` · DNI ${entry.dni}` : ""}</span></div>
-              <p>{entry.has_result ? "Resultado guardado" : isReady ? "Listo para revisar" : entry.has_source_file ? "Falta confirmar asistencia" : "Sin archivo cargado"}</p>
-              {entry.medical_control_today && <b>Control hoy</b>}
-              {isReady ? <span className="review-action">Revision detallada: proxima fase</span> : <span className="review-status">{entry.workflow_status}</span>}
-            </article>
-          );
-        })}
+    <main className="shell">
+      <section className="legacy-review-board">
+        <header className="legacy-review-head">
+          <div>
+            <p>Revision medica</p>
+            <h1>Atenciones de Hoy</h1>
+            <span>Mostrando pacientes del dia seleccionado.</span>
+          </div>
+          <form className="legacy-review-filter" action="/revision-medica">
+            <label>Filtrar por fecha<input name="fecha" type="date" defaultValue={today} /></label>
+            <label>Buscar paciente<input name="q" placeholder="Nombre o DNI..." /></label>
+            <button type="submit">Ir</button>
+          </form>
+        </header>
+        {error && <p className="notice error">No se pudo cargar la cola: {error.message}</p>}
+        <section className="legacy-review-summary" aria-label="Resumen de revisiones">
+          <div className="missing"><strong>{withoutFile.length}</strong><span>Falta atender / PDF</span></div>
+          <div className="pending"><strong>{readyForReview.length}</strong><span>Para revisar</span></div>
+          <div className="done"><strong>{resolved.length}</strong><span>Con resultado</span></div>
+        </section>
+        <section className="legacy-review-list">
+          {entries.length === 0 && <p className="empty">No se encontraron pacientes para revisar.</p>}
+          {entries.map((entry) => {
+            const isReady = readyForReview.some((item) => item.encounter_id === entry.encounter_id);
+            const cardState = entry.has_result ? "done" : isReady ? "pending" : "missing";
+            return (
+              <article className={`legacy-review-card ${cardState}`} key={entry.encounter_id}>
+                <time><span>{dateLabel.slice(0, 5)}</span><b>{entry.encounter_time?.slice(0, 5) || "--:--"}</b></time>
+                <div className="legacy-review-patient">
+                  <strong>{entry.patient_name}</strong>
+                  <div><span>{entry.study_type}</span>{entry.dni && <span>{entry.dni}</span>}{entry.medical_control_today && <em>Control medico hoy</em>}{entry.has_result && <em>Resultado listo</em>}</div>
+                  <p>{entry.has_result ? "Resultado medico guardado." : isReady ? "Paciente atendido con PDF cargado. Falta marcar el resultado medico." : entry.has_source_file ? "Falta confirmar que el paciente fue atendido." : "Todavia no esta listo para revision medica."}</p>
+                </div>
+                <button className={`legacy-review-action ${cardState}`} type="button" disabled={!isReady && !entry.has_result}>{entry.has_result ? "Ver revision" : isReady ? "Revisar PDF" : "Abrir ficha"}</button>
+              </article>
+            );
+          })}
+        </section>
       </section>
     </main>
   );
