@@ -23,6 +23,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const [sessionRole, setSessionRole] = useState<(typeof SESSION_OPTIONS)[number]["value"]>("espirometro");
   const [password, setPassword] = useState("");
+  const [keepSignedIn, setKeepSignedIn] = useState(true);
   const [message, setMessage] = useState(searchParams.get("error") === "profile"
     ? "Tu cuenta no tiene un perfil activo en este sistema."
     : "");
@@ -33,7 +34,7 @@ function LoginForm() {
     setSubmitting(true);
     setMessage("");
     try {
-      const supabase = createClient();
+      const supabase = createClient(keepSignedIn);
       const email = `${sessionRole}@clinica-espiro.local`;
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
@@ -61,6 +62,10 @@ function LoginForm() {
         <label>
           Contraseña
           <input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
+        </label>
+        <label className="auth-remember">
+          <input type="checkbox" checked={keepSignedIn} onChange={(event) => setKeepSignedIn(event.target.checked)} />
+          Mantener la sesiÃ³n iniciada en este navegador
         </label>
         {message && <p className="auth-message" role="alert">{message}</p>}
         <button disabled={submitting}>{submitting ? "Ingresando..." : "Ingresar"}</button>
