@@ -26,6 +26,15 @@ function formatDni(value: string | null) {
   return new Intl.NumberFormat("es-AR").format(Number(value));
 }
 
+function SecretaryAgenda({ entries }: { entries: AgendaEntry[] }) {
+  return <section className="secretary-agenda-list" aria-label="Pacientes del dia para secretaria">
+    <div className="secretary-agenda-head"><span>Hora</span><span>Paciente</span><span>DNI</span><span>Estudio</span><span>Cobertura</span><span>Asistencia</span></div>
+    {entries.length === 0 ? <p className="empty">Todavia no hay pacientes cargados para hoy.</p> : entries.map((entry) => <article className={`secretary-agenda-row ${entry.attendance_status}`} key={entry.encounter_id}>
+      <time>{entry.encounter_time?.slice(0, 5) || "--:--"}</time><strong>{entry.patient_name}</strong><b>{formatDni(entry.dni)}</b><span>{shortStudy(entry.study_type)}</span><span>{entry.coverage_type === "Mutual" ? entry.coverage_name || "Mutual" : "Particular"}</span><div><strong className={entry.attendance_status}>{attendanceLabel[entry.attendance_status]}</strong>{entry.medical_control_today && <small>Control hoy</small>}</div>
+    </article>)}
+  </section>;
+}
+
 function shortStudy(value: AgendaEntry["study_type"]) {
   return value === "Ciclometria" ? "Ciclometria" : "Espirometria";
 }
@@ -64,6 +73,7 @@ export default async function AgendaPage() {
           <div className="agenda-count waiting"><strong>{summary.esperando}</strong><span>Esperando</span></div>
         </section>
         <NewAgendaPatientForm today={today} role={profile.role} />
+        {profile.role === "secretaria" && <SecretaryAgenda entries={entries} />}
         <section className={`agenda-work-grid ${profile.role === "secretaria" ? "is-secretary" : "is-operator"}`} aria-label="Pacientes del día">
           <div className="agenda-work-head">
             <span>Hora</span><span>Paciente</span><span>DNI</span><span>Estudio</span><span>Cobertura</span>
