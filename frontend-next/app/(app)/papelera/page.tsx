@@ -1,5 +1,6 @@
 import { requireProfile } from "../../lib/auth/require-profile";
 import { createClient } from "../../lib/supabase/server";
+import { RestoreEncounterButton, RestorePatientButton } from "./trash-actions";
 
 type DeletedPatient = { id: string; full_name: string; dni: string | null; deleted_at: string | null };
 type DeletedEncounter = { id: string; encounter_date: string; study_type: string; deleted_at: string | null; patient: { full_name: string } | null };
@@ -23,10 +24,10 @@ export default async function TrashPage() {
     {(patientError || encounterError) && <p className="notice error">No se pudo cargar la papelera: {patientError?.message ?? encounterError?.message}</p>}
     <section className="stats-strip trash-stats"><div className="stat"><span>Pacientes eliminados</span><strong>{patients.length}</strong></div><div className="stat amber"><span>Atenciones eliminadas</span><strong>{encounters.length}</strong></div><div className="stat green"><span>Borrado automático</span><strong>Desactivado</strong></div></section>
     <TrashTable title="Pacientes en papelera" description="Restaurar recupera también sus atenciones borradas." headers={["Paciente", "DNI", "Eliminado el", "Acciones"]} empty="No hay pacientes eliminados.">
-      {patients.map((patient) => <tr key={patient.id}><td><strong>{patient.full_name}</strong></td><td>{patient.dni || "-"}</td><td>{formatDateTime(patient.deleted_at)}</td><td><div className="trash-actions"><button disabled>Restaurar</button><button className="danger" disabled>Borrar definitivo</button></div></td></tr>)}
+      {patients.map((patient) => <tr key={patient.id}><td><strong>{patient.full_name}</strong></td><td>{patient.dni || "-"}</td><td>{formatDateTime(patient.deleted_at)}</td><td><div className="trash-actions"><RestorePatientButton patientId={patient.id} /><button className="danger" type="button" disabled title="El borrado definitivo requiere una politica de purga separada">Borrar definitivo</button></div></td></tr>)}
     </TrashTable>
     <TrashTable title="Atenciones en papelera" description="Podés restaurar una atención individual aunque el paciente siga activo." headers={["Paciente", "Fecha", "Estudio", "Eliminado el", "Acciones"]} empty="No hay atenciones eliminadas.">
-      {encounters.map((encounter) => <tr key={encounter.id}><td><strong>{encounter.patient?.full_name ?? "Paciente eliminado"}</strong></td><td>{new Intl.DateTimeFormat("es-AR").format(new Date(`${encounter.encounter_date}T12:00:00`))}</td><td>{encounter.study_type}</td><td>{formatDateTime(encounter.deleted_at)}</td><td><div className="trash-actions"><button disabled>Restaurar</button><button className="danger" disabled>Borrar definitivo</button></div></td></tr>)}
+      {encounters.map((encounter) => <tr key={encounter.id}><td><strong>{encounter.patient?.full_name ?? "Paciente eliminado"}</strong></td><td>{new Intl.DateTimeFormat("es-AR").format(new Date(`${encounter.encounter_date}T12:00:00`))}</td><td>{encounter.study_type}</td><td>{formatDateTime(encounter.deleted_at)}</td><td><div className="trash-actions"><RestoreEncounterButton encounterId={encounter.id} /><button className="danger" type="button" disabled title="El borrado definitivo requiere una politica de purga separada">Borrar definitivo</button></div></td></tr>)}
     </TrashTable>
   </main>;
 }
