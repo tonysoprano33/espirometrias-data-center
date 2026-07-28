@@ -437,6 +437,12 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .source-file-picker { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 12px; border-radius: 9px; color: #fff; background: #087f9b; font: 900 .78rem "Trebuchet MS", sans-serif; cursor: pointer; }
 .source-file-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .source-file-panel > small { color: #176b41; font: 800 .72rem "Trebuchet MS", sans-serif; }
+.document-warning { display: block; margin-top: 8px; color: #9b4d13; font: 800 .76rem/1.35 "Trebuchet MS", sans-serif; }
+.suggestion-preview { display: grid; gap: 8px; padding: 14px; border: 2px solid #65b9d6; border-radius: 14px; background: #e9f8fd; color: #154d62; }
+.suggestion-preview small { display: block; margin-bottom: 6px; font: 800 .72rem/1.2 "Trebuchet MS", sans-serif; text-transform: uppercase; letter-spacing: .05em; }
+.suggestion-preview strong { display: inline-flex; min-width: 54px; justify-content: center; padding: 8px 12px; border-radius: 10px; background: #1684a4; color: #fff; font: 900 1.2rem "Trebuchet MS", sans-serif; }
+.suggestion-preview p { margin: 8px 0 0; font: 700 .9rem/1.4 "Trebuchet MS", sans-serif; }
+.suggestion-preview span { color: #567683; font: 700 .76rem/1.3 "Trebuchet MS", sans-serif; }
 .medical-suggestion { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 10px; border: 1px solid #9ed8e5; border-radius: 10px; background: #eafbfd; }
 .medical-suggestion div { display: grid; gap: 3px; }.medical-suggestion small { color: #4c7884; font: 800 .65rem "Trebuchet MS", sans-serif; text-transform: uppercase; }.medical-suggestion strong { color: #08718a; font-size: 1.2rem; }.medical-suggestion span { color: #5f7980; font: 700 .7rem/1.25 "Trebuchet MS", sans-serif; }.medical-suggestion button { min-height: 34px; padding: 0 9px; border: 0; border-radius: 7px; color: #fff; background: #319db6; cursor: pointer; font: 800 .68rem "Trebuchet MS", sans-serif; }
 .compact-action { border: 0; padding: 6px 8px; border-radius: 7px; cursor: pointer; font: 800 .68rem "Trebuchet MS", sans-serif; }
