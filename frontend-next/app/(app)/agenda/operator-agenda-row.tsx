@@ -64,7 +64,6 @@ export function OperatorAgendaRow({ entry }: Props) {
       <input aria-label="FC reposo" inputMode="numeric" value={rest.fc} onChange={(event) => setRest({ ...rest, fc: event.target.value })} placeholder="FC" />
       <button type="button" onClick={() => save("rest")} disabled={isSaving || !rest.so2 || !rest.fc}>Guardar reposo</button>
     </div>
-    <button className="agenda-bronco" type="button" disabled title="Recordatorio de broncodilatador: se habilita en la siguiente fase">Bronco</button>
     <div className="agenda-vitals">
       <input aria-label="SO2 post" inputMode="numeric" value={post.so2} onChange={(event) => setPost({ ...post, so2: event.target.value })} placeholder="SO2" /> <b>/</b>
       <input aria-label="FC post" inputMode="numeric" value={post.fc} onChange={(event) => setPost({ ...post, fc: event.target.value })} placeholder="FC" />
@@ -76,6 +75,6 @@ export function OperatorAgendaRow({ entry }: Props) {
       {entry.medical_control_today && <span>Control hoy</span>}
     </div>
     <span className="agenda-status">{entry.attendance_status === "atendido" ? "Cargada" : "Pendiente"}</span>
-    <div className="agenda-actions"><Link href={`/revision-medica/${entry.encounter_id}`}>Revision</Link><Link href={`/pacientes/${entry.encounter_id}`}>Paciente</Link>{message && <small>{message}</small>}</div>
+    <div className="agenda-actions"><Link href={`/revision-medica/${entry.encounter_id}`}>Revision</Link><Link href={`/api/encounters/${entry.encounter_id}/print`} target="_blank">Imprimir</Link>{message && <small>{message}</small>}</div>
   </article>;
 }

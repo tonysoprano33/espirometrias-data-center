@@ -73,7 +73,7 @@ export default async function AgendaPage() {
       <NewAgendaPatientForm today={today} role={profile.role} />
       {profile.role === "secretaria" && <SecretaryAgenda entries={entries} />}
       <section className={`agenda-work-grid ${profile.role === "secretaria" ? "is-secretary" : "is-operator"}`} aria-label="Pacientes del dia">
-        <div className="agenda-work-head"><span>Hora</span><span>Paciente</span><span>DNI</span><span>Estudio</span><span>Cobertura</span>{profile.role !== "secretaria" && <><span>Dr. deriva</span><span>SO2 / FC reposo</span><span>Bronco</span><span>SO2 / FC post</span><span>Resultado</span></>}<span>Asistencia</span>{profile.role !== "secretaria" && <><span>Estado</span><span>Acciones</span></>}</div>
+        <div className="agenda-work-head"><span>Hora</span><span>Paciente</span><span>DNI</span><span>Estudio</span><span>Cobertura</span>{profile.role !== "secretaria" && <><span>Dr. deriva</span><span>SO2 / FC reposo</span><span>SO2 / FC post</span><span>Resultado</span></>}<span>Asistencia</span>{profile.role !== "secretaria" && <><span>Estado</span><span>Acciones</span></>}</div>
         {entries.length === 0 ? <p className="empty">Todavia no hay pacientes cargados para hoy.</p> : entries.map((entry) => profile.role !== "secretaria" ? <OperatorAgendaRow key={entry.encounter_id} entry={entry} /> : null)}
       </section>
     </section>
