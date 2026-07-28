@@ -27,7 +27,10 @@ export async function GET(request: Request) {
 
     const latestByEncounter = new Map<string, Attachment>();
     for (const attachment of (attachments ?? []) as Attachment[]) {
-      if (!latestByEncounter.has(attachment.encounter_id)) latestByEncounter.set(attachment.encounter_id, attachment);
+      const current = latestByEncounter.get(attachment.encounter_id);
+      if (!current || (current.file_kind !== "informe_pdf" && attachment.file_kind === "informe_pdf") || (current.file_kind === attachment.file_kind && attachment.created_at > current.created_at)) {
+        latestByEncounter.set(attachment.encounter_id, attachment);
+      }
     }
 
     const merged = await PDFDocument.create();
