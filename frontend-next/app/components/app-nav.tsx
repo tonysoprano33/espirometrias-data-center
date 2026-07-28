@@ -26,7 +26,7 @@ export function AppNav({ role, displayName }: AppNavProps) {
         </div>
         <nav className="nav" aria-label="Navegacion principal">
           {(role === "secretaria" || isClinicalOperator) && <Link className="current" href="/agenda">Inicio</Link>}
-          {isClinicalOperator && <span className="nav-preview-item">Calendario</span>}
+          {isClinicalOperator && <Link href="/calendario">Calendario</Link>}
           {isClinicalOperator && <span className="nav-preview-item">Estadistica</span>}
           {isClinicalOperator && <span className="nav-preview-item">Pacientes</span>}
           {isClinicalOperator && <span className="nav-preview-item">Papelera</span>}
