@@ -1,11 +1,7 @@
 import { redirect } from "next/navigation";
-import { createClient } from "./lib/supabase/server";
+import { requireProfile } from "./lib/auth/require-profile";
 
 export default async function HomePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  redirect(user ? "/agenda" : "/login");
+  const { profile } = await requireProfile();
+  redirect(profile.role === "medico" ? "/revision-medica" : "/agenda");
 }
