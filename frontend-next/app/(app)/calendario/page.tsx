@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireProfile } from "../../lib/auth/require-profile";
 import { createClient } from "../../lib/supabase/server";
+import { DeleteEncounterButton, EditEncounterButton } from "../components/encounter-actions";
 
 type EncounterRow = {
   id: string;
@@ -8,6 +9,8 @@ type EncounterRow = {
   encounter_time: string | null;
   attendance_status: "no_llego" | "esperando" | "atendido";
   coverage_type: "Mutual" | "Particular";
+  coverage_name: string;
+  medical_control_today: boolean;
   study_type: "Ciclometria" | "Espirometria";
   patient: { full_name: string; dni: string | null } | null;
 };
@@ -38,7 +41,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("encounters")
-    .select("id, encounter_date, encounter_time, attendance_status, coverage_type, study_type, patient:patients(full_name,dni)")
+    .select("id, encounter_date, encounter_time, attendance_status, coverage_type, coverage_name, study_type, medical_control_today, patient:patients(full_name,dni)")
     .gte("encounter_date", startIso)
     .lt("encounter_date", nextIso)
     .is("deleted_at", null)
@@ -86,7 +89,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     <section className="legacy-selected-day">
       <header><div><p className="pill">Dia seleccionado</p><h2>{selectedLabel}</h2><span>Aca tenes el resumen del dia y la lista completa de pacientes.</span></div><b>{selectedRows.length ? "Dia con actividad" : "Sin actividad"}</b></header>
       <div className="legacy-day-metrics"><div><span>Pacientes</span><strong>{selectedRows.length}</strong></div><div><span>Mutuales</span><strong>{mutual}</strong></div><div><span>Atendidos</span><strong>{attended}</strong></div><div><span>Pendientes</span><strong>{selectedRows.length - attended - noShow}</strong></div><div><span>No llego</span><strong>{noShow}</strong></div></div>
-      <div className="legacy-selected-list">{selectedRows.length === 0 ? <p className="empty">No hay pacientes cargados para este dia.</p> : selectedRows.map((entry) => <article key={entry.id}><time>{entry.encounter_time?.slice(0, 5) || "--:--"}</time><div><strong>{entry.patient?.full_name ?? "Paciente sin nombre"}</strong><span>{formatDni(entry.patient?.dni ?? null)}</span></div><span>{entry.study_type}</span><span>{entry.coverage_type}</span><b className={entry.attendance_status}>{entry.attendance_status === "atendido" ? "Atendido" : entry.attendance_status === "esperando" ? "Esperando" : "No llego"}</b></article>)}</div>
+      <div className="legacy-selected-list">{selectedRows.length === 0 ? <p className="empty">No hay pacientes cargados para este dia.</p> : selectedRows.map((entry) => <article key={entry.id}><time>{entry.encounter_time?.slice(0, 5) || "--:--"}</time><div><strong>{entry.patient?.full_name ?? "Paciente sin nombre"}</strong><span>{formatDni(entry.patient?.dni ?? null)}</span></div><span>{entry.study_type}</span><span>{entry.coverage_type === "Mutual" ? entry.coverage_name || "Mutual" : "Particular"}</span><b className={entry.attendance_status}>{entry.attendance_status === "atendido" ? "Atendido" : entry.attendance_status === "esperando" ? "Esperando" : "No llego"}</b><div className="calendar-row-actions"><EditEncounterButton encounterId={entry.id} date={entry.encounter_date} time={entry.encounter_time?.slice(0, 5) ?? ""} studyType={entry.study_type} coverageType={entry.coverage_type} coverageName={entry.coverage_name} controlToday={entry.medical_control_today} /><DeleteEncounterButton encounterId={entry.id} /></div></article>)}</div>
     </section>
   </main>;
 }

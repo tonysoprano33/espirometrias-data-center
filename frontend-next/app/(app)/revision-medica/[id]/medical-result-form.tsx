@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-export function MedicalResultForm({ encounterId, initialCode, initialComment }: { encounterId: string; initialCode: string; initialComment: string }) {
+export function MedicalResultForm({ encounterId, initialCode, initialComment, suggestedCode, suggestedSummary }: { encounterId: string; initialCode: string; initialComment: string; suggestedCode?: string | null; suggestedSummary?: string | null }) {
   const router = useRouter();
   const [code, setCode] = useState(initialCode);
   const [comment, setComment] = useState(initialComment);
@@ -18,5 +18,5 @@ export function MedicalResultForm({ encounterId, initialCode, initialComment }: 
       router.refresh();
     });
   }
-  return <section className="result-editor-next"><h2>Resultado final del medico</h2><label>Codigo elegido<input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="N, OL, RL, RLOMS..." /></label><label>Comentario opcional<textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={3} placeholder="Observacion del medico" /></label><button className="button" type="button" onClick={save} disabled={isSaving || !code.trim()}>Guardar resultado</button>{message && <small>{message}</small>}</section>;
+  return <section className="result-editor-next"><h2>Resultado final del medico</h2>{suggestedCode && <div className="medical-suggestion"><div><small>Sugerencia automatica</small><strong>{suggestedCode}</strong>{suggestedSummary && <span>{suggestedSummary}</span>}</div><button type="button" onClick={() => setCode(suggestedCode)}>Usar sugerido</button></div>}<label>Codigo elegido<input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="N, OL, RL, RLOMS..." /></label><label>Comentario opcional<textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={3} placeholder="Observacion del medico" /></label><button className="button" type="button" onClick={save} disabled={isSaving || !code.trim()}>Guardar resultado</button>{message && <small>{message}</small>}</section>;
 }

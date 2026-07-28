@@ -82,7 +82,7 @@ export default async function MedicalReviewDetailPage({ params }: DetailPageProp
         <section><h2>SO2 y frecuencia cardiaca</h2><div className="vitals-next"><div className="vital-next"><span>Reposo</span><b>{vitals?.so2_rest ?? "-"}% / {vitals?.fc_rest ?? "-"}</b></div><div className={`vital-next ${(vitals?.so2_post ?? 100) < 90 ? "alert" : ""}`}><span>Post caminata</span><b>{vitals?.so2_post ?? "-"}% / {vitals?.fc_post ?? "-"}</b></div></div></section>
         {walk && <section><h2>Prueba de caminata</h2><div className={`walk-next ${walk.stopped || walk.symptoms || (vitals?.so2_post ?? 100) < 90 ? "alert" : ""}`}>{walk.completed ? "Prueba completada" : "Prueba incompleta"} · {walk.distance_meters} m · Borg final {walk.borg_final}</div></section>}
         {result && <section className={`result-next ${hasResult ? "saved" : ""}`}><h2>Resultado medico</h2><b>{result.respiratory_pattern ?? result.suggested_code ?? "Pendiente"}</b><p>{result.physician_comment || result.suggested_summary || "El resultado final queda a decision del medico."}</p></section>}
-        {(profile.role === "admin" || profile.role === "medico") && <MedicalResultForm encounterId={id} initialCode={result?.final_code ?? ""} initialComment={result?.physician_comment ?? ""} />}
+        {(profile.role === "admin" || profile.role === "medico") && <MedicalResultForm encounterId={id} initialCode={result?.final_code ?? ""} initialComment={result?.physician_comment ?? ""} suggestedCode={result?.suggested_code} suggestedSummary={result?.suggested_summary} />}
         {encounter.technician_notes && <section className="notes-next"><h2>Nota breve para el medico</h2><p>{encounter.technician_notes}</p></section>}
       </aside>
     </div>

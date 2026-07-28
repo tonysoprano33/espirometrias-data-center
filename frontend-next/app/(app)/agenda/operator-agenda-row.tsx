@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { DeleteEncounterButton } from "../components/encounter-actions";
 
 type Props = {
   entry: {
@@ -75,6 +76,6 @@ export function OperatorAgendaRow({ entry }: Props) {
       {entry.medical_control_today && <span>Control hoy</span>}
     </div>
     <span className={`agenda-status ${attendance}`}>{attendance === "atendido" ? "Atendido" : "Pendiente"}</span>
-    <div className="agenda-actions"><Link className="print-action" href={`/api/encounters/${entry.encounter_id}/print`} target="_blank">Imprimir</Link><Link href={`/revision-medica/${entry.encounter_id}`}>Revision</Link>{message && <small role="status">{message}</small>}</div>
+    <div className="agenda-actions"><Link className="print-action" href={`/api/encounters/${entry.encounter_id}/print`} target="_blank">Imprimir</Link><Link href={`/revision-medica/${entry.encounter_id}`}>Revision</Link><DeleteEncounterButton encounterId={entry.encounter_id} />{message && <small role="status">{message}</small>}</div>
   </article>;
 }
