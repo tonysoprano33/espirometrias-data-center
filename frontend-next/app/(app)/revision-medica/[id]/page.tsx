@@ -4,6 +4,7 @@ import { requireProfile } from "../../../lib/auth/require-profile";
 import { createClient } from "../../../lib/supabase/server";
 
 type DetailPageProps = { params: Promise<{ id: string }> };
+type QueueEntry = { encounter_id: string; encounter_time: string | null; patient_name: string; has_result: boolean; has_source_file: boolean; attendance_status: string };
 
 function formatDni(value: string | null) {
   if (!value) return "Sin DNI";
@@ -28,6 +29,13 @@ export default async function MedicalReviewDetailPage({ params }: DetailPageProp
     .maybeSingle();
 
   if (!encounter) notFound();
+
+  const { data: queueData } = await supabase.rpc("medical_review_queue", { target_date: encounter.encounter_date });
+  const reviewQueue = ((queueData ?? []) as QueueEntry[]).filter((entry) => entry.attendance_status === "atendido" && entry.has_source_file);
+  const currentIndex = reviewQueue.findIndex((entry) => entry.encounter_id === id);
+  const previousReview = currentIndex > 0 ? reviewQueue[currentIndex - 1] : null;
+  const nextReview = currentIndex >= 0 && currentIndex < reviewQueue.length - 1 ? reviewQueue[currentIndex + 1] : null;
+  const pendingCount = reviewQueue.filter((entry) => !entry.has_result).length;
 
   const patient = Array.isArray(encounter.patient) ? encounter.patient[0] : encounter.patient;
   const vitals = Array.isArray(encounter.vital_signs) ? encounter.vital_signs[0] : encounter.vital_signs;
@@ -56,8 +64,8 @@ export default async function MedicalReviewDetailPage({ params }: DetailPageProp
     {encounter.medical_control_today && <div className="medical-control-banner">Control medico hoy</div>}
 
     <nav className="review-detail-navigation" aria-label="Navegacion de revision">
-      <strong>{statusLabel}</strong>
-      <div><Link href="/revision-medica">Lista de pacientes</Link><span>{encounter.encounter_time?.slice(0, 5) ?? "--:--"}</span></div>
+      <strong>{pendingCount ? `Quedan ${pendingCount} paciente(s) para revisar` : "No quedan pacientes pendientes"}</strong>
+      <div>{previousReview ? <Link href={`/revision-medica/${previousReview.encounter_id}`}>Anterior</Link> : <span className="navigation-disabled">Anterior</span>}<Link href="/revision-medica">Lista de pacientes</Link>{nextReview ? <Link href={`/revision-medica/${nextReview.encounter_id}`}>Siguiente</Link> : <span className="navigation-disabled">Siguiente</span>}<span>{statusLabel} · {encounter.encounter_time?.slice(0, 5) ?? "--:--"}</span></div>
     </nav>
 
     <div className="review-detail-grid">
