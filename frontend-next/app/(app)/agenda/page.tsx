@@ -37,9 +37,9 @@ function shortStudy(value: AgendaEntry["study_type"]) {
 
 function SecretaryAgenda({ entries }: { entries: AgendaEntry[] }) {
   return <section className="secretary-agenda-list" aria-label="Pacientes del dia para secretaria">
-    <div className="secretary-agenda-head"><span>Hora</span><span>Paciente</span><span>DNI</span><span>Estudio</span><span>Cobertura</span><span>Asistencia</span></div>
+    <div className="secretary-agenda-head"><span>Hora</span><span>Paciente</span><span>Estudio</span><span>Cobertura</span><span>Asistencia</span></div>
     {entries.length === 0 ? <p className="empty">Todavia no hay pacientes cargados para hoy.</p> : entries.map((entry) => <article className={`secretary-agenda-row ${entry.attendance_status}`} key={entry.encounter_id}>
-      <time>{entry.encounter_time?.slice(0, 5) || "--:--"}</time><strong>{entry.patient_name}</strong><b>{formatDni(entry.dni)}</b><span>{shortStudy(entry.study_type)}</span><span>{entry.coverage_type === "Mutual" ? entry.coverage_name || "Mutual" : "Particular"}</span><div><strong className={entry.attendance_status}>{attendanceLabel[entry.attendance_status]}</strong>{entry.medical_control_today && <small>Control hoy</small>}</div>
+      <time>{entry.encounter_time?.slice(0, 5) || "--:--"}</time><div className="secretary-patient-cell"><strong>{entry.patient_name}</strong><span>DNI {formatDni(entry.dni)}</span></div><span>{shortStudy(entry.study_type)}</span><span>{entry.coverage_type === "Mutual" ? entry.coverage_name || "Mutual" : "Particular"}</span><div><strong className={entry.attendance_status}>{attendanceLabel[entry.attendance_status]}</strong>{entry.medical_control_today && <small>Control hoy</small>}</div>
     </article>)}
   </section>;
 }
