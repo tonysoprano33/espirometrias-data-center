@@ -28,8 +28,8 @@ export function AppNav({ role, displayName }: AppNavProps) {
           {(role === "secretaria" || isClinicalOperator) && <Link className="current" href="/agenda">Inicio</Link>}
           {isClinicalOperator && <Link href="/calendario">Calendario</Link>}
           {isClinicalOperator && <Link href="/estadistica">Estadistica</Link>}
-          {isClinicalOperator && <span className="nav-preview-item">Pacientes</span>}
-          {isClinicalOperator && <span className="nav-preview-item">Papelera</span>}
+          {isClinicalOperator && <Link href="/pacientes">Pacientes</Link>}
+          {isClinicalOperator && <Link href="/papelera">Papelera</Link>}
           {canReview && <Link href="/revision-medica">Revision medica</Link>}
           {isClinicalOperator && <form action="/auth/signout" method="post"><button className="button alt" type="submit">Salir</button></form>}
         </nav>
