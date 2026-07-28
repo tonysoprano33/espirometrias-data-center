@@ -100,7 +100,7 @@ export default async function PatientsPage({ searchParams }: { searchParams: Pro
                 <td data-label="Código"><span className="data-pill code">{patient.patient_code || "-"}</span></td>
                 <td data-label="Atenciones"><span className="count-badge">{visitsForPatient.count}</span></td>
                 <td data-label="Última atención"><div className="last-visit"><strong>{visitsForPatient.lastDate ? new Intl.DateTimeFormat("es-AR").format(new Date(`${visitsForPatient.lastDate}T12:00:00`)) : "-"}</strong><span>Última visita</span></div></td>
-                <td data-label="Acciones"><div className="patient-actions"><button type="button" className="primary" disabled>Abrir</button><button type="button" className="secondary" disabled>Editar</button><button type="button" className="danger" disabled>Eliminar</button></div></td>
+                <td data-label="Acciones"><div className="patient-actions"><Link href={`/pacientes/${patient.id}`} className="primary">Abrir</Link><button type="button" className="secondary" disabled>Editar</button><button type="button" className="danger" disabled>Eliminar</button></div></td>
               </tr>;
             })}
           </tbody>
