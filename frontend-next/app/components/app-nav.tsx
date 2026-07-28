@@ -27,7 +27,7 @@ export function AppNav({ role, displayName }: AppNavProps) {
         <nav className="nav" aria-label="Navegacion principal">
           {(role === "secretaria" || isClinicalOperator) && <Link className="current" href="/agenda">Inicio</Link>}
           {isClinicalOperator && <Link href="/calendario">Calendario</Link>}
-          {isClinicalOperator && <span className="nav-preview-item">Estadistica</span>}
+          {isClinicalOperator && <Link href="/estadistica">Estadistica</Link>}
           {isClinicalOperator && <span className="nav-preview-item">Pacientes</span>}
           {isClinicalOperator && <span className="nav-preview-item">Papelera</span>}
           {canReview && <Link href="/revision-medica">Revision medica</Link>}
