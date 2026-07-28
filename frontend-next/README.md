@@ -1,13 +1,17 @@
-# Frontend Next.js en migracion gradual
+# Preview Next.js aislado
 
-Esta carpeta es una nueva agenda aislada. No modifica el despliegue Django ni las rutas actuales.
+Este directorio inicia la migracion real a Next.js + Supabase. No redirige ni
+depende de Django. La aplicacion Django productiva permanece intacta hasta que
+las fases de migracion se aprueben y validen.
 
-1. En una terminal, iniciar Django: `python src/manage.py runserver`.
-2. En otra terminal: `cd frontend-next; npm install; npm run dev`.
-3. Abrir `http://127.0.0.1:3000/login/`, iniciar sesion y luego volver a la
-   portada de Next.
+## Desarrollo local
 
-Usar siempre `127.0.0.1` (no `localhost`) para que Django y el preview de Next
-compartan la misma cookie durante las pruebas.
+1. Copiar `.env.example` como `.env.local` y completar solo las variables
+   publicas del proyecto Supabase de **staging**.
+2. Aplicar `supabase/migrations/20260728_0001_foundation_auth.sql` en staging.
+3. Crear una cuenta de prueba en Supabase Auth y activar/asignar su perfil.
+4. Ejecutar `npm install` y `npm run dev` dentro de `frontend-next`.
+5. Abrir `http://127.0.0.1:3000`.
 
-La configuracion de `next.config.mjs` reenvia `/api/v1/*` a Django. La primera API es de solo lectura para validar rendimiento y actualizaciones silenciosas antes de migrar las acciones de agenda.
+No agregar claves secretas (`service_role`/`sb_secret`) a este frontend ni a
+variables `NEXT_PUBLIC_*`.

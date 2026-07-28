@@ -16,5 +16,6 @@ src/media/
 .vercel
 /.tmp/
 /tmp/
+/backups/
 frontend-next/node_modules/
 frontend-next/.next/

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Agenda | Clinica Espiro",
-  description: "Nueva interfaz de agenda en validacion interna.",
+  title: "Preview | Clinica Espiro",
+  description: "Migracion controlada a Next.js y Supabase.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
