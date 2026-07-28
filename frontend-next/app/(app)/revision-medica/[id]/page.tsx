@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireProfile } from "../../../lib/auth/require-profile";
 import { createClient } from "../../../lib/supabase/server";
+import { MedicalResultForm } from "./medical-result-form";
 
 type DetailPageProps = { params: Promise<{ id: string }> };
 type QueueEntry = { encounter_id: string; encounter_time: string | null; patient_name: string; has_result: boolean; has_source_file: boolean; attendance_status: string };
@@ -18,12 +19,12 @@ function formatDate(value: string | null) {
 }
 
 export default async function MedicalReviewDetailPage({ params }: DetailPageProps) {
-  await requireProfile(["admin", "medico", "espirometrista"]);
+  const { profile } = await requireProfile(["admin", "medico", "espirometrista"]);
   const { id } = await params;
   const supabase = await createClient();
   const { data: encounter } = await supabase
     .from("encounters")
-    .select("id, encounter_date, encounter_time, study_type, coverage_type, coverage_name, attendance_status, medical_control_today, technician_notes, patient:patients(full_name, dni, birth_date, sex, bmi), vital_signs(so2_rest, fc_rest, so2_post, fc_post), walk_tests(distance_meters, completed, stopped, symptoms, borg_final, minute_readings), spirometry_results(respiratory_pattern, obstruction_grade, restriction_grade, bronchodilator_positive, physician_comment, suggested_summary, suggested_code), attachments(original_name, file_kind, storage_bucket, object_path, analysis_status)")
+    .select("id, encounter_date, encounter_time, study_type, coverage_type, coverage_name, attendance_status, medical_control_today, technician_notes, patient:patients(full_name, dni, birth_date, gender, bmi), vital_signs(so2_rest, fc_rest, so2_post, fc_post), walk_tests(distance_meters, completed, stopped, symptoms, borg_final, minute_readings), spirometry_results(respiratory_pattern, obstruction_grade, restriction_grade, bronchodilator_positive, physician_comment, suggested_summary, suggested_code, final_code), attachments(original_name, file_kind, storage_bucket, object_path, analysis_status)")
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
@@ -75,10 +76,11 @@ export default async function MedicalReviewDetailPage({ params }: DetailPageProp
       </section>
 
       <aside className="review-clinical">
-        <section><h2>Datos del paciente</h2><div className="patient-facts"><span><small>DNI</small><b>{formatDni(patient?.dni ?? null)}</b></span><span><small>Nacimiento</small><b>{patient?.birth_date ?? "-"}</b></span><span><small>Genero</small><b>{patient?.sex ?? "-"}</b></span><span><small>BMI</small><b>{patient?.bmi ?? "-"}</b></span></div></section>
+        <section><h2>Datos del paciente</h2><div className="patient-facts"><span><small>DNI</small><b>{formatDni(patient?.dni ?? null)}</b></span><span><small>Nacimiento</small><b>{patient?.birth_date ?? "-"}</b></span><span><small>Genero</small><b>{patient?.gender ?? "-"}</b></span><span><small>BMI</small><b>{patient?.bmi ?? "-"}</b></span></div></section>
         <section><h2>SO2 y frecuencia cardiaca</h2><div className="vitals-next"><div className="vital-next"><span>Reposo</span><b>{vitals?.so2_rest ?? "-"}% / {vitals?.fc_rest ?? "-"}</b></div><div className={`vital-next ${(vitals?.so2_post ?? 100) < 90 ? "alert" : ""}`}><span>Post caminata</span><b>{vitals?.so2_post ?? "-"}% / {vitals?.fc_post ?? "-"}</b></div></div></section>
         {walk && <section><h2>Prueba de caminata</h2><div className={`walk-next ${walk.stopped || walk.symptoms || (vitals?.so2_post ?? 100) < 90 ? "alert" : ""}`}>{walk.completed ? "Prueba completada" : "Prueba incompleta"} · {walk.distance_meters} m · Borg final {walk.borg_final}</div></section>}
         {result && <section className={`result-next ${hasResult ? "saved" : ""}`}><h2>Resultado medico</h2><b>{result.respiratory_pattern ?? result.suggested_code ?? "Pendiente"}</b><p>{result.physician_comment || result.suggested_summary || "El resultado final queda a decision del medico."}</p></section>}
+        {(profile.role === "admin" || profile.role === "medico") && <MedicalResultForm encounterId={id} initialCode={result?.final_code ?? ""} initialComment={result?.physician_comment ?? ""} />}
         {encounter.technician_notes && <section className="notes-next"><h2>Nota breve para el medico</h2><p>{encounter.technician_notes}</p></section>}
       </aside>
     </div>
