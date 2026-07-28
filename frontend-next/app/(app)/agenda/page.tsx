@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "../../lib/supabase/server";
 import { requireProfile } from "../../lib/auth/require-profile";
 import { NewAgendaPatientForm } from "./new-agenda-patient-form";
@@ -84,7 +85,7 @@ export default async function AgendaPage() {
                 <label className="agenda-result"><input placeholder="N, OL, RL, RLOMS..." disabled /></label>
               </>}
               <div className="agenda-attendance"><strong className={entry.attendance_status}>{attendanceLabel[entry.attendance_status]}</strong>{entry.medical_control_today && <span>Control hoy</span>}</div>
-              {profile.role !== "secretaria" && <><span className="agenda-status">{entry.attendance_status === "atendido" ? "Cargada" : "Pendiente"}</span><div className="agenda-actions"><button className="agenda-print" disabled>Imprimir</button><span>Editar</span><span>Revisión</span><span>Eliminar</span></div></>}
+              {profile.role !== "secretaria" && <><span className="agenda-status">{entry.attendance_status === "atendido" ? "Cargada" : "Pendiente"}</span><div className="agenda-actions"><button className="agenda-print" disabled>Imprimir</button><span>Editar</span><Link href={`/revision-medica/${entry.encounter_id}`}>Revision</Link><span>Eliminar</span></div></>}
             </article>
           ))}
         </section>

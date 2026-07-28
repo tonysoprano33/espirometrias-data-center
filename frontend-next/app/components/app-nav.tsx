@@ -31,7 +31,7 @@ export function AppNav({ role, displayName }: AppNavProps) {
           {isClinicalOperator && <Link href="/pacientes">Pacientes</Link>}
           {isClinicalOperator && <Link href="/papelera">Papelera</Link>}
           {canReview && <Link href="/revision-medica">Revision medica</Link>}
-          {isClinicalOperator && <form action="/auth/signout" method="post"><button className="button alt" type="submit">Salir</button></form>}
+          <form action="/auth/signout" method="post"><button className="button alt" type="submit">Salir</button></form>
         </nav>
       </div>
     </header>
