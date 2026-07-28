@@ -404,3 +404,10 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
   .quick-core-grid, .quick-secondary-grid { grid-template-columns: 1fr; }.quick-control-toggle, .quick-core-grid .button { grid-column: auto; }.quick-core-grid .button { width: 100%; }
   .legacy-agenda-row { grid-template-columns: 78px minmax(0, 1fr); gap: 9px; }.legacy-study, .legacy-coverage, .legacy-attendance { grid-column: 2; }.legacy-attendance { display: grid; }.legacy-agenda-row time { min-width: 0; }
 }
+/* Review detail keeps the clinical facts readable without competing with the document. */
+.legacy-review-action.disabled { display: inline-flex; align-items: center; justify-content: center; opacity: .55; cursor: default; text-decoration: none; }
+.document-empty { min-height: 360px; display: grid; place-items: center; padding: 28px; color: #6b8088; background: #f6fafb; font: 800 .9rem "Trebuchet MS", sans-serif; text-align: center; }
+.patient-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.patient-facts span { display: grid; gap: 3px; padding: 9px 10px; border: 1px solid #e1ecef; border-radius: 9px; background: #f8fcfd; }
+.patient-facts small { color: #6b8188; font: 800 .64rem "Trebuchet MS", sans-serif; text-transform: uppercase; letter-spacing: .05em; }
+.patient-facts b { color: #174b5d; font-size: .86rem; }

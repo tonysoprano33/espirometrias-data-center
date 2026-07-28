@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireProfile } from "../../lib/auth/require-profile";
 import { createClient } from "../../lib/supabase/server";
 
@@ -15,12 +16,17 @@ type ReviewEntry = {
   medical_control_today: boolean;
 };
 
-export default async function MedicalReviewPage() {
+export default async function MedicalReviewPage({ searchParams }: { searchParams: Promise<{ fecha?: string; q?: string }> }) {
   await requireProfile(["admin", "medico", "espirometrista"]);
+  const params = await searchParams;
   const supabase = await createClient();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = params.fecha && /^\d{4}-\d{2}-\d{2}$/.test(params.fecha) ? params.fecha : new Date().toISOString().slice(0, 10);
+  const query = (params.q ?? "").trim().toLocaleLowerCase("es-AR");
   const { data, error } = await supabase.rpc("medical_review_queue", { target_date: today });
-  const entries = (data ?? []) as ReviewEntry[];
+  const entries = ((data ?? []) as ReviewEntry[]).filter((entry) => {
+    if (!query) return true;
+    return `${entry.patient_name} ${entry.dni ?? ""}`.toLocaleLowerCase("es-AR").includes(query);
+  });
   const withoutFile = entries.filter((entry) => entry.attendance_status !== "atendido" || !entry.has_source_file);
   const readyForReview = entries.filter((entry) => entry.attendance_status === "atendido" && entry.has_source_file && !entry.has_result);
   const resolved = entries.filter((entry) => entry.has_result);
@@ -37,7 +43,7 @@ export default async function MedicalReviewPage() {
           </div>
           <form className="legacy-review-filter" action="/revision-medica">
             <label>Filtrar por fecha<input name="fecha" type="date" defaultValue={today} /></label>
-            <label>Buscar paciente<input name="q" placeholder="Nombre o DNI..." /></label>
+            <label>Buscar paciente<input name="q" defaultValue={params.q ?? ""} placeholder="Nombre o DNI..." /></label>
             <button type="submit">Ir</button>
           </form>
         </header>
@@ -60,7 +66,7 @@ export default async function MedicalReviewPage() {
                   <div><span>{entry.study_type}</span>{entry.dni && <span>{entry.dni}</span>}{entry.medical_control_today && <em>Control medico hoy</em>}{entry.has_result && <em>Resultado listo</em>}</div>
                   <p>{entry.has_result ? "Resultado medico guardado." : isReady ? "Paciente atendido con PDF cargado. Falta marcar el resultado medico." : entry.has_source_file ? "Falta confirmar que el paciente fue atendido." : "Todavia no esta listo para revision medica."}</p>
                 </div>
-                <button className={`legacy-review-action ${cardState}`} type="button" disabled={!isReady && !entry.has_result}>{entry.has_result ? "Ver revision" : isReady ? "Revisar PDF" : "Abrir ficha"}</button>
+                {(isReady || entry.has_result) ? <Link className={`legacy-review-action ${cardState}`} href={`/revision-medica/${entry.encounter_id}`}>{entry.has_result ? "Ver revision" : "Revisar PDF"}</Link> : <span className={`legacy-review-action ${cardState} disabled`}>Abrir ficha</span>}
               </article>
             );
           })}
