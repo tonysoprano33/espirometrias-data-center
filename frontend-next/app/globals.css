@@ -215,3 +215,125 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .history-actions button { padding: 7px 8px; border: 0; border-radius: 8px; color: #fff; background: #087f9b; cursor: pointer; font: 800 .68rem "Trebuchet MS", sans-serif; }
 .history-actions button:last-child { background: #b36a08; }
 .history-actions button:disabled { color: #71858d; background: #dce8eb; cursor: wait; }
+
+/* Legacy visual contract: the migration keeps the established clinical layout so
+   staff do not have to relearn the application while each action is ported. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  border-bottom: 1px solid rgba(13, 111, 138, .16);
+  background: rgba(255, 255, 255, .88);
+  box-shadow: 0 12px 30px rgba(16, 43, 60, .06);
+  backdrop-filter: blur(14px);
+}
+.topbar-inner {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+}
+.brand-block { display: flex; min-width: 0; align-items: center; gap: 14px; }
+.brand { color: #0d3f55; font: 900 1.28rem/1.05 Georgia, "Times New Roman", serif; letter-spacing: .04em; text-decoration: none; text-transform: uppercase; }
+.brand:hover { text-decoration: none; }
+.brand small { display: block; margin-top: 3px; color: #5b7280; font: 900 .72rem/1 "Trebuchet MS", sans-serif; letter-spacing: .1em; }
+.work-mode-session {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid rgba(13, 111, 138, .20);
+  border-radius: 12px;
+  color: #0c5269;
+  background: linear-gradient(135deg, #edfaff, #fff9e9);
+  box-shadow: 0 5px 14px rgba(16,43,60,.06);
+  white-space: nowrap;
+}
+.work-mode-session span { color: #31596b; font: 900 .7rem "Trebuchet MS", sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+.work-mode-session strong { font: 800 .83rem "Trebuchet MS", sans-serif; }
+.nav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.nav a, .nav-preview-item {
+  display: inline-block;
+  padding: 9px 12px;
+  border: 1px solid rgba(200,216,223,.9);
+  border-radius: 12px;
+  color: #0d3f55;
+  background: rgba(247,251,252,.92);
+  font: 800 .9rem "Trebuchet MS", sans-serif;
+  text-decoration: none;
+}
+.nav a:hover { border-color: #87bdcb; background: #e3f3f6; text-decoration: none; }
+.nav a.current { border-color: #87cfdd; color: #0c627d; background: #e8f8fb; box-shadow: inset 0 0 0 1px rgba(13,111,138,.05); }
+.nav-preview-item { cursor: default; opacity: .65; }
+.nav form { margin: 0; }
+.button {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 11px;
+  color: #fff;
+  background: linear-gradient(135deg, #087d9b, #0f93af);
+  box-shadow: 0 8px 17px rgba(13,111,138,.17);
+  cursor: pointer;
+  font: 900 .84rem "Trebuchet MS", sans-serif;
+}
+.button:hover { background: linear-gradient(135deg, #076a83, #087e99); }
+.button:disabled { cursor: not-allowed; opacity: .58; }
+.button.alt { color: #fff; background: linear-gradient(135deg, #e58717, #f2a52e); }
+.shell { width: 100%; padding: 18px 24px 30px; }
+.card { border: 1px solid #c7e2e8; border-radius: 18px; background: rgba(255,255,255,.88); box-shadow: 0 16px 32px rgba(16,43,60,.08); }
+.agenda-card { padding: 16px; overflow: visible; }
+.agenda-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 9px; }
+.pill { display: inline-block; margin: 0 0 12px; padding: 5px 9px; border-radius: 9px; color: #08748f; background: #d9f7f4; font: 900 .72rem "Trebuchet MS", sans-serif; text-transform: uppercase; }
+.section-title { margin: 0; color: #123f54; font-size: 1.35rem; }
+.agenda-attendance-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 2px 0 14px; }
+.agenda-attendance-summary .agenda-count { display: flex; min-width: 0; align-items: baseline; gap: 7px; padding: 10px 14px; border: 1px solid rgba(23,49,63,.1); border-radius: 12px; color: #5b7482; background: rgba(255,255,255,.78); font: 800 .84rem "Trebuchet MS", sans-serif; }
+.agenda-attendance-summary .agenda-count strong { color: #123f54; font-size: 1.45rem; font-variant-numeric: tabular-nums; line-height: 1; }
+.agenda-attendance-summary .agenda-count.attended { border-color: #b9e7c9; background: #e9faef; }
+.agenda-attendance-summary .agenda-count.attended strong { color: #1d7c49; }
+.agenda-attendance-summary .agenda-count.no-show { border-color: #f6cbbf; background: #fff1ed; }
+.agenda-attendance-summary .agenda-count.no-show strong { color: #b94d32; }
+.agenda-attendance-summary .agenda-count.waiting { border-color: #f4dfa2; background: #fff8df; }
+.agenda-attendance-summary .agenda-count.waiting strong { color: #9b6700; }
+.agenda-entry-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin: 0 0 14px; }
+.quick-add-box { position: relative; padding: 18px; overflow: hidden; border: 1px solid #c8e6ec; border-radius: 15px; background: linear-gradient(135deg, #f2fcff, #fff 66%); }
+.quick-add-box::before { position: absolute; top: 0; right: 20px; left: 20px; height: 4px; border-radius: 0 0 8px 8px; background: linear-gradient(90deg, #0b8aa5, #74d2bb); content: ""; }
+.quick-add-heading { display: flex; align-items: center; gap: 10px; }
+.quick-add-mark { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 10px; color: #fff; background: #087d9b; box-shadow: 0 7px 14px rgba(8,125,155,.2); font: 900 1.4rem/1 Arial, sans-serif; }
+.quick-add-eyebrow { margin: 0 0 2px; color: #087d9b; font: 900 .67rem "Trebuchet MS", sans-serif; letter-spacing: .1em; text-transform: uppercase; }
+.mini-title { margin: 0; color: #123f54; font-size: 1.1rem; }
+.quick-hint { margin: 12px 0; color: #5b7482; font-weight: 700; }
+.quick-core-grid { display: grid; grid-template-columns: minmax(220px, 1.5fr) minmax(160px, .7fr) minmax(160px, .7fr) auto auto; gap: 10px; align-items: end; }
+.field { display: grid; gap: 5px; min-width: 0; color: #31596b; font: 900 .7rem "Trebuchet MS", sans-serif; letter-spacing: .05em; text-transform: uppercase; }
+.field input, .field select { width: 100%; min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid #c7dfe6; border-radius: 10px; color: #123f54; background: #fff; font: 800 .93rem Georgia, "Times New Roman", serif; }
+.field input:focus, .field select:focus { outline: 3px solid rgba(13,111,138,.16); border-color: #168fac; }
+.quick-core-grid .field:nth-child(2) select { border-color: #b9dcfa; background: #edf7ff; }
+.quick-core-grid .field:nth-child(3) select { border-color: #dfcffb; background: #f4edff; }
+.quick-control-toggle { display: flex; min-height: 40px; align-items: center; gap: 7px; padding: 0 11px; border: 1px solid #bae0e8; border-radius: 10px; color: #216075; background: #edfafd; font: 800 .78rem "Trebuchet MS", sans-serif; white-space: nowrap; }
+.quick-control-toggle input { width: 15px; height: 15px; }
+.quick-secondary { margin-top: 10px; border: 1px dashed #b9dfe7; border-radius: 10px; background: rgba(255,255,255,.68); }
+.quick-secondary summary { padding: 7px 10px; color: #087d9b; cursor: pointer; font: 900 .8rem "Trebuchet MS", sans-serif; }
+.quick-secondary summary::marker { color: #087d9b; }
+.quick-secondary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 0 10px 10px; }
+.quick-form-stage { margin: 10px 0 0; color: #71848c; font: 700 .74rem "Trebuchet MS", sans-serif; }
+.agenda-form-message { margin: 0; padding: 9px 11px; border-radius: 10px; font: 800 .78rem "Trebuchet MS", sans-serif; }
+.agenda-form-message.success { color: #176b41; background: #edf9ef; }.agenda-form-message.error { color: #a13232; background: #fff1f1; }
+.legacy-agenda-row { display: grid; grid-template-columns: 110px minmax(260px, 1.35fr) minmax(135px, .6fr) minmax(155px, .7fr) minmax(160px, .65fr); gap: 12px; align-items: center; min-height: 78px; padding: 10px 13px; border-top: 1px solid #d8e8ed; border-left: 5px solid #aab9bf; background: rgba(255,255,255,.72); }
+.legacy-agenda-row.atendido { border-left-color: #29a45e; }.legacy-agenda-row.esperando { border-left-color: #e58d12; }.legacy-agenda-row.no_llego { border-left-color: #cc6a61; }
+.legacy-agenda-row time { justify-self: start; min-width: 78px; padding: 9px 10px; border-radius: 10px; color: #0f5970; background: #edf4ff; font: 900 1rem "Trebuchet MS", sans-serif; font-variant-numeric: tabular-nums; }
+.legacy-patient { min-width: 0; padding-left: 11px; border-left: 5px solid #347aca; }.legacy-patient strong { display: block; overflow: hidden; color: #123f54; font-size: 1rem; text-overflow: ellipsis; white-space: nowrap; }.legacy-patient span { display: block; margin-top: 5px; color: #0e5a74; font: 900 .9rem "Trebuchet MS", sans-serif; font-variant-numeric: tabular-nums; }
+.legacy-study, .legacy-coverage { padding: 9px 10px; border-radius: 9px; font: 800 .83rem Georgia, "Times New Roman", serif; }.legacy-study { border: 1px solid #b9dcfa; background: #edf7ff; }.legacy-coverage { border: 1px solid #dfcffb; background: #f4edff; }
+.legacy-attendance { display: grid; gap: 5px; }.legacy-attendance strong { width: fit-content; padding: 8px 11px; border-radius: 9px; font: 900 .78rem "Trebuchet MS", sans-serif; }.legacy-attendance strong.atendido { border: 1px solid #9cddb6; color: #176b41; background: #e5f8e9; }.legacy-attendance strong.esperando { border: 1px solid #efcb69; color: #8b5900; background: #fff4d7; }.legacy-attendance strong.no_llego { border: 1px solid #f2b4a9; color: #a44540; background: #fff0ed; }.legacy-attendance span { color: #9b6303; font: 800 .72rem "Trebuchet MS", sans-serif; }
+.agenda-card > .empty { margin: 0; padding: 22px 12px; color: #637983; font-weight: 700; }
+@media (max-width: 1080px) {
+  .quick-core-grid { grid-template-columns: minmax(200px, 1fr) repeat(2, minmax(135px, .7fr)); }.quick-control-toggle, .quick-core-grid .button { grid-column: auto; }
+  .legacy-agenda-row { grid-template-columns: 88px minmax(200px, 1fr) repeat(2, minmax(130px, .65fr)); }.legacy-attendance { grid-column: 2 / -1; display: flex; align-items: center; }
+}
+@media (max-width: 720px) {
+  .topbar-inner { align-items: flex-start; flex-direction: column; padding: 12px; }.shell { padding: 12px; }.nav { gap: 7px; }.nav a, .nav-preview-item { padding: 8px 9px; font-size: .76rem; }
+  .agenda-head { align-items: stretch; flex-direction: column; }.agenda-head .button { width: 100%; }.agenda-attendance-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }.agenda-attendance-summary .agenda-count { padding: 9px; font-size: .7rem; }
+  .quick-core-grid, .quick-secondary-grid { grid-template-columns: 1fr; }.quick-control-toggle, .quick-core-grid .button { grid-column: auto; }.quick-core-grid .button { width: 100%; }
+  .legacy-agenda-row { grid-template-columns: 78px minmax(0, 1fr); gap: 9px; }.legacy-study, .legacy-coverage, .legacy-attendance { grid-column: 2; }.legacy-attendance { display: grid; }.legacy-agenda-row time { min-width: 0; }
+}
