@@ -431,3 +431,12 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .agenda-work-row .agenda-vitals button { width: 100%; margin-top: 3px; }
 .agenda-work-row .agenda-actions .print-action { color: #fff; border-color: #e68b1d; background: linear-gradient(135deg, #e48615, #f2a32a); box-shadow: 0 5px 12px rgba(228,134,21,.18); font-size: .8rem; }
 .agenda-work-row .agenda-status.atendido { color: #176b41; background: #e5f8e9; }
+.source-file-panel { display: grid; gap: 10px; padding: 12px; border: 1px solid #acd8e4; border-radius: 12px; background: #eefbfe; }
+.source-file-panel h2 { margin: 0; color: #15576c; font-size: 1rem; }
+.source-file-panel p { margin: 3px 0 0; color: #607981; font: 700 .75rem/1.35 "Trebuchet MS", sans-serif; }
+.source-file-picker { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 12px; border-radius: 9px; color: #fff; background: #087f9b; font: 900 .78rem "Trebuchet MS", sans-serif; cursor: pointer; }
+.source-file-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.source-file-panel > small { color: #176b41; font: 800 .72rem "Trebuchet MS", sans-serif; }
+.document-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.document-actions a { padding: 7px 9px; border-radius: 8px; color: #fff; background: #087f9b; font: 800 .72rem "Trebuchet MS", sans-serif; text-decoration: none; }
+.document-actions a + a { color: #7a4c00; background: #fff0cf; }
