@@ -4,6 +4,7 @@ import { requireProfile } from "../../../lib/auth/require-profile";
 import { createClient } from "../../../lib/supabase/server";
 import { MedicalResultForm } from "./medical-result-form";
 import { SourceFileForm } from "./source-file-form";
+import { TechnicianNoteForm } from "./technician-note-form";
 
 type DetailPageProps = { params: Promise<{ id: string }> };
 type QueueEntry = { encounter_id: string; encounter_time: string | null; patient_name: string; has_result: boolean; has_source_file: boolean; attendance_status: string };
@@ -31,6 +32,7 @@ export default async function MedicalReviewDetailPage({ params }: DetailPageProp
     .maybeSingle();
 
   if (!encounter) notFound();
+  const { data: latestNote } = await supabase.from("clinical_notes").select("body, created_at").eq("encounter_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle();
 
   const { data: queueData } = await supabase.rpc("medical_review_queue", { target_date: encounter.encounter_date });
   const reviewQueue = ((queueData ?? []) as QueueEntry[]).filter((entry) => entry.attendance_status === "atendido" && entry.has_source_file);
@@ -99,7 +101,8 @@ export default async function MedicalReviewDetailPage({ params }: DetailPageProp
         {result && <section className={`result-next ${hasResult ? "saved" : ""}`}><h2>Resultado medico</h2><b>{result.respiratory_pattern ?? result.final_code ?? "Pendiente"}</b><p>{result.physician_comment || "La decisión final queda a cargo del médico."}</p></section>}
         {suggestionCode && <section className="suggestion-preview"><div><small>Sugerencia por valores del PDF</small><strong>{suggestionCode}</strong>{result?.suggested_probability && <b>{result.suggested_probability}% de coincidencia de lectura</b>}{suggestionSummary && <p>{suggestionSummary}</p>}</div><span>La decisión final queda a cargo del médico.</span></section>}
         {(profile.role === "admin" || profile.role === "medico") && <MedicalResultForm encounterId={id} initialCode={result?.final_code ?? ""} initialComment={result?.physician_comment ?? ""} suggestedCode={suggestionCode} suggestedSummary={suggestionSummary} />}
-        {encounter.technician_notes && <section className="notes-next"><h2>Nota breve para el medico</h2><p>{encounter.technician_notes}</p></section>}
+        {(encounter.technician_notes || latestNote?.body) && <section className="notes-next"><h2>Nota breve para el medico</h2><p>{latestNote?.body || encounter.technician_notes}</p></section>}
+        {(profile.role === "admin" || profile.role === "espirometrista") && <TechnicianNoteForm encounterId={id} />}
       </aside>
     </div>
   </main>;
