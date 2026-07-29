@@ -271,7 +271,10 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
       </select>
     </div>
 
-    <label className="agenda-physician">
+    <label
+      className="agenda-physician"
+      style={{ "--physician-name-ch": Math.min(Math.max(physicianDisplayName(details.physicianName).length, 12), 24) } as CSSProperties}
+    >
       <input
         list={`physicians-${entry.encounter_id}`}
         value={details.physicianName}
@@ -304,8 +307,8 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
     >
       {details.studyType === "Ciclometria"
         ? <>
-            <strong>{entry.walk_distance_meters} m <i>·</i> B{entry.borg_final}</strong>
-            <span>{entry.walk_stopped ? "Interrumpida" : entry.walk_symptoms ? "Con síntomas" : entry.walk_completed ? "Completa" : "Incompleta"}</span>
+            <strong>{entry.walk_distance_meters} m <i>·</i> Borg {entry.borg_final}</strong>
+            <span>{entry.walk_stopped ? "Caminata interrumpida" : entry.walk_symptoms ? "Finalizó con síntomas" : entry.walk_completed ? "Caminata completa" : "Caminata incompleta"}</span>
           </>
         : <><strong>Espirometría</strong><span>Sin caminata</span></>}
       {entry.bronchodilator_positive && <b>BD+</b>}

@@ -469,7 +469,7 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .agenda-work-grid.is-operator .agenda-work-head,
 .agenda-work-grid.is-operator .agenda-work-row {
   min-width: 1210px;
-  grid-template-columns: 68px minmax(135px, 1.25fr) 92px 50px 50px minmax(112px, .8fr) 96px 96px 110px 88px 92px 145px;
+  grid-template-columns: 68px fit-content(260px) 92px 50px 50px fit-content(200px) 96px 96px minmax(180px, 1fr) 88px 92px 145px;
   gap: 6px;
 }
 .agenda-time-editor input,
@@ -489,7 +489,12 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .agenda-time-editor input { color: #0b6480; background: #eef7ff; }
 .agenda-dni-editor input { color: #0b5671; font-size: .85rem; }
 .agenda-dni-editor input::placeholder { color: #7c949d; font-size: .68rem; }
-.agenda-name { display: flex; align-items: center; }
+.agenda-name {
+  display: flex;
+  width: fit-content;
+  max-width: 260px;
+  align-items: center;
+}
 .agenda-name input {
   width: min(100%, calc(var(--patient-name-ch, 18) * .72ch + 38px));
   min-width: 112px;
@@ -501,7 +506,14 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
   text-align: center;
 }
 .agenda-coverage-editor { display: grid; gap: 4px; }
+.agenda-physician {
+  display: block;
+  width: fit-content;
+  max-width: 200px;
+}
 .agenda-physician input {
+  width: min(100%, calc(var(--physician-name-ch, 16) * .68ch + 34px));
+  min-width: 120px;
   height: 38px;
   padding-inline: 8px;
   font-size: .72rem;
