@@ -58,7 +58,7 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
   const [result, setResult] = useState(entry.result_code ?? "");
   const [walk, setWalk] = useState({
     distanceMeters: entry.walk_distance_meters?.toString() ?? "200",
-    completed: entry.walk_completed,
+    completed: entry.walk_completed && !entry.walk_stopped,
     stopped: entry.walk_stopped,
     symptoms: entry.walk_symptoms,
     borgFinal: entry.borg_final,
