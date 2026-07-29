@@ -31,7 +31,7 @@ export async function createAgendaEntry(
     encounterTime: formData.get("encounterTime"),
     studyType: formData.get("studyType"),
     coverageType: formData.get("coverageType"),
-    coverageName: formData.get("coverageName"),
+    coverageName: formData.get("coverageName") ?? "",
     medicalControlToday: formData.get("medicalControlToday") === "on",
     referringPhysicianId: formData.get("referringPhysicianId") ?? "",
   });
