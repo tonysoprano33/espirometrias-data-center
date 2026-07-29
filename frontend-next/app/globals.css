@@ -521,6 +521,48 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 }
 .drapp-import-body { padding: 0 16px 16px; }
 .drapp-import-body > p { margin: 0 0 9px; color: #55717c; font-size: .78rem; }
+.drapp-paste-zone {
+  min-height: 72px;
+  margin-bottom: 9px;
+  padding: 12px 14px;
+  border: 2px dashed #b7d8df;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f0fafb, #fff);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: text;
+}
+.drapp-paste-zone:focus {
+  outline: 0;
+  border-color: #168aa3;
+  box-shadow: 0 0 0 3px rgba(22, 138, 163, .11);
+}
+.drapp-paste-zone strong {
+  display: block;
+  color: #123f4e;
+  font: 900 .86rem "Trebuchet MS", sans-serif;
+}
+.drapp-paste-zone div > span {
+  display: block;
+  margin-top: 3px;
+  color: #5d7881;
+  font: 500 .75rem "Trebuchet MS", sans-serif;
+}
+.drapp-paste-indicator {
+  flex: 0 0 auto;
+  max-width: 190px;
+  padding: 7px 10px;
+  overflow: hidden;
+  border: 1px solid #c6dfe5;
+  border-radius: 999px;
+  color: #08758c;
+  background: #fff;
+  font: 900 .68rem "Trebuchet MS", sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .drapp-import textarea {
   width: 100%;
   resize: vertical;
@@ -571,6 +613,13 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .drapp-coverage { display: grid; grid-template-columns: 92px 1fr; gap: 5px; }
 .drapp-preview-row .danger { min-height: 32px; border: 1px solid #efc0ba; border-radius: 8px; color: #a43d35; background: #fff1ef; cursor: pointer; font-weight: 800; }
 .confirm-import { margin-top: 10px; background: linear-gradient(135deg, #0b829c, #0c947d); }
+
+@media (max-width: 680px) {
+  .drapp-paste-zone {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
 
 @media (max-width: 1050px) {
   .agenda-work-grid.is-operator .agenda-work-head { display: none; }

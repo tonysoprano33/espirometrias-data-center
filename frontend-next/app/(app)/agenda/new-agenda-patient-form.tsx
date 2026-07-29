@@ -23,7 +23,7 @@ export function NewAgendaPatientForm({ today, role, physicians }: { today: strin
           <div className="quick-core-grid">
             <label className="field">Nombre<input name="fullName" required maxLength={180} autoComplete="off" /></label>
             <label className="field">DNI<input name="dni" inputMode="numeric" maxLength={20} autoComplete="off" placeholder="Opcional" /></label>
-            <label className="field">Hora<input name="encounterTime" type="time" /></label>
+            <label className="field">Hora<input name="encounterTime" type="time" required /></label>
             <label className="field">Tipo de estudio<select name="studyType" defaultValue="Ciclometria"><option>Ciclometria</option><option>Espirometria</option></select></label>
             <label className="field">Cobertura<select name="coverageType" defaultValue="Particular"><option>Particular</option><option>Mutual</option></select></label>
             <label className="quick-control-toggle"><input name="medicalControlToday" type="checkbox" /> Control medico hoy</label>
