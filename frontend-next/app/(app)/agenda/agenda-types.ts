@@ -28,6 +28,12 @@ export type AgendaEntry = {
   so2_post: number | null;
   fc_post: number | null;
   result_code: string;
+  walk_distance_meters: number;
+  walk_completed: boolean;
+  walk_stopped: boolean;
+  walk_symptoms: boolean;
+  borg_final: number;
+  bronchodilator_positive: boolean;
   can_print: boolean;
   missing_for_print: string;
 };

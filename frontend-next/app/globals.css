@@ -468,9 +468,9 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 /* Next operator agenda: clinical fields remain compact, editable and explicit. */
 .agenda-work-grid.is-operator .agenda-work-head,
 .agenda-work-grid.is-operator .agenda-work-row {
-  min-width: 1180px;
-  grid-template-columns: 74px minmax(158px, 1.3fr) 104px 112px 118px minmax(145px, 1fr) 112px 112px 116px 102px minmax(180px, 1.25fr);
-  gap: 7px;
+  min-width: 1210px;
+  grid-template-columns: 68px minmax(135px, 1.25fr) 92px 50px 50px minmax(112px, .8fr) 96px 96px 110px 88px 92px 145px;
+  gap: 6px;
 }
 .agenda-time-editor input,
 .agenda-dni-editor input,
@@ -489,10 +489,74 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .agenda-time-editor input { color: #0b6480; background: #eef7ff; }
 .agenda-dni-editor input { color: #0b5671; font-size: .85rem; }
 .agenda-dni-editor input::placeholder { color: #7c949d; font-size: .68rem; }
+.agenda-name { display: flex; align-items: center; }
+.agenda-name input {
+  width: min(100%, calc(var(--patient-name-ch, 18) * .72ch + 38px));
+  min-width: 112px;
+}
+.agenda-work-row > select[aria-label="Estudio"],
+.agenda-coverage-editor select {
+  width: 50px;
+  padding-inline: 8px 4px;
+  text-align: center;
+}
 .agenda-coverage-editor { display: grid; gap: 4px; }
+.agenda-physician input {
+  height: 38px;
+  padding-inline: 8px;
+  font-size: .72rem;
+  text-overflow: ellipsis;
+}
 .agenda-physician small { display: block; margin-top: 3px; color: #657d86; font-size: .58rem; line-height: 1.15; }
 .agenda-result { display: grid; }
 .agenda-result input { height: 38px; font-size: .78rem; text-transform: uppercase; }
+.agenda-not-applicable {
+  display: grid;
+  min-height: 42px;
+  place-items: center;
+  border: 1px dashed #cddde2;
+  border-radius: 10px;
+  color: #70858d;
+  background: #f6f9fa;
+  font: 800 .64rem "Trebuchet MS", sans-serif;
+}
+.agenda-test-summary {
+  position: relative;
+  display: grid;
+  min-height: 48px;
+  align-content: center;
+  gap: 3px;
+  padding: 7px 9px;
+  border: 1px solid #bddce4;
+  border-radius: 11px;
+  color: #155b70;
+  background: #edf9fc;
+  text-decoration: none;
+}
+.agenda-test-summary:hover {
+  border-color: #168aa4;
+  background: #def5fa;
+}
+.agenda-test-summary strong,
+.agenda-test-summary span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agenda-test-summary strong { font: 900 .74rem "Trebuchet MS", sans-serif; }
+.agenda-test-summary strong i { color: #7d969e; font-style: normal; }
+.agenda-test-summary span { color: #5e7882; font: 800 .6rem "Trebuchet MS", sans-serif; }
+.agenda-test-summary.is-complete { border-color: #aedcc1; background: #edf9f1; }
+.agenda-test-summary.is-complete strong { color: #176b41; }
+.agenda-test-summary.needs-review { border-color: #efc875; background: #fff8df; }
+.agenda-test-summary.needs-review strong { color: #8a5b00; }
+.agenda-test-summary > b {
+  position: absolute;
+  top: -7px;
+  right: -4px;
+  padding: 3px 5px;
+  border-radius: 999px;
+  color: #fff;
+  background: #257cb2;
+  box-shadow: 0 3px 7px rgba(24, 92, 130, .2);
+  font: 900 .55rem "Trebuchet MS", sans-serif;
+}
 .agenda-actions .print-action.is-disabled,
 .print-day-button.is-disabled {
   color: #758790;
@@ -630,6 +694,8 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
   }
   .agenda-work-row .agenda-physician,
   .agenda-work-row .agenda-vitals,
+  .agenda-work-row .agenda-test-summary,
+  .agenda-work-row .agenda-not-applicable,
   .agenda-work-row .agenda-result,
   .agenda-work-row .agenda-attendance,
   .agenda-work-row .agenda-actions { grid-column: span 1; }

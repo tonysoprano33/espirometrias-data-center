@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { DeleteEncounterButton } from "../components/encounter-actions";
 import type { AgendaEntry, AttendanceStatus, CoverageType, PhysicianOption, StudyType } from "./agenda-types";
 import { resultCodes } from "./agenda-types";
@@ -22,7 +22,15 @@ function digits(value: string) {
 }
 
 function normalizeName(value: string) {
-  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("es");
+  return value
+    .replace(/^\s*(dr|dra)\.?\s*/i, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("es");
+}
+
+function physicianDisplayName(value: string) {
+  return value.replace(/^\s*(dr|dra)\.?\s*/i, "").trim();
 }
 
 async function readResponse(response: Response, fallback: string) {
@@ -42,7 +50,7 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
     coverageType: entry.coverage_type as CoverageType,
     coverageName: entry.coverage_name,
     physicianId: entry.referring_physician_id ?? "",
-    physicianName: entry.referring_physician_name || "",
+    physicianName: physicianDisplayName(entry.referring_physician_name || ""),
     medicalControlToday: entry.medical_control_today,
   });
   const [rest, setRest] = useState({ so2: entry.so2_rest?.toString() ?? "", fc: entry.fc_rest?.toString() ?? "" });
@@ -60,7 +68,9 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
   const canPrint = Boolean(
     details.name.trim()
     && digits(details.dni)
-    && resultReady,
+    && restReady
+    && resultReady
+    && (details.studyType === "Espirometria" || postReady),
   );
 
   function reportMessage(text: string, tone: "ok" | "error" = "ok") {
@@ -114,7 +124,7 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
     if (!response.ok) throw new Error(body.error ?? "No se pudo agregar el medico.");
     const created = body.physician as PhysicianOption;
     setPhysicians((current) => [...current, created].sort((a, b) => a.full_name.localeCompare(b.full_name)));
-    setDetails((current) => ({ ...current, physicianId: created.physician_id, physicianName: created.full_name }));
+    setDetails((current) => ({ ...current, physicianId: created.physician_id, physicianName: physicianDisplayName(created.full_name) }));
     return created.physician_id;
   }
 
@@ -230,7 +240,7 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
       <input type="time" value={details.time} onChange={(event) => setDetails({ ...details, time: event.target.value })} onBlur={() => void saveDetailsFromField()} />
     </label>
 
-    <label className="agenda-name">
+    <label className="agenda-name" style={{ "--patient-name-ch": Math.min(Math.max(details.name.length, 10), 30) } as CSSProperties}>
       <span className="sr-only">Paciente</span>
       <input value={details.name} onChange={(event) => setDetails({ ...details, name: event.target.value })} onBlur={() => void saveDetailsFromField()} />
     </label>
@@ -245,8 +255,8 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
       setDetails(next);
       void persistDetails(next).catch((error) => reportMessage(error instanceof Error ? error.message : "No se pudo guardar el estudio.", "error"));
     }}>
-      <option value="Ciclometria">Ciclometria</option>
-      <option value="Espirometria">Espirometria</option>
+      <option value="Ciclometria">C</option>
+      <option value="Espirometria">E</option>
     </select>
 
     <div className="agenda-coverage-editor">
@@ -256,8 +266,8 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
         setDetails(next);
         void persistDetails(next).catch((error) => reportMessage(error instanceof Error ? error.message : "No se pudo guardar la cobertura.", "error"));
       }}>
-        <option value="Particular">Particular</option>
-        <option value="Mutual">Mutual</option>
+        <option value="Particular">P</option>
+        <option value="Mutual">M</option>
       </select>
     </div>
 
@@ -269,8 +279,8 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
         onBlur={() => void saveDetailsFromField()}
         placeholder="Buscar o escribir medico"
       />
-      <datalist id={`physicians-${entry.encounter_id}`}>{physicians.map((item) => <option key={item.physician_id} value={item.full_name} />)}</datalist>
-      <small>Elegilo de la lista o escribi uno nuevo</small>
+      <datalist id={`physicians-${entry.encounter_id}`}>{physicians.map((item) => <option key={item.physician_id} value={physicianDisplayName(item.full_name)} />)}</datalist>
+      <small>{physicians.length} médicos disponibles</small>
     </label>
 
     <div className="agenda-vitals">
@@ -279,11 +289,27 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
       <input aria-label="FC reposo" inputMode="numeric" value={rest.fc} onChange={(event) => setRest({ ...rest, fc: digits(event.target.value).slice(0, 3) })} placeholder="FC" />
     </div>
 
-    <div className="agenda-vitals">
-      <input aria-label="SO2 post" inputMode="numeric" value={post.so2} onChange={(event) => setPost({ ...post, so2: digits(event.target.value).slice(0, 3) })} placeholder="SO2" />
-      <b>/</b>
-      <input aria-label="FC post" inputMode="numeric" value={post.fc} onChange={(event) => setPost({ ...post, fc: digits(event.target.value).slice(0, 3) })} placeholder="FC" />
-    </div>
+    {details.studyType === "Ciclometria"
+      ? <div className="agenda-vitals">
+          <input aria-label="SO2 post" inputMode="numeric" value={post.so2} onChange={(event) => setPost({ ...post, so2: digits(event.target.value).slice(0, 3) })} placeholder="SO2" />
+          <b>/</b>
+          <input aria-label="FC post" inputMode="numeric" value={post.fc} onChange={(event) => setPost({ ...post, fc: digits(event.target.value).slice(0, 3) })} placeholder="FC" />
+        </div>
+      : <div className="agenda-not-applicable" title="La espirometría sola no usa valores post caminata">No aplica</div>}
+
+    <Link
+      className={`agenda-test-summary ${entry.walk_completed && !entry.walk_stopped && !entry.walk_symptoms ? "is-complete" : "needs-review"}`}
+      href={`/atenciones/${entry.encounter_id}/editar`}
+      aria-label="Editar datos de caminata y broncodilatador"
+    >
+      {details.studyType === "Ciclometria"
+        ? <>
+            <strong>{entry.walk_distance_meters} m <i>·</i> B{entry.borg_final}</strong>
+            <span>{entry.walk_stopped ? "Interrumpida" : entry.walk_symptoms ? "Con síntomas" : entry.walk_completed ? "Completa" : "Incompleta"}</span>
+          </>
+        : <><strong>Espirometría</strong><span>Sin caminata</span></>}
+      {entry.bronchodilator_positive && <b>BD+</b>}
+    </Link>
 
     <div className="agenda-result">
       <input list={`results-${entry.encounter_id}`} value={result} onChange={(event) => setResult(event.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 8))} placeholder="N, OL, RL..." aria-label="Resultado medico" />
