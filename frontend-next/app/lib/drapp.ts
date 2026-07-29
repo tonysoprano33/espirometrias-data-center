@@ -77,7 +77,7 @@ function cleanName(value: string) {
     cleaned = cleaned.replace(new RegExp(`\\b${coverage.replace(/\s+/g, "\\s+")}\\b`, "gi"), " ");
   }
 
-  cleaned = collapseSpaces(cleaned).replace(/^[^\p{L}]+|[^\p{L}.']+$/gu, "");
+  cleaned = collapseSpaces(cleaned).replace(/^[^\p{L}]+|[^\p{L}']+$/gu, "");
   if (
     cleaned.length < 3
     || !/\p{L}{2}/u.test(cleaned)
