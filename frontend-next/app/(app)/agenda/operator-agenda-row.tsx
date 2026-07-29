@@ -41,7 +41,6 @@ async function readResponse(response: Response, fallback: string) {
 export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isEditingWalk, setIsEditingWalk] = useState(false);
   const [attendance, setAttendanceState] = useState(entry.attendance_status);
   const [physicians, setPhysicians] = useState(initialPhysicians);
   const [details, setDetails] = useState({
@@ -121,18 +120,6 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
     const numeric = Number(value);
     if (!value) return "empty";
     return numeric >= 60 && numeric <= 100 ? "normal" : "caution";
-  }
-
-  function walkSummary() {
-    if (details.studyType === "Espirometria") return "Sin prueba de caminata";
-    const status = walk.stopped ? "Interrumpida" : walk.completed ? "Completa" : "Pendiente";
-    return [
-      `${walk.distanceMeters || 0} m`,
-      `Borg ${walk.borgFinal}`,
-      status,
-      walk.symptoms ? "Con síntomas" : null,
-      walk.bronchodilatorPositive ? "BD+" : null,
-    ].filter(Boolean).join(" · ");
   }
 
   async function retrySave() {
@@ -558,14 +545,29 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
         <span>{details.coverageType === "Mutual" ? details.coverageName || "Mutual" : "Particular"}</span>
       </div>
 
-      <span className={`agenda-result-badge ${resultReady ? "has-result" : "missing"}`}>
-        {resultReady ? result : "Sin resultado"}
-      </span>
+      <label className={`agenda-quick-result ${resultReady ? "has-result" : "missing"}`}>
+        <span>Resultado</span>
+        <input
+          list={`results-${entry.encounter_id}`}
+          value={result}
+          onChange={(event) => setResult(event.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 8))}
+          placeholder="N, OL, RL..."
+          aria-label="Resultado"
+        />
+        <datalist id={`results-${entry.encounter_id}`}>{resultCodes.map((code) => <option value={code} key={code} />)}</datalist>
+      </label>
 
-      <span className={`agenda-state-badge ${attendance}`}>
-        <i aria-hidden="true" />
-        {labels[attendance]}
-      </span>
+      <label className={`agenda-quick-attendance ${attendance}`}>
+        <span>Asistencia</span>
+        <select
+          value={attendance}
+          aria-label="Asistencia"
+          onChange={(event) => setAttendance(event.target.value as AttendanceStatus)}
+          disabled={isSaving}
+        >
+          {(Object.keys(labels) as AttendanceStatus[]).map((status) => <option key={status} value={status}>{labels[status]}</option>)}
+        </select>
+      </label>
 
       <div className="agenda-primary-action">
         {primaryAction === "Completar"
@@ -587,19 +589,31 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
       </button>
     </div>
 
-    <div className="agenda-patient-summary">
-      <span><b>Médico</b>{details.physicianName || "Sin asignar"}</span>
-      <span className="agenda-summary-vitals">
-        <b>Reposo</b>
-        <em className={oxygenTone(rest.so2)}>SpO₂ {rest.so2 || "--"}%</em>
-        <em className={heartRateTone(rest.fc)}>FC {rest.fc || "--"} lpm</em>
-      </span>
-      {details.studyType === "Ciclometria" && <span className="agenda-summary-vitals">
-        <b>Post</b>
-        <em className={oxygenTone(post.so2)}>SpO₂ {post.so2 || "--"}%</em>
-        <em className={heartRateTone(post.fc)}>FC {post.fc || "--"} lpm</em>
-      </span>}
-      <span className="agenda-walk-summary"><b>Prueba</b>{walkSummary()}</span>
+    <div className="agenda-operational-row">
+      <fieldset className="agenda-quick-vitals">
+        <legend>Reposo</legend>
+        <label className={oxygenTone(rest.so2)}><span>SpO₂</span><input inputMode="numeric" value={rest.so2} onChange={(event) => setRest({ ...rest, so2: digits(event.target.value).slice(0, 3) })} /><small>%</small></label>
+        <label className={heartRateTone(rest.fc)}><span>FC</span><input inputMode="numeric" value={rest.fc} onChange={(event) => setRest({ ...rest, fc: digits(event.target.value).slice(0, 3) })} /><small>lpm</small></label>
+      </fieldset>
+
+      {details.studyType === "Ciclometria" && <fieldset className="agenda-quick-vitals">
+        <legend>Post caminata</legend>
+        <label className={oxygenTone(post.so2)}><span>SpO₂</span><input inputMode="numeric" value={post.so2} onChange={(event) => setPost({ ...post, so2: digits(event.target.value).slice(0, 3) })} /><small>%</small></label>
+        <label className={heartRateTone(post.fc)}><span>FC</span><input inputMode="numeric" value={post.fc} onChange={(event) => setPost({ ...post, fc: digits(event.target.value).slice(0, 3) })} /><small>lpm</small></label>
+      </fieldset>}
+
+      {details.studyType === "Ciclometria"
+        ? <fieldset className="agenda-quick-walk">
+            <legend>Prueba de caminata</legend>
+            <label className="agenda-quick-number"><span>Metros</span><input type="number" min="0" step="50" value={walk.distanceMeters} onChange={(event) => setWalk({ ...walk, distanceMeters: digits(event.target.value).slice(0, 4) })} /></label>
+            <label className="agenda-quick-number"><span>Borg</span><select value={walk.borgFinal} onChange={(event) => setWalk({ ...walk, borgFinal: Number(event.target.value) })}>{Array.from({ length: 11 }, (_, index) => <option key={index} value={index}>{index}</option>)}</select></label>
+            <label className={`agenda-quick-toggle ${walk.completed ? "active" : ""}`}><input type="checkbox" checked={walk.completed} onChange={(event) => setWalk({ ...walk, completed: event.target.checked, stopped: event.target.checked ? false : walk.stopped })} /><span>Completa</span></label>
+            <label className={`agenda-quick-toggle warning ${walk.stopped ? "active" : ""}`}><input type="checkbox" checked={walk.stopped} onChange={(event) => setWalk({ ...walk, stopped: event.target.checked, completed: event.target.checked ? false : walk.completed })} /><span>Se detuvo</span></label>
+            <label className={`agenda-quick-toggle warning ${walk.symptoms ? "active" : ""}`}><input type="checkbox" checked={walk.symptoms} onChange={(event) => setWalk({ ...walk, symptoms: event.target.checked })} /><span>Síntomas</span></label>
+            <label className={`agenda-quick-toggle ${walk.bronchodilatorPositive ? "active" : ""}`}><input type="checkbox" checked={walk.bronchodilatorPositive} onChange={(event) => setWalk({ ...walk, bronchodilatorPositive: event.target.checked })} /><span>BD+</span></label>
+          </fieldset>
+        : <div className="agenda-no-walk"><b>Espirometría</b><span>Sin prueba de caminata</span></div>}
+
       {saveLabel && <span className={`agenda-card-save ${messageTone === "error" || walkSaveState === "error" ? "error" : "ok"}`} role="status">
         {saveLabel === "Guardado" ? "✓ Guardado" : saveLabel}
         {(messageTone === "error" || walkSaveState === "error") && <button type="button" onClick={() => void retrySave()}>Reintentar</button>}
@@ -625,35 +639,6 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
             void persistDetails(next).catch((error) => reportMessage(error instanceof Error ? error.message : "No se pudo guardar la cobertura.", "error"));
           }}><option value="Particular">Particular</option><option value="Mutual">Mutual</option></select></label>
           <label><span>Médico derivante</span><input list={`physicians-${entry.encounter_id}`} value={details.physicianName} onChange={(event) => setDetails({ ...details, physicianName: event.target.value, physicianId: "" })} onBlur={() => void saveDetailsFromField()} placeholder="Buscar o escribir médico" /><datalist id={`physicians-${entry.encounter_id}`}>{physicians.map((item) => <option key={item.physician_id} value={physicianDisplayName(item.full_name)} />)}</datalist></label>
-        </div>
-      </section>
-
-      <section className="agenda-detail-section agenda-detail-vitals">
-        <div className="agenda-detail-heading"><h3>Signos vitales</h3><span>SpO₂ en % y FC en lpm</span></div>
-        <div className="agenda-vitals-editor">
-          <fieldset><legend>Reposo</legend><label><span>SpO₂</span><input inputMode="numeric" value={rest.so2} onChange={(event) => setRest({ ...rest, so2: digits(event.target.value).slice(0, 3) })} /></label><label><span>FC</span><input inputMode="numeric" value={rest.fc} onChange={(event) => setRest({ ...rest, fc: digits(event.target.value).slice(0, 3) })} /></label></fieldset>
-          {details.studyType === "Ciclometria" && <fieldset><legend>Post caminata</legend><label><span>SpO₂</span><input inputMode="numeric" value={post.so2} onChange={(event) => setPost({ ...post, so2: digits(event.target.value).slice(0, 3) })} /></label><label><span>FC</span><input inputMode="numeric" value={post.fc} onChange={(event) => setPost({ ...post, fc: digits(event.target.value).slice(0, 3) })} /></label></fieldset>}
-        </div>
-      </section>
-
-      <section className="agenda-detail-section agenda-detail-walk">
-        <div className="agenda-detail-heading"><h3>Prueba de caminata</h3>{details.studyType === "Ciclometria" && <button type="button" onClick={() => setIsEditingWalk((current) => !current)}>{isEditingWalk ? "Cerrar edición" : "Editar prueba"}</button>}</div>
-        <p className="agenda-walk-readout">{walkSummary()}</p>
-        {details.studyType === "Ciclometria" && isEditingWalk && <div className="agenda-walk-controls">
-          <label><span>Metros</span><input type="number" min="0" step="50" value={walk.distanceMeters} onChange={(event) => setWalk({ ...walk, distanceMeters: digits(event.target.value).slice(0, 4) })} /></label>
-          <label><span>Borg final</span><select value={walk.borgFinal} onChange={(event) => setWalk({ ...walk, borgFinal: Number(event.target.value) })}>{Array.from({ length: 11 }, (_, index) => <option key={index} value={index}>{index}</option>)}</select></label>
-          <label className={walk.completed ? "active" : ""}><input type="checkbox" checked={walk.completed} onChange={(event) => setWalk({ ...walk, completed: event.target.checked, stopped: event.target.checked ? false : walk.stopped })} />Completa</label>
-          <label className={walk.stopped ? "active warning" : ""}><input type="checkbox" checked={walk.stopped} onChange={(event) => setWalk({ ...walk, stopped: event.target.checked, completed: event.target.checked ? false : walk.completed })} />Se detuvo</label>
-          <label className={walk.symptoms ? "active warning" : ""}><input type="checkbox" checked={walk.symptoms} onChange={(event) => setWalk({ ...walk, symptoms: event.target.checked })} />Con síntomas</label>
-          <label className={walk.bronchodilatorPositive ? "active" : ""}><input type="checkbox" checked={walk.bronchodilatorPositive} onChange={(event) => setWalk({ ...walk, bronchodilatorPositive: event.target.checked })} />BD+</label>
-        </div>}
-      </section>
-
-      <section className="agenda-detail-section agenda-detail-result">
-        <div className="agenda-detail-heading"><h3>Resultado y asistencia</h3><span>Selección clínica final</span></div>
-        <label><span>Resultado</span><input list={`results-${entry.encounter_id}`} value={result} onChange={(event) => setResult(event.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 8))} placeholder="N, OL, RL..." /><datalist id={`results-${entry.encounter_id}`}>{resultCodes.map((code) => <option value={code} key={code} />)}</datalist></label>
-        <div className="agenda-attendance-picker" aria-label="Asistencia">
-          {(Object.keys(labels) as AttendanceStatus[]).map((status) => <button key={status} type="button" className={attendance === status ? `active ${status}` : ""} onClick={() => setAttendance(status)} disabled={isSaving}>{labels[status]}</button>)}
         </div>
       </section>
 
