@@ -1,4 +1,5 @@
 export type DrappRow = {
+  agendaDate: string;
   time: string;
   name: string;
   dni: string;
@@ -46,6 +47,22 @@ const invalidNameWords = [
   "LINK DE PAGO",
   "RESERVADO",
 ];
+
+const spanishMonths: Record<string, number> = {
+  ENERO: 1,
+  FEBRERO: 2,
+  MARZO: 3,
+  ABRIL: 4,
+  MAYO: 5,
+  JUNIO: 6,
+  JULIO: 7,
+  AGOSTO: 8,
+  SEPTIEMBRE: 9,
+  SETIEMBRE: 9,
+  OCTUBRE: 10,
+  NOVIEMBRE: 11,
+  DICIEMBRE: 12,
+};
 
 function collapseSpaces(value: string) {
   return value.replace(/\s+/g, " ").trim();
@@ -138,11 +155,43 @@ function studyFromBlock(block: string) {
     : "Ciclometria" as const;
 }
 
+function validIsoDate(year: number, month: number, day: number) {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year
+    || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day
+  ) {
+    return "";
+  }
+  return `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+}
+
+export function parseDrappAgendaDate(rawValue: string) {
+  const normalized = collapseSpaces(rawValue)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+
+  const numericMatch = normalized.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b/);
+  if (numericMatch) {
+    return validIsoDate(Number(numericMatch[3]), Number(numericMatch[2]), Number(numericMatch[1]));
+  }
+
+  const words = normalized.replace(/[^A-Z0-9]+/g, " ");
+  const writtenMatch = words.match(
+    /\b(?:LUNES|MARTES|MIERCOLES|JUEVES|VIERNES|SABADO|DOMINGO)?\s*(\d{1,2})(?:\s+DE)?\s+([A-Z]+)\s+(\d{4})\b/,
+  );
+  if (!writtenMatch) return "";
+  const month = spanishMonths[writtenMatch[2]];
+  return month ? validIsoDate(Number(writtenMatch[3]), month, Number(writtenMatch[1])) : "";
+}
+
 function uniqueRows(rows: DrappRow[]) {
   return rows.filter((row, index, allRows) => {
-    const key = row.dni || `${normalizeForMatch(row.name)}-${row.time}`;
+    const key = `${row.agendaDate}-${row.dni || `${normalizeForMatch(row.name)}-${row.time}`}`;
     return allRows.findIndex((candidate) =>
-      (candidate.dni || `${normalizeForMatch(candidate.name)}-${candidate.time}`) === key) === index;
+      `${candidate.agendaDate}-${candidate.dni || `${normalizeForMatch(candidate.name)}-${candidate.time}`}` === key) === index;
   });
 }
 
@@ -155,6 +204,7 @@ function zoneText(line: DrappOcrLine, minRatio: number, maxRatio: number | null,
 }
 
 export function parseDrappOcrLines(lines: DrappOcrLine[], sourceWidth?: number): DrappRow[] {
+  const agendaDate = parseDrappAgendaDate(lines.slice(0, 8).map((line) => line.text).join(" "));
   const maxX = Math.max(0, ...lines.flatMap((line) => line.items.map((item) => item.x)));
   const canvasWidth = Math.max(sourceWidth ?? 0, maxX);
   if (!canvasWidth) return parseDrappText(lines.map((line) => line.text).join("\n"));
@@ -194,6 +244,7 @@ export function parseDrappOcrLines(lines: DrappOcrLine[], sourceWidth?: number):
       });
 
     return {
+      agendaDate,
       time: group.time,
       name: nameCandidates[0] ?? cleanName(patientBlock),
       dni: findDni(patientBlock || fallbackBlock),
@@ -207,6 +258,7 @@ export function parseDrappOcrLines(lines: DrappOcrLine[], sourceWidth?: number):
 
 export function parseDrappText(rawText: string): DrappRow[] {
   const lines = rawText.replace(/\r/g, "\n").split(/\n+/).map(collapseSpaces).filter(Boolean);
+  const agendaDate = parseDrappAgendaDate(lines.slice(0, 8).join(" "));
   const text = lines.join(" ");
   const matches = [...text.matchAll(/\b(?:[01]?\d|2[0-3]):[0-5]\d\b/g)];
   const rows: DrappRow[] = [];
@@ -235,6 +287,7 @@ export function parseDrappText(rawText: string): DrappRow[] {
     if (!name) continue;
 
     rows.push({
+      agendaDate,
       time,
       name,
       dni,

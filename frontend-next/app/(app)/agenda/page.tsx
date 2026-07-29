@@ -58,7 +58,7 @@ export default async function AgendaPage() {
         <div className="agenda-count total"><strong>{summary.total}</strong><span>Pacientes hoy</span></div><div className="agenda-count attended"><strong>{summary.atendido}</strong><span>Atendidos</span></div><div className="agenda-count no-show"><strong>{summary.no_llego}</strong><span>No llegaron</span></div><div className="agenda-count waiting"><strong>{summary.esperando}</strong><span>Esperando</span></div>
       </section>
       <NewAgendaPatientForm today={today} role={profile.role} physicians={physicians} />
-      {profile.role !== "secretaria" && <DrappImport today={today} physicians={physicians} />}
+      {profile.role !== "secretaria" && <DrappImport physicians={physicians} />}
       {profile.role === "secretaria" && <SecretaryAgenda entries={entries} />}
       <section className={`agenda-work-grid ${profile.role === "secretaria" ? "is-secretary" : "is-operator"}`} aria-label="Pacientes del dia">
         <div className="agenda-work-head"><span>Hora</span><span>Paciente</span><span>DNI</span><span>Est.</span><span>Cob.</span>{profile.role !== "secretaria" && <><span>Médico</span><span>SO2 / FC reposo</span><span>SO2 / FC post</span><span>Prueba</span><span>Resultado</span></>}<span>Asistencia</span>{profile.role !== "secretaria" && <span>Acciones</span>}</div>

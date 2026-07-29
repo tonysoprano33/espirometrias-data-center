@@ -129,21 +129,14 @@ async function prepareOcrSource(file: File) {
   }
 }
 
-export function DrappImport({ today, physicians }: { today: string; physicians: PhysicianOption[] }) {
+export function DrappImport({ physicians }: { physicians: PhysicianOption[] }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
-  const [text, setText] = useState("");
   const [rows, setRows] = useState<DrappRow[]>([]);
   const [message, setMessage] = useState("");
   const [captureStatus, setCaptureStatus] = useState("Sin captura");
   const defaultPhysicianId = physicians.find((item) => item.is_default)?.physician_id ?? null;
-
-  function preview(rawText: string) {
-    const parsed = parseDrappText(rawText);
-    setRows(parsed);
-    setMessage(parsed.length ? `Se detectaron ${parsed.length} pacientes. Revisa los datos antes de confirmar.` : "No se detectaron filas validas. Podes corregir el texto o elegir otra captura.");
-  }
 
   function readImage(file: File) {
     if (!file.type.startsWith("image/")) {
@@ -167,12 +160,14 @@ export function DrappImport({ today, physicians }: { today: string; physicians: 
         const parsed = ocrLines.some((line) => line.items.length)
           ? parseDrappOcrLines(ocrLines, prepared.width)
           : parseDrappText(extracted);
-        setText(extracted);
+        const missingDate = parsed.some((row) => !row.agendaDate);
         setRows(parsed);
-        setCaptureStatus(parsed.length ? "Captura leída" : "Texto sin filas válidas");
+        setCaptureStatus(parsed.length ? (missingDate ? "Revisar fecha" : "Captura leída") : "Sin pacientes válidos");
         setMessage(parsed.length
-          ? `Se detectaron ${parsed.length} pacientes. Revisá hora, nombre, DNI y cobertura antes de confirmar.`
-          : "La captura se leyó, pero no se detectaron pacientes válidos. Podés corregir el texto o elegir otra captura.");
+          ? missingDate
+            ? `Se detectaron ${parsed.length} pacientes, pero no pude leer la fecha del encabezado. Completala antes de confirmar.`
+            : `Se detectaron ${parsed.length} pacientes. Revisá fecha, hora, nombre, DNI y cobertura antes de confirmar.`
+          : "La captura se leyó, pero no se detectaron pacientes válidos. Elegí otra captura.");
       } catch (error) {
         setCaptureStatus("No se pudo leer");
         setMessage(error instanceof Error ? error.message : "No se pudo leer la captura.");
@@ -194,27 +189,27 @@ export function DrappImport({ today, physicians }: { today: string; physicians: 
       const response = await fetch("/api/drapp/import", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ date: today, rows, referringPhysicianId: defaultPhysicianId }),
+        body: JSON.stringify({ rows, referringPhysicianId: defaultPhysicianId }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
         setMessage(body.error ?? "No se pudo importar.");
         return;
       }
-      setMessage(`Importados: ${body.created}. Duplicados omitidos: ${body.skipped}.`);
+      const dates = Array.isArray(body.dates) ? ` Agenda: ${body.dates.join(", ")}.` : "";
+      setMessage(`Importados: ${body.created}. Duplicados omitidos: ${body.skipped}.${dates}`);
       if (body.created) {
         setRows([]);
-        setText("");
         setCaptureStatus("Sin captura");
         router.refresh();
       }
     });
   }
 
-  return <details className="drapp-import" open>
+  return <details className="drapp-import">
     <summary>Importar agenda desde Drapp</summary>
     <div className="drapp-import-body">
-      <p>Pegá una captura o el texto de Drapp. Primero vas a revisar todos los datos; nada se agrega automáticamente.</p>
+      <p>Pegá la captura de Drapp con Ctrl+V o elegí el archivo. Primero vas a revisar todos los datos.</p>
       <div
         className="drapp-paste-zone"
         tabIndex={0}
@@ -238,9 +233,7 @@ export function DrappImport({ today, physicians }: { today: string; physicians: 
         <div><strong>Pegá una captura con Ctrl+V</strong><span>Hacé click acá y pegá. También podés elegir el archivo manualmente.</span></div>
         <span className="drapp-paste-indicator">{captureStatus}</span>
       </div>
-      <textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="También podés pegar acá el texto copiado de Drapp..." rows={5} />
       <div className="drapp-toolbar">
-        <button type="button" onClick={() => preview(text)} disabled={isPending || !text.trim()}>Analizar texto</button>
         <button type="button" className="secondary" onClick={() => fileRef.current?.click()} disabled={isPending}>Elegir captura</button>
         <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => {
           const file = event.target.files?.[0];
@@ -250,8 +243,9 @@ export function DrappImport({ today, physicians }: { today: string; physicians: 
       </div>
       {message && <p className="drapp-message" role="status">{message}</p>}
       {rows.length > 0 && <div className="drapp-preview">
-        <div className="drapp-preview-head"><span>Hora</span><span>Paciente</span><span>DNI</span><span>Estudio</span><span>Cobertura</span><span /></div>
+        <div className="drapp-preview-head"><span>Fecha</span><span>Hora</span><span>Paciente</span><span>DNI</span><span>Estudio</span><span>Cobertura</span><span /></div>
         {rows.map((row, index) => <div className="drapp-preview-row" key={`${row.time}-${index}`}>
+          <input type="date" value={row.agendaDate} onChange={(event) => updateRow(index, { agendaDate: event.target.value })} aria-label={`Fecha de ${row.name}`} />
           <input type="time" value={row.time} onChange={(event) => updateRow(index, { time: event.target.value })} />
           <input value={row.name} onChange={(event) => updateRow(index, { name: event.target.value.toUpperCase() })} />
           <input inputMode="numeric" value={row.dni} onChange={(event) => updateRow(index, { dni: event.target.value.replace(/\D/g, "") })} placeholder="Sin DNI" />
@@ -259,7 +253,7 @@ export function DrappImport({ today, physicians }: { today: string; physicians: 
           <div className="drapp-coverage"><select value={row.coverageType} onChange={(event) => updateRow(index, { coverageType: event.target.value as DrappRow["coverageType"] })}><option>Particular</option><option>Mutual</option></select>{row.coverageType === "Mutual" && <input value={row.coverageName} onChange={(event) => updateRow(index, { coverageName: event.target.value })} placeholder="Mutual" />}</div>
           <button type="button" className="danger" onClick={() => removeRow(index)}>Quitar</button>
         </div>)}
-        <button type="button" className="confirm-import" disabled={isPending || rows.some((row) => !row.name || !row.time)} onClick={importRows}>{isPending ? "Importando..." : `Confirmar ${rows.length} pacientes`}</button>
+        <button type="button" className="confirm-import" disabled={isPending || rows.some((row) => !row.agendaDate || !row.name || !row.time)} onClick={importRows}>{isPending ? "Importando..." : `Confirmar ${rows.length} pacientes`}</button>
       </div>}
     </div>
   </details>;
