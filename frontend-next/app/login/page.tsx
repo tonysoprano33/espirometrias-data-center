@@ -36,12 +36,15 @@ function LoginForm() {
     try {
       const supabase = createClient(keepSignedIn);
       const email = `${sessionRole}@clinica-espiro.local`;
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email, password: password.trim() });
       if (error) throw error;
       router.replace(searchParams.get("next") || "/agenda");
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo iniciar sesion.");
+      const detail = error instanceof Error ? error.message : "";
+      setMessage(detail === "Invalid login credentials"
+        ? "Contraseña incorrecta para la sesion seleccionada."
+        : detail || "No se pudo iniciar sesion.");
     } finally {
       setSubmitting(false);
     }
@@ -61,7 +64,16 @@ function LoginForm() {
         </label>
         <label>
           Contraseña
-          <input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
+          <input
+            type="password"
+            required
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="current-password"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
         </label>
         <label className="auth-remember">
           <input type="checkbox" checked={keepSignedIn} onChange={(event) => setKeepSignedIn(event.target.checked)} />
