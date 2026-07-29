@@ -32,7 +32,6 @@ export function NewAgendaPatientForm({ today, role, physicians }: { today: strin
           <details className="quick-secondary">
             <summary>Datos opcionales</summary>
             <div className="quick-secondary-grid">
-              <label className="field">Mutual<input name="coverageName" maxLength={120} autoComplete="off" placeholder="Solo si corresponde" /></label>
               <label className="field">Doctor derivante<select name="referringPhysicianId" defaultValue={physicians.find((item) => item.is_default)?.physician_id ?? ""}><option value="">Sin especificar</option>{physicians.map((item) => <option value={item.physician_id} key={item.physician_id}>{item.full_name}</option>)}</select></label>
             </div>
           </details>

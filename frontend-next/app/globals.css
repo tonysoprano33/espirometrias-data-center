@@ -468,8 +468,8 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 /* Next operator agenda: clinical fields remain compact, editable and explicit. */
 .agenda-work-grid.is-operator .agenda-work-head,
 .agenda-work-grid.is-operator .agenda-work-row {
-  min-width: 1240px;
-  grid-template-columns: 74px minmax(158px, 1.3fr) 104px 112px 132px minmax(145px, 1fr) 126px 126px 126px 102px minmax(180px, 1.25fr);
+  min-width: 1180px;
+  grid-template-columns: 74px minmax(158px, 1.3fr) 104px 112px 118px minmax(145px, 1fr) 112px 112px 116px 102px minmax(180px, 1.25fr);
   gap: 7px;
 }
 .agenda-time-editor input,
@@ -490,22 +490,9 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .agenda-dni-editor input { color: #0b5671; font-size: .85rem; }
 .agenda-dni-editor input::placeholder { color: #7c949d; font-size: .68rem; }
 .agenda-coverage-editor { display: grid; gap: 4px; }
-.agenda-coverage-editor input { height: 31px; font-size: .68rem; }
 .agenda-physician small { display: block; margin-top: 3px; color: #657d86; font-size: .58rem; line-height: 1.15; }
-.agenda-result { display: grid; gap: 4px; }
+.agenda-result { display: grid; }
 .agenda-result input { height: 38px; font-size: .78rem; text-transform: uppercase; }
-.agenda-result button,
-.save-row-action {
-  min-height: 28px;
-  border: 0;
-  border-radius: 8px;
-  color: #fff;
-  background: #0a7f9b;
-  cursor: pointer;
-  font: 900 .64rem "Trebuchet MS", sans-serif;
-}
-.agenda-result button:disabled,
-.save-row-action:disabled { cursor: wait; opacity: .55; }
 .agenda-actions .print-action.is-disabled,
 .print-day-button.is-disabled {
   color: #758790;
