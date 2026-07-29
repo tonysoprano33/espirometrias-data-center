@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DeleteEncounterButton } from "../components/encounter-actions";
 import type { AgendaEntry, AttendanceStatus, CoverageType, PhysicianOption, StudyType } from "./agenda-types";
 import { resultCodes } from "./agenda-types";
@@ -65,6 +65,7 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
     bronchodilatorPositive: entry.bronchodilator_positive,
   });
   const [isSavingWalk, setIsSavingWalk] = useState(false);
+  const [walkSaveState, setWalkSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"ok" | "error">("ok");
   const restReady = Boolean(rest.so2 && rest.fc);
@@ -73,6 +74,15 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
   const restMounted = useRef(false);
   const postMounted = useRef(false);
   const resultMounted = useRef(false);
+  const walkSnapshot = useRef(JSON.stringify({
+    distanceMeters: entry.walk_distance_meters.toString(),
+    borgFinal: entry.borg_final,
+    completed: entry.walk_completed && !entry.walk_stopped,
+    stopped: entry.walk_stopped,
+    symptoms: entry.walk_symptoms,
+    bronchodilatorPositive: entry.bronchodilator_positive,
+  }));
+  const walkAbort = useRef<AbortController | null>(null);
 
   const canPrint = Boolean(
     details.name.trim()
@@ -168,14 +178,18 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
     if (notify) reportMessage("Resultado guardado automaticamente");
   }
 
-  async function persistWalk() {
-    if (isSavingWalk) return;
+  async function persistWalk(notify = true) {
+    walkAbort.current?.abort();
+    const controller = new AbortController();
+    walkAbort.current = controller;
     setIsSavingWalk(true);
+    setWalkSaveState("saving");
     try {
       const physicianId = await resolvePhysician();
       const response = await fetch(`/api/encounters/${entry.encounter_id}/clinical-details`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           fullName: details.name,
           dni: details.dni,
@@ -200,11 +214,17 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
         }),
       });
       await readResponse(response, "No se pudo guardar la prueba.");
-      reportMessage("Prueba guardada");
+      setWalkSaveState("saved");
+      if (notify) reportMessage("Prueba guardada automaticamente");
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setWalkSaveState("error");
       reportMessage(error instanceof Error ? error.message : "No se pudo guardar la prueba.", "error");
     } finally {
-      setIsSavingWalk(false);
+      if (walkAbort.current === controller) {
+        walkAbort.current = null;
+        setIsSavingWalk(false);
+      }
     }
   }
 
@@ -283,13 +303,32 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
     return () => window.clearTimeout(timer);
   }, [result, resultReady]);
 
+  useEffect(() => {
+    const snapshot = JSON.stringify(walk);
+    if (walkSnapshot.current === snapshot) return;
+    walkSnapshot.current = snapshot;
+    const timer = window.setTimeout(() => {
+      void persistWalk(false);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [
+    walk.distanceMeters,
+    walk.borgFinal,
+    walk.completed,
+    walk.stopped,
+    walk.symptoms,
+    walk.bronchodilatorPositive,
+  ]);
+
+  useEffect(() => () => walkAbort.current?.abort(), []);
+
   return <article className={`agenda-work-row ${attendance} ${canPrint ? "is-printable" : "is-incomplete"}`}>
     <label className="agenda-time-editor">
       <span className="sr-only">Hora</span>
       <input type="time" value={details.time} onChange={(event) => setDetails({ ...details, time: event.target.value })} onBlur={() => void saveDetailsFromField()} />
     </label>
 
-    <label className="agenda-name" style={{ "--patient-name-ch": Math.min(Math.max(details.name.length, 10), 30) } as CSSProperties}>
+    <label className="agenda-name">
       <span className="sr-only">Paciente</span>
       <input value={details.name} onChange={(event) => setDetails({ ...details, name: event.target.value })} onBlur={() => void saveDetailsFromField()} />
     </label>
@@ -304,8 +343,8 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
       setDetails(next);
       void persistDetails(next).catch((error) => reportMessage(error instanceof Error ? error.message : "No se pudo guardar el estudio.", "error"));
     }}>
-      <option value="Ciclometria">C</option>
-      <option value="Espirometria">E</option>
+      <option value="Ciclometria">Ciclometria</option>
+      <option value="Espirometria">Espirometria</option>
     </select>
 
     <div className="agenda-coverage-editor">
@@ -315,15 +354,12 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
         setDetails(next);
         void persistDetails(next).catch((error) => reportMessage(error instanceof Error ? error.message : "No se pudo guardar la cobertura.", "error"));
       }}>
-        <option value="Particular">P</option>
-        <option value="Mutual">M</option>
+        <option value="Particular">Particular</option>
+        <option value="Mutual">Mutual</option>
       </select>
     </div>
 
-    <label
-      className="agenda-physician"
-      style={{ "--physician-name-ch": Math.min(Math.max(physicianDisplayName(details.physicianName).length, 12), 24) } as CSSProperties}
-    >
+    <label className="agenda-physician">
       <input
         list={`physicians-${entry.encounter_id}`}
         value={details.physicianName}
@@ -332,22 +368,28 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
         placeholder="Buscar o escribir medico"
       />
       <datalist id={`physicians-${entry.encounter_id}`}>{physicians.map((item) => <option key={item.physician_id} value={physicianDisplayName(item.full_name)} />)}</datalist>
-      <small>{physicians.length} médicos disponibles</small>
     </label>
 
-    <div className="agenda-vitals">
-      <input aria-label="SO2 reposo" inputMode="numeric" value={rest.so2} onChange={(event) => setRest({ ...rest, so2: digits(event.target.value).slice(0, 3) })} placeholder="SO2" />
-      <b>/</b>
-      <input aria-label="FC reposo" inputMode="numeric" value={rest.fc} onChange={(event) => setRest({ ...rest, fc: digits(event.target.value).slice(0, 3) })} placeholder="FC" />
-    </div>
-
-    {details.studyType === "Ciclometria"
-      ? <div className="agenda-vitals">
-          <input aria-label="SO2 post" inputMode="numeric" value={post.so2} onChange={(event) => setPost({ ...post, so2: digits(event.target.value).slice(0, 3) })} placeholder="SO2" />
+    <div className="agenda-vitals-comparison">
+      <div className="agenda-vital-stage">
+        <span>Reposo</span>
+        <div className="agenda-vitals">
+          <input aria-label="SO2 reposo" inputMode="numeric" value={rest.so2} onChange={(event) => setRest({ ...rest, so2: digits(event.target.value).slice(0, 3) })} placeholder="SO2" />
           <b>/</b>
-          <input aria-label="FC post" inputMode="numeric" value={post.fc} onChange={(event) => setPost({ ...post, fc: digits(event.target.value).slice(0, 3) })} placeholder="FC" />
+          <input aria-label="FC reposo" inputMode="numeric" value={rest.fc} onChange={(event) => setRest({ ...rest, fc: digits(event.target.value).slice(0, 3) })} placeholder="FC" />
         </div>
-      : <div className="agenda-not-applicable" title="La espirometría sola no usa valores post caminata">No aplica</div>}
+      </div>
+      {details.studyType === "Ciclometria"
+        ? <div className="agenda-vital-stage">
+            <span>Post</span>
+            <div className="agenda-vitals">
+              <input aria-label="SO2 post" inputMode="numeric" value={post.so2} onChange={(event) => setPost({ ...post, so2: digits(event.target.value).slice(0, 3) })} placeholder="SO2" />
+              <b>/</b>
+              <input aria-label="FC post" inputMode="numeric" value={post.fc} onChange={(event) => setPost({ ...post, fc: digits(event.target.value).slice(0, 3) })} placeholder="FC" />
+            </div>
+          </div>
+        : <div className="agenda-not-applicable" title="La espirometria sola no usa valores post caminata">Sin post</div>}
+    </div>
 
     <div className={`agenda-test-editor ${walk.completed && !walk.stopped && !walk.symptoms ? "is-complete" : "needs-review"}`}>
       {details.studyType === "Ciclometria" ? (
@@ -403,9 +445,9 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
           />
           BD+
         </label>
-        <button type="button" onClick={() => void persistWalk()} disabled={isSavingWalk}>
-          {isSavingWalk ? "Guardando..." : "Guardar prueba"}
-        </button>
+        <span className={`agenda-auto-save ${walkSaveState}`} role="status">
+          {isSavingWalk ? "Guardando..." : walkSaveState === "error" ? "Error al guardar" : "Guardado automatico"}
+        </span>
       </div>
     </div>
 
@@ -427,12 +469,14 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
     </div>
 
     <div className="agenda-actions">
-      <Link className="edit-action" href={`/atenciones/${entry.encounter_id}/editar`}>Editar</Link>
       {canPrint
         ? <button type="button" className="print-action" onClick={() => void printEncounter()} disabled={isSaving}>{isSaving ? "Guardando..." : "Imprimir"}</button>
         : <span className="print-action is-disabled" title="Completar DNI y resultado">Imprimir no disponible</span>}
-      <Link href={`/revision-medica/${entry.encounter_id}`}>Revision</Link>
-      <DeleteEncounterButton encounterId={entry.encounter_id} />
+      <div className="agenda-secondary-actions">
+        <Link className="edit-action" href={`/atenciones/${entry.encounter_id}/editar`}>Editar</Link>
+        <Link href={`/revision-medica/${entry.encounter_id}`}>Revision</Link>
+      </div>
+      <div className="agenda-delete-action"><DeleteEncounterButton encounterId={entry.encounter_id} /></div>
       {message && <small className={messageTone} role="status">{message}</small>}
     </div>
   </article>;

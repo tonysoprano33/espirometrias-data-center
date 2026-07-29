@@ -1486,3 +1486,257 @@ main.shell.doctor-review-page {
   .clinical-edit-actions { width: 100%; }
   .clinical-edit-actions .button { flex: 1; }
 }
+
+/* Operator agenda redesign: balanced clinical information and clear actions. */
+.agenda-work-grid.is-operator {
+  --operator-columns: 76px minmax(160px, 1fr) 112px 116px 108px minmax(150px, .85fr) 210px minmax(330px, 1.35fr) 96px 104px 144px;
+  display: grid;
+  grid-template-columns: var(--operator-columns);
+  column-gap: 8px;
+}
+.agenda-work-grid.is-operator .agenda-work-head,
+.agenda-work-grid.is-operator .agenda-work-row {
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  min-width: 1510px;
+  column-gap: 8px;
+}
+.agenda-work-grid.is-operator .agenda-work-head {
+  padding: 10px 14px;
+}
+.agenda-work-grid.is-operator .agenda-work-row {
+  min-height: 112px;
+  padding: 12px 14px;
+  align-items: center;
+}
+.agenda-work-grid.is-operator .agenda-name,
+.agenda-work-grid.is-operator .agenda-physician {
+  width: 100%;
+  max-width: none;
+}
+.agenda-work-grid.is-operator .agenda-name input,
+.agenda-work-grid.is-operator .agenda-physician input {
+  width: 100%;
+  min-width: 0;
+}
+.agenda-work-grid.is-operator .agenda-work-row > select[aria-label="Estudio"],
+.agenda-work-grid.is-operator .agenda-coverage-editor select {
+  width: 100%;
+  height: 42px;
+  padding: 7px 9px;
+  text-align: left;
+}
+.agenda-work-grid.is-operator .agenda-physician input {
+  height: 42px;
+  font-size: .76rem;
+}
+.agenda-vitals-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  min-width: 0;
+}
+.agenda-vital-stage {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+.agenda-vital-stage > span {
+  color: #52727e;
+  font: 900 .57rem "Trebuchet MS", sans-serif;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.agenda-vital-stage .agenda-vitals {
+  padding: 5px;
+  border: 1px solid #d6eaee;
+  border-radius: 10px;
+  background: #f8fcfd;
+}
+.agenda-vital-stage .agenda-vitals input {
+  min-height: 34px;
+  padding-inline: 2px;
+}
+.agenda-vitals-comparison .agenda-not-applicable {
+  min-height: 58px;
+  align-self: end;
+}
+.agenda-work-grid.is-operator .agenda-test-editor {
+  grid-template-columns: minmax(126px, .7fr) minmax(170px, 1fr);
+  gap: 7px 10px;
+  min-height: 76px;
+  padding: 9px 10px;
+}
+.agenda-work-grid.is-operator .agenda-test-footer {
+  grid-column: 1 / -1;
+  justify-content: space-between;
+  padding-top: 6px;
+  border-top: 1px solid rgba(44, 108, 126, .12);
+}
+.agenda-auto-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #5e7881;
+  font: 800 .58rem "Trebuchet MS", sans-serif;
+  white-space: nowrap;
+}
+.agenda-auto-save::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #a8bac0;
+  content: "";
+}
+.agenda-auto-save.saving::before { background: #e49a22; }
+.agenda-auto-save.saved::before { background: #35a465; }
+.agenda-auto-save.error { color: #a13d37; }
+.agenda-auto-save.error::before { background: #d45e55; }
+.agenda-work-grid.is-operator .agenda-result input {
+  height: 42px;
+  font-size: .78rem;
+}
+.agenda-work-grid.is-operator .agenda-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  align-content: center;
+}
+.agenda-work-grid.is-operator .agenda-actions > .print-action {
+  width: 100%;
+  min-height: 38px;
+  font-size: .78rem;
+  font-weight: 900;
+}
+.agenda-secondary-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+.agenda-work-grid.is-operator .agenda-actions .agenda-secondary-actions a {
+  min-height: 29px;
+  padding-inline: 6px;
+  font-size: .64rem;
+}
+.agenda-delete-action {
+  display: flex;
+  justify-content: flex-end;
+}
+.agenda-work-grid.is-operator .agenda-delete-action button {
+  min-height: 24px;
+  padding: 0 6px;
+  border-color: transparent;
+  background: transparent;
+  font-size: .58rem;
+}
+.agenda-work-grid.is-operator .agenda-delete-action button:hover:not(:disabled) {
+  border-color: #efc4bf;
+  background: #fff4f2;
+}
+.agenda-work-grid.is-operator .agenda-actions > small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1700px) {
+  .agenda-work-grid.is-operator {
+    display: block;
+  }
+  .agenda-work-grid.is-operator .agenda-work-head {
+    display: none;
+  }
+  .agenda-work-grid.is-operator .agenda-work-row {
+    min-width: 0;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 8px;
+    align-items: center;
+  }
+  .agenda-work-grid.is-operator .agenda-time-editor {
+    grid-column: 1 / 3;
+    grid-row: 1;
+  }
+  .agenda-work-grid.is-operator .agenda-name {
+    grid-column: 3 / 6;
+    grid-row: 1;
+  }
+  .agenda-work-grid.is-operator .agenda-dni-editor {
+    grid-column: 6 / 8;
+    grid-row: 1;
+  }
+  .agenda-work-grid.is-operator .agenda-work-row > select[aria-label="Estudio"] {
+    grid-column: 8;
+    grid-row: 1;
+  }
+  .agenda-work-grid.is-operator .agenda-coverage-editor {
+    grid-column: 9;
+    grid-row: 1;
+  }
+  .agenda-work-grid.is-operator .agenda-physician {
+    grid-column: 1 / 4;
+    grid-row: 2;
+  }
+  .agenda-work-grid.is-operator .agenda-vitals-comparison {
+    grid-column: 4 / 7;
+    grid-row: 2;
+  }
+  .agenda-work-grid.is-operator .agenda-test-editor {
+    grid-column: 7 / 10;
+    grid-row: 2;
+  }
+  .agenda-work-grid.is-operator .agenda-result {
+    grid-column: 10;
+    grid-row: 1;
+  }
+  .agenda-work-grid.is-operator .agenda-attendance {
+    grid-column: 10;
+    grid-row: 2;
+    align-self: center;
+  }
+  .agenda-work-grid.is-operator .agenda-actions {
+    grid-column: 11 / 13;
+    grid-row: 1 / 3;
+  }
+}
+
+@media (max-width: 760px) {
+  .agenda-work-grid.is-operator .agenda-work-row {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+  .agenda-work-grid.is-operator .agenda-time-editor,
+  .agenda-work-grid.is-operator .agenda-name {
+    grid-row: auto;
+  }
+  .agenda-work-grid.is-operator .agenda-time-editor {
+    grid-column: 1;
+  }
+  .agenda-work-grid.is-operator .agenda-name {
+    grid-column: 2;
+  }
+  .agenda-work-grid.is-operator .agenda-dni-editor,
+  .agenda-work-grid.is-operator .agenda-coverage-editor,
+  .agenda-work-grid.is-operator .agenda-physician,
+  .agenda-work-grid.is-operator .agenda-vitals-comparison,
+  .agenda-work-grid.is-operator .agenda-test-editor,
+  .agenda-work-grid.is-operator .agenda-result,
+  .agenda-work-grid.is-operator .agenda-attendance,
+  .agenda-work-grid.is-operator .agenda-actions {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+  .agenda-work-grid.is-operator .agenda-work-row > select[aria-label="Estudio"] {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .agenda-work-grid.is-operator .agenda-coverage-editor {
+    grid-column: 2;
+  }
+  .agenda-work-grid.is-operator .agenda-actions {
+    grid-template-columns: minmax(130px, .8fr) minmax(160px, 1fr) auto;
+    align-items: center;
+  }
+  .agenda-work-grid.is-operator .agenda-delete-action {
+    justify-content: center;
+  }
+}
