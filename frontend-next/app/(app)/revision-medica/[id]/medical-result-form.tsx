@@ -142,7 +142,7 @@ export function MedicalResultForm({
         <span>{initialCode ? "Resultado guardado" : "Resultado listo para guardar"}</span>
       </div>
 
-      {(bronchodilatorPositive || suggestedBronchodilatorPositive) && (
+      {bronchodilatorPositive && (
         <div className="bronchodilator-confirmed">
           Broncodilatador positivo
         </div>
