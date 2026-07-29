@@ -2,55 +2,40 @@ import { PDFDocument } from "pdf-lib";
 import { NextResponse } from "next/server";
 import { requireProfile } from "../../lib/auth/require-profile";
 import { createClient } from "../../lib/supabase/server";
+import { createClinicalReport } from "../../lib/reports/clinical-report";
+import { loadReportData } from "../../lib/reports/load-report-data";
 
-type AgendaEntry = { encounter_id: string };
-type Attachment = { encounter_id: string; storage_bucket: string; object_path: string; file_kind: string; created_at: string };
+type AgendaEntry = { encounter_id: string; patient_name: string; can_print: boolean };
 
 export async function GET(request: Request) {
   try {
     await requireProfile(["admin", "espirometrista"]);
-    const date = new URL(request.url).searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
+    const date = new URL(request.url).searchParams.get("date") ?? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
     const supabase = await createClient();
-    const { data: entries, error: agendaError } = await supabase.rpc("secretary_agenda_entries", { target_date: date });
-    if (agendaError) return NextResponse.json({ error: agendaError.message }, { status: 400 });
+    const { data: rawEntries, error } = await supabase.rpc("agenda_entries_v2", { target_date: date });
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    const entries = (rawEntries ?? []) as AgendaEntry[];
+    if (!entries.length) return NextResponse.json({ error: "No hay pacientes en esta fecha." }, { status: 404 });
 
-    const ids = ((entries ?? []) as AgendaEntry[]).map((entry) => entry.encounter_id);
-    if (ids.length === 0) return NextResponse.json({ error: "No hay pacientes en esta fecha." }, { status: 404 });
-
-    const { data: attachments, error: attachmentError } = await supabase
-      .from("attachments")
-      .select("encounter_id, storage_bucket, object_path, file_kind, created_at")
-      .in("encounter_id", ids)
-      .in("file_kind", ["informe_pdf", "pdf_resultado"])
-      .order("created_at", { ascending: false });
-    if (attachmentError) return NextResponse.json({ error: attachmentError.message }, { status: 400 });
-
-    const latestByEncounter = new Map<string, Attachment>();
-    for (const attachment of (attachments ?? []) as Attachment[]) {
-      const current = latestByEncounter.get(attachment.encounter_id);
-      if (!current || (current.file_kind !== "informe_pdf" && attachment.file_kind === "informe_pdf") || (current.file_kind === attachment.file_kind && attachment.created_at > current.created_at)) {
-        latestByEncounter.set(attachment.encounter_id, attachment);
-      }
+    const incomplete = entries.filter((entry) => !entry.can_print);
+    if (incomplete.length) {
+      return NextResponse.json({
+        error: "No se imprimio el dia porque hay pacientes incompletos.",
+        patients: incomplete.map((entry) => entry.patient_name),
+      }, { status: 422 });
     }
 
     const merged = await PDFDocument.create();
-    let included = 0;
-    for (const entry of (entries ?? []) as AgendaEntry[]) {
-      const attachment = latestByEncounter.get(entry.encounter_id);
-      if (!attachment) continue;
-      const { data: file, error: downloadError } = await supabase.storage.from(attachment.storage_bucket).download(attachment.object_path);
-      if (downloadError || !file) continue;
-      try {
-        const source = await PDFDocument.load(await file.arrayBuffer());
-        const pages = await merged.copyPages(source, source.getPageIndices());
-        pages.forEach((page) => merged.addPage(page));
-        included += 1;
-      } catch {
-        // A damaged or non-PDF attachment must not block the other reports.
+    for (const entry of entries) {
+      const loaded = await loadReportData(supabase, entry.encounter_id);
+      if (!loaded.data) {
+        return NextResponse.json({ error: `No se pudo preparar el informe de ${entry.patient_name}.` }, { status: 422 });
       }
+      const source = await PDFDocument.load(await createClinicalReport(loaded.data));
+      const pages = await merged.copyPages(source, source.getPageIndices());
+      pages.forEach((page) => merged.addPage(page));
     }
 
-    if (!included) return NextResponse.json({ error: "No hay informes PDF listos para imprimir en esta fecha." }, { status: 404 });
     const bytes = await merged.save();
     return new NextResponse(Buffer.from(bytes), {
       headers: {

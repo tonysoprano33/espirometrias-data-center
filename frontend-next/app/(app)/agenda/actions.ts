@@ -8,14 +8,15 @@ import { createClient } from "../../lib/supabase/server";
 export type CreateAgendaState = { ok: boolean; message: string };
 
 const createAgendaSchema = z.object({
-  fullName: z.string().trim().min(2, "Ingresá el nombre del paciente.").max(180),
+  fullName: z.string().trim().min(2, "Ingresa el nombre del paciente.").max(180),
   dni: z.string().trim().max(20),
   encounterDate: z.string().date(),
-  encounterTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Ingresá una hora válida.").or(z.literal("")),
+  encounterTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Ingresa una hora valida.").or(z.literal("")),
   studyType: z.enum(["Ciclometria", "Espirometria"]),
   coverageType: z.enum(["Particular", "Mutual"]),
   coverageName: z.string().trim().max(120),
   medicalControlToday: z.boolean(),
+  referringPhysicianId: z.string().uuid().or(z.literal("")),
 });
 
 export async function createAgendaEntry(
@@ -32,27 +33,25 @@ export async function createAgendaEntry(
     coverageType: formData.get("coverageType"),
     coverageName: formData.get("coverageName"),
     medicalControlToday: formData.get("medicalControlToday") === "on",
+    referringPhysicianId: formData.get("referringPhysicianId") ?? "",
   });
 
   if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message || "Revisá los datos ingresados." };
+    return { ok: false, message: parsed.error.issues[0]?.message || "Revisa los datos ingresados." };
   }
 
   const values = parsed.data;
-  if (values.coverageType === "Mutual" && !values.coverageName) {
-    return { ok: false, message: "Indicá la mutual antes de guardar." };
-  }
-
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("create_agenda_encounter", {
+  const { data, error } = await supabase.rpc("create_agenda_encounter_v2", {
     p_full_name: values.fullName,
     p_dni: values.dni || null,
     p_encounter_date: values.encounterDate,
     p_encounter_time: values.encounterTime || null,
     p_study_type: values.studyType,
     p_coverage_type: values.coverageType,
-    p_coverage_name: values.coverageName,
+    p_coverage_name: values.coverageType === "Mutual" ? values.coverageName || "Mutual" : "",
     p_medical_control_today: values.medicalControlToday,
+    p_referring_physician_id: values.referringPhysicianId || null,
   });
 
   if (error) return { ok: false, message: error.message };
@@ -62,6 +61,6 @@ export async function createAgendaEntry(
     ok: true,
     message: reused
       ? "Nueva visita guardada en la historia existente por DNI."
-      : "Paciente y atención guardados.",
+      : "Paciente y atencion guardados.",
   };
 }

@@ -7,7 +7,7 @@ const schema = z.object({ code: z.string().trim().min(1).max(8).regex(/^[A-Za-z]
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireProfile(["admin", "medico"]);
+    await requireProfile(["admin", "medico", "espirometrista"]);
     const parsed = schema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: "Escribi un codigo de resultado valido." }, { status: 400 });
     const { id } = await params;

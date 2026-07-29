@@ -65,7 +65,7 @@ function LoginForm() {
         </label>
         <label className="auth-remember">
           <input type="checkbox" checked={keepSignedIn} onChange={(event) => setKeepSignedIn(event.target.checked)} />
-          Mantener la sesiÃ³n iniciada en este navegador
+          Mantener la sesión iniciada en este navegador
         </label>
         {message && <p className="auth-message" role="alert">{message}</p>}
         <button disabled={submitting}>{submitting ? "Ingresando..." : "Ingresar"}</button>

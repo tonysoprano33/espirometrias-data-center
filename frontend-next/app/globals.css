@@ -380,12 +380,12 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .quick-add-eyebrow { margin: 0 0 2px; color: #087d9b; font: 900 .67rem "Trebuchet MS", sans-serif; letter-spacing: .1em; text-transform: uppercase; }
 .mini-title { margin: 0; color: #123f54; font-size: 1.1rem; }
 .quick-hint { margin: 12px 0; color: #5b7482; font-weight: 700; }
-.quick-core-grid { display: grid; grid-template-columns: minmax(220px, 1.5fr) minmax(160px, .7fr) minmax(160px, .7fr) auto auto; gap: 10px; align-items: end; }
+.quick-core-grid { display: grid; grid-template-columns: minmax(210px, 1.35fr) minmax(110px, .52fr) 108px minmax(140px, .68fr) minmax(140px, .68fr) auto auto; gap: 10px; align-items: end; }
 .field { display: grid; gap: 5px; min-width: 0; color: #31596b; font: 900 .7rem "Trebuchet MS", sans-serif; letter-spacing: .05em; text-transform: uppercase; }
 .field input, .field select { width: 100%; min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid #c7dfe6; border-radius: 10px; color: #123f54; background: #fff; font: 800 .93rem Georgia, "Times New Roman", serif; }
 .field input:focus, .field select:focus { outline: 3px solid rgba(13,111,138,.16); border-color: #168fac; }
-.quick-core-grid .field:nth-child(2) select { border-color: #b9dcfa; background: #edf7ff; }
-.quick-core-grid .field:nth-child(3) select { border-color: #dfcffb; background: #f4edff; }
+.quick-core-grid .field:nth-child(4) select { border-color: #b9dcfa; background: #edf7ff; }
+.quick-core-grid .field:nth-child(5) select { border-color: #dfcffb; background: #f4edff; }
 .quick-control-toggle { display: flex; min-height: 40px; align-items: center; gap: 7px; padding: 0 11px; border: 1px solid #bae0e8; border-radius: 10px; color: #216075; background: #edfafd; font: 800 .78rem "Trebuchet MS", sans-serif; white-space: nowrap; }
 .quick-control-toggle input { width: 15px; height: 15px; }
 .quick-secondary { margin-top: 10px; border: 1px dashed #b9dfe7; border-radius: 10px; background: rgba(255,255,255,.68); }
@@ -403,7 +403,7 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .legacy-attendance { display: grid; gap: 5px; }.legacy-attendance strong { width: fit-content; padding: 8px 11px; border-radius: 9px; font: 900 .78rem "Trebuchet MS", sans-serif; }.legacy-attendance strong.atendido { border: 1px solid #9cddb6; color: #176b41; background: #e5f8e9; }.legacy-attendance strong.esperando { border: 1px solid #efcb69; color: #8b5900; background: #fff4d7; }.legacy-attendance strong.no_llego { border: 1px solid #f2b4a9; color: #a44540; background: #fff0ed; }.legacy-attendance span { color: #9b6303; font: 800 .72rem "Trebuchet MS", sans-serif; }
 .agenda-card > .empty { margin: 0; padding: 22px 12px; color: #637983; font-weight: 700; }
 @media (max-width: 1080px) {
-  .quick-core-grid { grid-template-columns: minmax(200px, 1fr) repeat(2, minmax(135px, .7fr)); }.quick-control-toggle, .quick-core-grid .button { grid-column: auto; }
+  .quick-core-grid { grid-template-columns: minmax(210px, 1fr) 130px 115px repeat(2, minmax(145px, .7fr)); }.quick-control-toggle, .quick-core-grid .button { grid-column: auto; }
   .legacy-agenda-row { grid-template-columns: 88px minmax(200px, 1fr) repeat(2, minmax(130px, .65fr)); }.legacy-attendance { grid-column: 2 / -1; display: flex; align-items: center; }
 }
 @media (max-width: 720px) {
@@ -464,6 +464,141 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .agenda-actions .compact-action, .agenda-actions .danger { color: #a13d37; border-color: #efc4bf; background: #fff4f2; }
 .agenda-actions .compact-action:hover, .agenda-actions .danger:hover:not(:disabled) { border-color: #d96b60; background: #ffe9e5; }
 .agenda-actions button:disabled { cursor: wait; opacity: .6; }
+
+/* Next operator agenda: clinical fields remain compact, editable and explicit. */
+.agenda-work-grid.is-operator .agenda-work-head,
+.agenda-work-grid.is-operator .agenda-work-row {
+  min-width: 1240px;
+  grid-template-columns: 74px minmax(158px, 1.3fr) 104px 112px 132px minmax(145px, 1fr) 126px 126px 126px 102px minmax(180px, 1.25fr);
+  gap: 7px;
+}
+.agenda-time-editor input,
+.agenda-dni-editor input,
+.agenda-coverage-editor input {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  padding: 7px 8px;
+  border: 1px solid #c7dce4;
+  border-radius: 9px;
+  color: #123f52;
+  background: #fff;
+  font: 900 .78rem "Trebuchet MS", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.agenda-time-editor input { color: #0b6480; background: #eef7ff; }
+.agenda-dni-editor input { color: #0b5671; font-size: .85rem; }
+.agenda-dni-editor input::placeholder { color: #7c949d; font-size: .68rem; }
+.agenda-coverage-editor { display: grid; gap: 4px; }
+.agenda-coverage-editor input { height: 31px; font-size: .68rem; }
+.agenda-physician small { display: block; margin-top: 3px; color: #657d86; font-size: .58rem; line-height: 1.15; }
+.agenda-result { display: grid; gap: 4px; }
+.agenda-result input { height: 38px; font-size: .78rem; text-transform: uppercase; }
+.agenda-result button,
+.save-row-action {
+  min-height: 28px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: #0a7f9b;
+  cursor: pointer;
+  font: 900 .64rem "Trebuchet MS", sans-serif;
+}
+.agenda-result button:disabled,
+.save-row-action:disabled { cursor: wait; opacity: .55; }
+.agenda-actions .print-action.is-disabled,
+.print-day-button.is-disabled {
+  color: #758790;
+  border-color: #d8e2e5;
+  background: #eef3f5;
+  box-shadow: none;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+.agenda-actions small.ok { color: #147043; }
+.agenda-actions small.error { color: #b33932; }
+.agenda-work-row.is-printable { box-shadow: inset 0 -2px 0 rgba(53, 164, 101, .22); }
+.agenda-work-row.is-incomplete { box-shadow: inset 0 -2px 0 rgba(230, 145, 24, .16); }
+
+.drapp-import {
+  margin: 14px 0;
+  border: 1px solid #b9dfe7;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f2fbfd, #fff);
+}
+.drapp-import > summary {
+  padding: 13px 16px;
+  color: #086f88;
+  cursor: pointer;
+  font: 900 .82rem "Trebuchet MS", sans-serif;
+}
+.drapp-import-body { padding: 0 16px 16px; }
+.drapp-import-body > p { margin: 0 0 9px; color: #55717c; font-size: .78rem; }
+.drapp-import textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid #c8dee5;
+  border-radius: 10px;
+  background: #fff;
+  font: 500 .78rem "Trebuchet MS", sans-serif;
+}
+.drapp-toolbar { display: flex; gap: 8px; margin-top: 8px; }
+.drapp-toolbar button,
+.confirm-import {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  color: #fff;
+  background: #087f9b;
+  cursor: pointer;
+  font: 900 .7rem "Trebuchet MS", sans-serif;
+}
+.drapp-toolbar button.secondary { color: #086f88; border: 1px solid #afd8e2; background: #eefafd; }
+.drapp-toolbar button:disabled,
+.confirm-import:disabled { cursor: not-allowed; opacity: .5; }
+.drapp-message { margin: 10px 0 0; color: #285b6c; font-weight: 800; }
+.drapp-preview { margin-top: 12px; overflow-x: auto; }
+.drapp-preview-head,
+.drapp-preview-row {
+  min-width: 930px;
+  display: grid;
+  grid-template-columns: 90px minmax(220px, 1.4fr) 130px 145px minmax(220px, 1fr) 76px;
+  gap: 7px;
+  align-items: center;
+}
+.drapp-preview-head { padding: 7px; color: #456671; font: 900 .64rem "Trebuchet MS", sans-serif; text-transform: uppercase; }
+.drapp-preview-row { padding: 7px; border-top: 1px solid #d8e9ed; }
+.drapp-preview-row input,
+.drapp-preview-row select {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 6px 8px;
+  border: 1px solid #c7dce4;
+  border-radius: 8px;
+  background: #fff;
+  font: 700 .7rem "Trebuchet MS", sans-serif;
+}
+.drapp-coverage { display: grid; grid-template-columns: 92px 1fr; gap: 5px; }
+.drapp-preview-row .danger { min-height: 32px; border: 1px solid #efc0ba; border-radius: 8px; color: #a43d35; background: #fff1ef; cursor: pointer; font-weight: 800; }
+.confirm-import { margin-top: 10px; background: linear-gradient(135deg, #0b829c, #0c947d); }
+
+@media (max-width: 1050px) {
+  .agenda-work-grid.is-operator .agenda-work-head { display: none; }
+  .agenda-work-grid.is-operator .agenda-work-row {
+    min-width: 0;
+    grid-template-columns: 92px minmax(180px, 1.4fr) 120px 120px 140px;
+    align-items: start;
+  }
+  .agenda-work-row .agenda-physician,
+  .agenda-work-row .agenda-vitals,
+  .agenda-work-row .agenda-result,
+  .agenda-work-row .agenda-attendance,
+  .agenda-work-row .agenda-actions { grid-column: span 1; }
+  .agenda-work-row .agenda-actions { grid-column: 1 / -1; }
+}
 .calendar-row-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .edit-encounter { position: relative; }
 .edit-encounter summary { padding: 6px 8px; border-radius: 7px; color: #0b6e8a; background: #e8f7fb; cursor: pointer; font: 800 .68rem "Trebuchet MS", sans-serif; list-style: none; }
