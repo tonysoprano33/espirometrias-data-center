@@ -466,11 +466,29 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .agenda-actions button:disabled { cursor: wait; opacity: .6; }
 
 /* Next operator agenda: clinical fields remain compact, editable and explicit. */
+.agenda-work-grid.is-operator {
+  display: grid;
+  grid-template-columns: 58px fit-content(220px) 84px 42px 42px fit-content(170px) 84px 84px minmax(320px, 1fr) 76px 80px 124px;
+  column-gap: 5px;
+}
 .agenda-work-grid.is-operator .agenda-work-head,
 .agenda-work-grid.is-operator .agenda-work-row {
-  min-width: 1210px;
-  grid-template-columns: 68px fit-content(260px) 92px 50px 50px fit-content(200px) 96px 96px minmax(180px, 1fr) 88px 92px 145px;
-  gap: 6px;
+  grid-column: 1 / -1;
+  min-width: 0;
+  grid-template-columns: subgrid;
+  column-gap: 5px;
+}
+.agenda-work-grid.is-operator .agenda-work-row {
+  border-left: 0;
+}
+.agenda-work-grid.is-operator .agenda-work-row.atendido {
+  background: linear-gradient(90deg, #38a569 0 5px, #fff 5px);
+}
+.agenda-work-grid.is-operator .agenda-work-row.esperando {
+  background: linear-gradient(90deg, #e49118 0 5px, #fff 5px);
+}
+.agenda-work-grid.is-operator .agenda-work-row.no_llego {
+  background: linear-gradient(90deg, #d5685e 0 5px, #fff 5px);
 }
 .agenda-time-editor input,
 .agenda-dni-editor input,
@@ -492,7 +510,7 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .agenda-name {
   display: flex;
   width: fit-content;
-  max-width: 260px;
+  max-width: 240px;
   align-items: center;
 }
 .agenda-name input {
@@ -509,7 +527,7 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .agenda-physician {
   display: block;
   width: fit-content;
-  max-width: 200px;
+  max-width: 180px;
 }
 .agenda-physician input {
   width: min(100%, calc(var(--physician-name-ch, 16) * .68ch + 34px));
@@ -532,42 +550,105 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
   background: #f6f9fa;
   font: 800 .64rem "Trebuchet MS", sans-serif;
 }
-.agenda-test-summary {
-  position: relative;
+.agenda-test-editor {
   display: grid;
-  min-height: 48px;
-  align-content: center;
-  gap: 3px;
-  padding: 7px 9px;
+  grid-template-columns: minmax(126px, 150px) minmax(150px, 1fr) auto;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+  padding: 7px;
   border: 1px solid #bddce4;
   border-radius: 11px;
   color: #155b70;
   background: #edf9fc;
-  text-decoration: none;
 }
-.agenda-test-summary:hover {
-  border-color: #168aa4;
-  background: #def5fa;
+.agenda-test-editor.is-complete { border-color: #aedcc1; background: #edf9f1; }
+.agenda-test-editor.needs-review { border-color: #efc875; background: #fff8df; }
+.agenda-test-numbers {
+  display: grid;
+  grid-template-columns: minmax(68px, 1fr) minmax(52px, .7fr);
+  gap: 6px;
 }
-.agenda-test-summary strong,
-.agenda-test-summary span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agenda-test-summary strong { font: 900 .74rem "Trebuchet MS", sans-serif; }
-.agenda-test-summary strong i { color: #7d969e; font-style: normal; }
-.agenda-test-summary span { color: #5e7882; font: 800 .6rem "Trebuchet MS", sans-serif; }
-.agenda-test-summary.is-complete { border-color: #aedcc1; background: #edf9f1; }
-.agenda-test-summary.is-complete strong { color: #176b41; }
-.agenda-test-summary.needs-review { border-color: #efc875; background: #fff8df; }
-.agenda-test-summary.needs-review strong { color: #8a5b00; }
-.agenda-test-summary > b {
-  position: absolute;
-  top: -7px;
-  right: -4px;
+.agenda-test-numbers label {
+  display: grid;
+  grid-template-columns: auto minmax(38px, 1fr);
+  align-items: center;
+  gap: 5px;
+  color: #54737e;
+  font: 900 .58rem "Trebuchet MS", sans-serif;
+  text-transform: uppercase;
+}
+.agenda-test-numbers input,
+.agenda-test-numbers select {
+  width: 100%;
+  min-width: 0;
+  height: 29px;
   padding: 3px 5px;
-  border-radius: 999px;
+  border: 1px solid #b8d9e1;
+  border-radius: 7px;
+  color: #164f61;
+  background: #fff;
+  font: 900 .7rem "Trebuchet MS", sans-serif;
+}
+.agenda-test-checks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.agenda-test-checks label,
+.agenda-test-broncho {
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border: 1px solid #cfdee2;
+  border-radius: 7px;
+  color: #607983;
+  background: rgba(255, 255, 255, .76);
+  cursor: pointer;
+  font: 900 .58rem "Trebuchet MS", sans-serif;
+  white-space: nowrap;
+}
+.agenda-test-checks label.active,
+.agenda-test-broncho.active {
+  color: #176b41;
+  border-color: #91d2aa;
+  background: #dcf5e5;
+}
+.agenda-test-checks label.warning {
+  color: #9a4c22;
+  border-color: #efb28f;
+  background: #fff0e7;
+}
+.agenda-test-checks input,
+.agenda-test-broncho input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+}
+.agenda-test-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.agenda-test-footer button {
+  min-height: 27px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
   color: #fff;
-  background: #257cb2;
-  box-shadow: 0 3px 7px rgba(24, 92, 130, .2);
-  font: 900 .55rem "Trebuchet MS", sans-serif;
+  background: #087f9b;
+  cursor: pointer;
+  font: 900 .6rem "Trebuchet MS", sans-serif;
+}
+.agenda-test-footer button:disabled { cursor: wait; opacity: .6; }
+.agenda-test-no-walk {
+  grid-column: 1 / 3;
+  color: #607983;
+  font: 900 .65rem "Trebuchet MS", sans-serif;
 }
 .agenda-actions .print-action.is-disabled,
 .print-day-button.is-disabled {
@@ -698,6 +779,7 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 }
 
 @media (max-width: 1050px) {
+  .agenda-work-grid.is-operator { display: block; }
   .agenda-work-grid.is-operator .agenda-work-head { display: none; }
   .agenda-work-grid.is-operator .agenda-work-row {
     min-width: 0;
@@ -706,7 +788,7 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
   }
   .agenda-work-row .agenda-physician,
   .agenda-work-row .agenda-vitals,
-  .agenda-work-row .agenda-test-summary,
+  .agenda-work-row .agenda-test-editor,
   .agenda-work-row .agenda-not-applicable,
   .agenda-work-row .agenda-result,
   .agenda-work-row .agenda-attendance,

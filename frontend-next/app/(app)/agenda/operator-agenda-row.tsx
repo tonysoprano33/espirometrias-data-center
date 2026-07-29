@@ -56,6 +56,15 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
   const [rest, setRest] = useState({ so2: entry.so2_rest?.toString() ?? "", fc: entry.fc_rest?.toString() ?? "" });
   const [post, setPost] = useState({ so2: entry.so2_post?.toString() ?? "", fc: entry.fc_post?.toString() ?? "" });
   const [result, setResult] = useState(entry.result_code ?? "");
+  const [walk, setWalk] = useState({
+    distanceMeters: entry.walk_distance_meters?.toString() ?? "200",
+    completed: entry.walk_completed,
+    stopped: entry.walk_stopped,
+    symptoms: entry.walk_symptoms,
+    borgFinal: entry.borg_final,
+    bronchodilatorPositive: entry.bronchodilator_positive,
+  });
+  const [isSavingWalk, setIsSavingWalk] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"ok" | "error">("ok");
   const restReady = Boolean(rest.so2 && rest.fc);
@@ -157,6 +166,46 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
     });
     await readResponse(response, "No se pudo guardar el resultado.");
     if (notify) reportMessage("Resultado guardado automaticamente");
+  }
+
+  async function persistWalk() {
+    if (isSavingWalk) return;
+    setIsSavingWalk(true);
+    try {
+      const physicianId = await resolvePhysician();
+      const response = await fetch(`/api/encounters/${entry.encounter_id}/clinical-details`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          fullName: details.name,
+          dni: details.dni,
+          encounterTime: details.time,
+          studyType: details.studyType,
+          coverageType: details.coverageType,
+          coverageName: details.coverageType === "Mutual" ? details.coverageName || "Mutual" : "",
+          referringPhysicianId: physicianId || null,
+          medicalControlToday: details.medicalControlToday,
+          attendanceStatus: attendance,
+          so2Rest: rest.so2 ? Number(rest.so2) : null,
+          fcRest: rest.fc ? Number(rest.fc) : null,
+          so2Post: details.studyType === "Ciclometria" && post.so2 ? Number(post.so2) : null,
+          fcPost: details.studyType === "Ciclometria" && post.fc ? Number(post.fc) : null,
+          distanceMeters: details.studyType === "Ciclometria" ? Number(walk.distanceMeters || 0) : 0,
+          completed: details.studyType === "Ciclometria" ? walk.completed : true,
+          stopped: details.studyType === "Ciclometria" ? walk.stopped : false,
+          symptoms: details.studyType === "Ciclometria" ? walk.symptoms : false,
+          borgFinal: details.studyType === "Ciclometria" ? walk.borgFinal : 1,
+          resultCode: resultReady ? result : "",
+          bronchodilatorPositive: walk.bronchodilatorPositive,
+        }),
+      });
+      await readResponse(response, "No se pudo guardar la prueba.");
+      reportMessage("Prueba guardada");
+    } catch (error) {
+      reportMessage(error instanceof Error ? error.message : "No se pudo guardar la prueba.", "error");
+    } finally {
+      setIsSavingWalk(false);
+    }
   }
 
   async function saveDetailsFromField() {
@@ -300,19 +349,65 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
         </div>
       : <div className="agenda-not-applicable" title="La espirometría sola no usa valores post caminata">No aplica</div>}
 
-    <Link
-      className={`agenda-test-summary ${entry.walk_completed && !entry.walk_stopped && !entry.walk_symptoms ? "is-complete" : "needs-review"}`}
-      href={`/atenciones/${entry.encounter_id}/editar`}
-      aria-label="Editar datos de caminata y broncodilatador"
-    >
-      {details.studyType === "Ciclometria"
-        ? <>
-            <strong>{entry.walk_distance_meters} m <i>·</i> Borg {entry.borg_final}</strong>
-            <span>{entry.walk_stopped ? "Caminata interrumpida" : entry.walk_symptoms ? "Finalizó con síntomas" : entry.walk_completed ? "Caminata completa" : "Caminata incompleta"}</span>
-          </>
-        : <><strong>Espirometría</strong><span>Sin caminata</span></>}
-      {entry.bronchodilator_positive && <b>BD+</b>}
-    </Link>
+    <div className={`agenda-test-editor ${walk.completed && !walk.stopped && !walk.symptoms ? "is-complete" : "needs-review"}`}>
+      {details.studyType === "Ciclometria" ? (
+        <>
+          <div className="agenda-test-numbers">
+            <label>
+              <span>Metros</span>
+              <input
+                type="number"
+                min="0"
+                step="50"
+                value={walk.distanceMeters}
+                onChange={(event) => setWalk({ ...walk, distanceMeters: digits(event.target.value).slice(0, 4) })}
+              />
+            </label>
+            <label>
+              <span>Borg</span>
+              <select value={walk.borgFinal} onChange={(event) => setWalk({ ...walk, borgFinal: Number(event.target.value) })}>
+                {Array.from({ length: 11 }, (_, index) => <option key={index} value={index}>{index}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="agenda-test-checks">
+            <label className={walk.completed ? "active" : ""}>
+              <input
+                type="checkbox"
+                checked={walk.completed}
+                onChange={(event) => setWalk({ ...walk, completed: event.target.checked, stopped: event.target.checked ? false : walk.stopped })}
+              />
+              Completa
+            </label>
+            <label className={walk.stopped ? "active warning" : ""}>
+              <input
+                type="checkbox"
+                checked={walk.stopped}
+                onChange={(event) => setWalk({ ...walk, stopped: event.target.checked, completed: event.target.checked ? false : walk.completed })}
+              />
+              Se detuvo
+            </label>
+            <label className={walk.symptoms ? "active warning" : ""}>
+              <input type="checkbox" checked={walk.symptoms} onChange={(event) => setWalk({ ...walk, symptoms: event.target.checked })} />
+              Síntomas
+            </label>
+          </div>
+        </>
+      ) : <span className="agenda-test-no-walk">Espirometría sola · sin caminata</span>}
+      <div className="agenda-test-footer">
+        <label className={`agenda-test-broncho ${walk.bronchodilatorPositive ? "active" : ""}`}>
+          <input
+            type="checkbox"
+            checked={walk.bronchodilatorPositive}
+            onChange={(event) => setWalk({ ...walk, bronchodilatorPositive: event.target.checked })}
+          />
+          BD+
+        </label>
+        <button type="button" onClick={() => void persistWalk()} disabled={isSavingWalk}>
+          {isSavingWalk ? "Guardando..." : "Guardar prueba"}
+        </button>
+      </div>
+    </div>
 
     <div className="agenda-result">
       <input list={`results-${entry.encounter_id}`} value={result} onChange={(event) => setResult(event.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 8))} placeholder="N, OL, RL..." aria-label="Resultado medico" />
