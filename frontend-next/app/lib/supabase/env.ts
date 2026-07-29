@@ -1,6 +1,11 @@
+// These values are intentionally public: Supabase publishable keys are meant
+// for browser clients. Privileged service keys must never be placed here.
+const PREVIEW_SUPABASE_URL = "https://pltkxisxhrhafvegovlc.supabase.co";
+const PREVIEW_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_4XVdvONdfdAwl98xQilzUg_ujmYd2UU";
+
 export function getSupabasePublicEnvironment() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || PREVIEW_SUPABASE_URL;
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || PREVIEW_SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !publishableKey) {
     throw new Error(
@@ -12,7 +17,5 @@ export function getSupabasePublicEnvironment() {
 }
 
 export function isSupabaseConfigured() {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-  );
+  return true;
 }
