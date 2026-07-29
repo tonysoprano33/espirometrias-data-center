@@ -27,7 +27,7 @@ export default async function MedicalReviewDetailPage({ params }: DetailPageProp
   const supabase = await createClient();
   const { data: encounter } = await supabase
     .from("encounters")
-    .select("id, encounter_date, encounter_time, study_type, coverage_type, coverage_name, attendance_status, medical_control_today, technician_notes, patient:patients(full_name, dni, birth_date, gender, bmi), vital_signs(so2_rest, fc_rest, so2_post, fc_post), walk_tests(distance_meters, completed, stopped, symptoms, borg_final, minute_readings), spirometry_results(respiratory_pattern, obstruction_grade, restriction_grade, bronchodilator_positive, physician_comment, suggested_summary, suggested_code, suggested_probability, final_code), attachments(original_name, file_kind, storage_bucket, object_path, analysis_status, created_at)")
+    .select("id, encounter_date, encounter_time, study_type, coverage_type, coverage_name, attendance_status, medical_control_today, technician_notes, patient:patients(full_name, dni, birth_date, gender, bmi), vital_signs(so2_rest, fc_rest, so2_post, fc_post), walk_tests(distance_meters, completed, stopped, symptoms, borg_final, minute_readings), spirometry_results(respiratory_pattern, obstruction_grade, restriction_grade, bronchodilator_positive, physician_comment, suggested_summary, suggested_code, suggested_probability, final_code), attachments(id, original_name, file_kind, storage_bucket, object_path, mime_type, analysis_status, created_at)")
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
@@ -51,21 +51,9 @@ export default async function MedicalReviewDetailPage({ params }: DetailPageProp
     const { data: importedResult } = await supabase.from("spirometry_results").select("respiratory_pattern, physician_comment, suggested_summary, suggested_code, suggested_probability, final_code").eq("encounter_id", id).maybeSingle();
     result = importedResult;
   }
-  const attachments = (encounter.attachments ?? []) as Array<{ original_name: string; file_kind: string; storage_bucket: string; object_path: string; analysis_status: string; created_at?: string }>;
+  const attachments = (encounter.attachments ?? []) as Array<{ id: string; original_name: string; file_kind: string; storage_bucket: string; object_path: string; mime_type: string; analysis_status: string; created_at?: string }>;
   const source = attachments.filter((file) => ["pdf_resultado", "foto_resultado"].includes(file.file_kind)).sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))[0];
-  let sourceUrl: string | null = null;
-  let sourceError = "";
-  if (source) {
-    const signed = await supabase.storage.from(source.storage_bucket).createSignedUrl(source.object_path, 60 * 30);
-    sourceUrl = signed.data?.signedUrl ?? null;
-    if (signed.error) sourceError = signed.error.message;
-    // Legacy imports copied attachment metadata, not the binary object. Keep old
-    // media reachable while those files are being re-uploaded to Supabase.
-    if (!sourceUrl) {
-      const legacyBase = (process.env.LEGACY_MEDIA_BASE_URL || "https://espirometrias-data-center.vercel.app/media").replace(/\/$/, "");
-      sourceUrl = `${legacyBase}/${source.object_path.split("/").map(encodeURIComponent).join("/")}`;
-    }
-  }
+  const sourceUrl = source ? `/api/attachments/${source.id}/content` : null;
   const hasResult = Boolean(result?.respiratory_pattern);
   const statusLabel = hasResult ? "Resultado guardado" : source ? "Pendiente de resultado medico" : "Falta cargar PDF";
   const suggestionCode = result?.suggested_code?.trim() || "";
@@ -90,7 +78,7 @@ export default async function MedicalReviewDetailPage({ params }: DetailPageProp
 
     <div className="review-detail-grid">
       <section className="review-document">
-        <div className="document-status"><b>{source ? source.original_name : "Sin archivo original"}</b><span>{source ? `Archivo ${source.analysis_status}` : "La revision queda pendiente de PDF o foto"}</span>{sourceError && <small className="document-warning">El archivo figura en la base, pero no está disponible en Storage. Podés volver a subirlo desde esta ficha.</small>}{sourceUrl && <div className="document-actions"><a href={sourceUrl} target="_blank" rel="noreferrer">Abrir archivo grande</a><a href={sourceUrl} download={source?.original_name} target="_blank" rel="noreferrer">Descargar archivo</a></div>}</div>
+        <div className="document-status"><b>{source ? source.original_name : "Sin archivo original"}</b><span>{source ? `Archivo ${source.analysis_status}` : "La revisión queda pendiente de PDF o foto"}</span>{sourceUrl && <div className="document-actions"><a href={sourceUrl} target="_blank" rel="noreferrer">Abrir archivo grande</a><a href={sourceUrl} download={source?.original_name}>Descargar archivo</a></div>}</div>
         {sourceUrl && source?.file_kind.includes("pdf") ? <PdfPreview url={sourceUrl} name={source.original_name} /> : sourceUrl ? <img src={sourceUrl} alt="Resultado de espirometria" /> : <div className="document-empty">Todavia no hay un documento para visualizar.</div>}
       </section>
 

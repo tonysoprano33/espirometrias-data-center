@@ -49,8 +49,6 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
   const canPrint = Boolean(
     details.name.trim()
     && digits(details.dni)
-    && rest.so2 && rest.fc
-    && post.so2 && post.fc
     && result.trim(),
   );
 
@@ -234,7 +232,7 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
 
     <div className="agenda-actions">
       {canPrint
-        ? <Link className="print-action" href={`/api/encounters/${entry.encounter_id}/print`} target="_blank">Imprimir</Link>
+        ? <Link className="print-action" href={`/imprimir/${entry.encounter_id}`} target="_blank">Imprimir</Link>
         : <span className="print-action is-disabled" title={`Completar: ${entry.missing_for_print || "datos clinicos"}`}>Imprimir no disponible</span>}
       <button type="button" className="save-row-action" onClick={saveDetails} disabled={isSaving}>Guardar datos</button>
       <Link href={`/revision-medica/${entry.encounter_id}`}>Revision</Link>

@@ -13,8 +13,11 @@ export function PdfPreview({ url, name }: PdfPreviewProps) {
 
     async function renderFirstPage() {
       try {
+        const response = await fetch(url, { cache: "no-store" });
+        if (!response.ok) throw new Error(`No se pudo abrir el archivo (${response.status})`);
         const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-        const documentTask = pdfjs.getDocument({ url });
+        pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+        const documentTask = pdfjs.getDocument({ data: new Uint8Array(await response.arrayBuffer()) });
         const pdf = await documentTask.promise;
         const page = await pdf.getPage(1);
         const baseViewport = page.getViewport({ scale: 1 });

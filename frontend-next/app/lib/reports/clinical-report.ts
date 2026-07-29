@@ -1,231 +1,210 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+export type WalkMinuteReading = {
+  minute: number;
+  so2: number | null;
+  fc: number | null;
+  borg: number | null;
+};
 
 export type ReportData = {
   date: string;
+  time: string | null;
+  attendanceStatus: string;
   patientName: string;
   dni: string;
   physicianName: string;
   studyType: "Ciclometria" | "Espirometria";
   coverageType: "Mutual" | "Particular";
   coverageName: string;
-  so2Rest: number;
-  fcRest: number;
-  so2Post: number;
-  fcPost: number;
+  so2Rest: number | null;
+  fcRest: number | null;
+  so2Post: number | null;
+  fcPost: number | null;
+  hasVitals: boolean;
+  hasWalk: boolean;
   resultCode: string;
+  respiratoryPattern: string;
+  obstructionGrade: string;
+  restrictionGrade: string;
   bronchodilatorPositive: boolean;
   distanceMeters: number;
   walkCompleted: boolean;
   walkStopped: boolean;
   walkSymptoms: boolean;
   borgFinal: number;
+  walkMinuteReadings: WalkMinuteReading[];
 };
 
-type Fonts = {
-  regular: PDFFont;
-  bold: PDFFont;
-  italic: PDFFont;
+export type WalkReportRow = {
+  minute: number;
+  so2: number | "";
+  fc: number | "";
+  borg: number | "";
 };
 
-const navy = rgb(0.10, 0.20, 0.34);
-const blue = rgb(0.10, 0.45, 0.92);
+const obstructionLabels: Record<string, string> = {
+  OL: "leve",
+  OM: "moderada",
+  OMS: "moderadamente severa",
+  OS: "severa",
+};
 
-function formatDate(value: string) {
-  const [year, month, day] = value.split("-");
-  return `${day}/${month}/${year}`;
+const restrictionLabels: Record<string, string> = {
+  RL: "leve",
+  RM: "moderada",
+  RMS: "moderadamente severa",
+  RS: "severa",
+};
+
+function cleanText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
-function formatDni(value: string) {
-  const digits = value.replace(/\D/g, "");
-  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+function normalizedPattern(value: unknown) {
+  const clean = cleanText(value).toLocaleLowerCase("es-AR");
+  if (clean === "normal") return "Normal";
+  if (clean === "obstructivo") return "Obstructivo";
+  if (clean === "restrictivo") return "Restrictivo";
+  if (clean === "mixto") return "Mixto";
+  return "";
 }
 
-function titleCaseDoctor(value: string) {
-  const name = value.trim() || "Dr. Gustavo Piguillem";
-  return name.toUpperCase();
-}
-
-function parseResult(codeValue: string) {
-  const code = codeValue.toUpperCase().trim();
-  if (code === "N") return { type: "normal" as const, restriction: "", obstruction: "" };
-
-  const obstructionLabels: Record<string, string> = {
-    OL: "leve",
-    OM: "moderada",
-    OMS: "moderadamente severa",
-    OS: "severa",
-  };
-  const restrictionLabels: Record<string, string> = {
-    RL: "leve",
-    RM: "moderada",
-    RMS: "moderadamente severa",
-    RS: "severa",
-  };
-
-  if (obstructionLabels[code]) {
-    return { type: "obstructive" as const, restriction: "", obstruction: obstructionLabels[code] };
-  }
-  if (restrictionLabels[code]) {
-    return { type: "restrictive" as const, restriction: restrictionLabels[code], obstruction: "" };
-  }
+function parseCode(codeValue: unknown) {
+  const code = cleanText(codeValue).toUpperCase().replace(/\s+/g, "");
+  if (code === "N") return { pattern: "Normal", obstruction: "", restriction: "" };
+  if (obstructionLabels[code]) return { pattern: "Obstructivo", obstruction: obstructionLabels[code], restriction: "" };
+  if (restrictionLabels[code]) return { pattern: "Restrictivo", obstruction: "", restriction: restrictionLabels[code] };
 
   const restrictionCode = ["RMS", "RS", "RM", "RL"].find((candidate) => code.startsWith(candidate));
   const obstructionCode = restrictionCode ? code.slice(restrictionCode.length) : "";
   if (restrictionCode && obstructionLabels[obstructionCode]) {
     return {
-      type: "mixed" as const,
-      restriction: restrictionLabels[restrictionCode],
+      pattern: "Mixto",
       obstruction: obstructionLabels[obstructionCode],
+      restriction: restrictionLabels[restrictionCode],
     };
   }
-  return { type: "unknown" as const, restriction: "", obstruction: "" };
+  return { pattern: "", obstruction: "", restriction: "" };
 }
 
-function resultLines(code: string) {
-  const result = parseResult(code);
-  if (result.type === "normal") return ["El paciente presenta resultados normales."];
-  if (result.type === "obstructive") {
-    return [`El paciente presenta deficit respiratorio (obstruccion ${result.obstruction})`, "a las pequenas vias respiratorias aereas."];
+function capitalized(value: unknown) {
+  const clean = cleanText(value).toLocaleLowerCase("es-AR");
+  return clean ? `${clean.charAt(0).toLocaleUpperCase("es-AR")}${clean.slice(1)}` : "";
+}
+
+export function reportText(data: ReportData) {
+  const fromCode = parseCode(data.resultCode);
+  const pattern = normalizedPattern(data.respiratoryPattern) || fromCode.pattern || "Normal";
+  const obstruction = cleanText(data.obstructionGrade).toLocaleLowerCase("es-AR") || fromCode.obstruction || "leve";
+  const restriction = cleanText(data.restrictionGrade).toLocaleLowerCase("es-AR") || fromCode.restriction || "leve";
+
+  if (pattern === "Normal") return "El paciente presenta resultados normales.";
+  if (pattern === "Obstructivo") {
+    return `El paciente presenta déficit respiratorio (obstrucción ${obstruction}) a las pequeñas vías respiratorias aéreas.`;
   }
-  if (result.type === "restrictive") {
-    return [`El paciente presenta deficit respiratorio (restriccion ${result.restriction})`, "a las vias respiratorias aereas."];
+  if (pattern === "Restrictivo") {
+    return `El paciente presenta déficit respiratorio (restricción ${restriction}) a las vías respiratorias aéreas.`;
   }
-  if (result.type === "mixed") {
-    return [
-      "El paciente presenta deficit respiratorio con patron mixto:",
-      `  Restriccion ${result.restriction}.`,
-      `  Obstruccion ${result.obstruction} a las pequenas vias respiratorias aereas.`,
-    ];
-  }
-  return [`Resultado de espirometria: ${code}.`];
+  return [
+    "El paciente presenta déficit respiratorio con patrón mixto:",
+    ` Restricción ${capitalized(restriction)}.`,
+    ` Obstrucción ${capitalized(obstruction)} a las pequeñas vías respiratorias aéreas.`,
+  ].join("\n");
 }
 
-function drawHeader(page: PDFPage, fonts: Fonts) {
-  page.drawRectangle({ x: 78, y: 710, width: 439, height: 60, borderColor: blue, borderWidth: 1 });
-  page.drawText("CENTRO RESPIRATORIO INTEGRAL", { x: 178, y: 748, size: 12, font: fonts.bold, color: navy });
-  page.drawText("MARCONI 147 - TEL: 02657-705270", { x: 197, y: 733, size: 8.5, font: fonts.regular });
-  page.drawText("VILLA MERCEDES (SAN LUIS)", { x: 216, y: 720, size: 8.5, font: fonts.regular });
+export function isNormalResult(data: ReportData) {
+  return (normalizedPattern(data.respiratoryPattern) || parseCode(data.resultCode).pattern) === "Normal";
 }
 
-function drawPatientData(page: PDFPage, fonts: Fonts, data: ReportData, startY = 667) {
-  page.drawText(formatDate(data.date), { x: 455, y: startY + 8, size: 11.5, font: fonts.bold });
-  const values = [
-    ["PACIENTE:", data.patientName.toUpperCase()],
-    ["DNI:", formatDni(data.dni)],
-    ["DERIVA:", titleCaseDoctor(data.physicianName)],
-  ];
-  values.forEach(([label, value], index) => {
-    const y = startY - index * 25;
-    page.drawText(label, { x: 88, y, size: 10.5, font: fonts.bold, color: navy });
-    page.drawLine({ start: { x: 88, y: y - 2 }, end: { x: 88 + fonts.bold.widthOfTextAtSize(label, 10.5), y: y - 2 }, thickness: 0.8, color: navy });
-    page.drawText(value, { x: 153, y, size: 10.5, font: fonts.regular });
-  });
+export function formatReportDate(value: string) {
+  const [year, month, day] = value.split("-");
+  return `${day}/${month}/${year}`;
 }
 
-function drawSignature(page: PDFPage, fonts: Fonts) {
-  page.drawText("DR. PIGUILLEM GUSTAVO GABRIEL", { x: 221, y: 62, size: 6.3, font: fonts.regular, color: rgb(0.42, 0.42, 0.42) });
-  page.drawText("MAT. 2083", { x: 274, y: 52, size: 6.3, font: fonts.regular, color: rgb(0.42, 0.42, 0.42) });
-  page.drawText("ESP. EN VIAS RESPIRATORIAS", { x: 238, y: 42, size: 6.3, font: fonts.regular, color: rgb(0.42, 0.42, 0.42) });
+export function formatReportDni(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "0";
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
-function drawSpirometryPage(pdf: PDFDocument, fonts: Fonts, data: ReportData) {
-  const page = pdf.addPage([595.28, 841.89]);
-  drawHeader(page, fonts);
-  drawPatientData(page, fonts, data);
-  page.drawText("Resultado Espirometria Computarizada:", { x: 88, y: 570, size: 12.5, font: fonts.bold, color: navy });
-  page.drawLine({ start: { x: 88, y: 568 }, end: { x: 316, y: 568 }, thickness: 0.8, color: navy });
-
-  let y = 535;
-  for (const line of resultLines(data.resultCode)) {
-    page.drawText(line, { x: line.startsWith("  ") ? 101 : 88, y, size: 12.5, font: fonts.bold });
-    y -= 25;
-  }
-
-  page.drawText(`SO2: ${data.so2Rest}%`, { x: 88, y: y - 18, size: 11.5, font: fonts.bold });
-  page.drawText(`FC: ${data.fcRest} lpm`, { x: 230, y: y - 18, size: 11.5, font: fonts.bold });
-  if (data.bronchodilatorPositive) {
-    page.drawText("Broncodilatador positivo", { x: 88, y: y - 46, size: 11.5, font: fonts.bold, color: rgb(0.04, 0.45, 0.34) });
-  }
-  if (data.resultCode !== "N") {
-    page.drawText("Por antecedentes clinicos del paciente, sugiero control.", { x: 88, y: y - 86, size: 10.5, font: fonts.italic });
-  }
-  drawSignature(page, fonts);
+export function normalizeDoctor(value: string) {
+  const clean = (cleanText(value) || "DR. GUSTAVO PIGUILLEM").replace(/\s+/g, " ").toLocaleUpperCase("es-AR");
+  const female = /^DRA\.?\s+/i.test(clean) || /^DR\.\s*A\.?\s+/i.test(clean);
+  const withoutPrefix = clean
+    .replace(/^DRA\.?\s+/i, "")
+    .replace(/^DR\.\s*A\.?\s+/i, "")
+    .replace(/^DR\.?\s+/i, "")
+    .trim();
+  return `${female ? "DRA." : "DR."} ${withoutPrefix || "GUSTAVO PIGUILLEM"}`;
 }
 
-function interpolate(start: number, end: number, minute: number) {
-  return Math.round(start + ((end - start) * minute / 6));
+function validated(value: unknown, minimum: number, maximum: number): number | "" {
+  if (value == null || value === "") return "";
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) return "";
+  return parsed;
 }
 
-function walkRows(data: ReportData) {
-  const finalBorg = data.borgFinal > 0 ? data.borgFinal : 1;
-  return Array.from({ length: 7 }, (_, minute) => ({
-    minute,
-    so2: interpolate(data.so2Rest, data.so2Post, minute),
-    fc: interpolate(data.fcRest, data.fcPost, minute),
-    borg: Math.floor((finalBorg * minute) / 6),
-  }));
+function interpolate(startValue: number | null, endValue: number | null, minute: number, maximum: number): number | "" {
+  const start = validated(startValue, 0, maximum);
+  const end = validated(endValue, 0, maximum);
+  if (start === "" && end === "") return "";
+  if (start === "") return end;
+  if (end === "") return start;
+  return Math.min(Math.round(start + ((end - start) * minute / 6)), maximum);
 }
 
-function drawWalkPage(pdf: PDFDocument, fonts: Fonts, data: ReportData) {
-  const page = pdf.addPage([595.28, 841.89]);
-  drawHeader(page, fonts);
-  drawPatientData(page, fonts, data);
-  page.drawText("PRUEBA DE LOS 6 Y 12 MINUTOS", { x: 88, y: 570, size: 10.5, font: fonts.bold });
-  page.drawLine({ start: { x: 88, y: 568 }, end: { x: 258, y: 568 }, thickness: 0.8 });
-
-  const description = "Se realizo test de la marcha con monitoreo continuo; en reposo, durante la marcha (6 min.) y en la recuperacion (2 min.).";
-  page.drawText(description, { x: 88, y: 548, size: 7.8, font: fonts.regular, maxWidth: 430 });
-  page.drawText(`Distancia recorrida: ${data.distanceMeters} mts.`, { x: 101, y: 518, size: 8.2, font: fonts.regular });
-  page.drawText(`Realizo correctamente la marcha: ${data.walkCompleted ? "Si" : "No"}`, { x: 101, y: 500, size: 8.2, font: fonts.regular });
-  page.drawText(`Se detuvo durante la marcha: ${data.walkStopped ? "Si" : "No"}`, { x: 101, y: 482, size: 8.2, font: fonts.regular });
-  page.drawText(`Presento sintomas al final de la marcha: ${data.walkSymptoms ? "Si" : "No"}`, { x: 101, y: 464, size: 8.2, font: fonts.regular });
-
-  const columns = [88, 210, 300, 383, 507];
-  const top = 435;
-  const rowHeight = 22;
-  const headers = ["MINUTOS", "SO2", "FC", "ESC. BORG"];
-  for (let index = 0; index < headers.length; index += 1) {
-    page.drawRectangle({ x: columns[index], y: top, width: columns[index + 1] - columns[index], height: rowHeight, borderWidth: 0.5, borderColor: rgb(0, 0, 0), color: rgb(0.92, 0.96, 0.98) });
-    const text = headers[index];
-    const width = fonts.bold.widthOfTextAtSize(text, 7.5);
-    page.drawText(text, { x: columns[index] + ((columns[index + 1] - columns[index] - width) / 2), y: top + 7, size: 7.5, font: fonts.bold });
+export function buildWalkRows(data: ReportData): WalkReportRow[] {
+  const rows: WalkReportRow[] = Array.from({ length: 7 }, (_, minute) => ({ minute, so2: "", fc: "", borg: "" }));
+  for (const reading of data.walkMinuteReadings) {
+    if (!Number.isInteger(reading.minute) || reading.minute < 0 || reading.minute > 6) continue;
+    rows[reading.minute].so2 = validated(reading.so2, 0, 100);
+    rows[reading.minute].fc = validated(reading.fc, 0, 300);
+    rows[reading.minute].borg = validated(reading.borg, 0, 10);
   }
 
-  walkRows(data).forEach((row, rowIndex) => {
-    const y = top - ((rowIndex + 1) * rowHeight);
-    [row.minute, row.so2, row.fc, row.borg].forEach((value, columnIndex) => {
-      page.drawRectangle({ x: columns[columnIndex], y, width: columns[columnIndex + 1] - columns[columnIndex], height: rowHeight, borderWidth: 0.5, borderColor: rgb(0, 0, 0) });
-      const text = String(value);
-      const width = fonts.regular.widthOfTextAtSize(text, 8);
-      page.drawText(text, { x: columns[columnIndex] + ((columns[columnIndex + 1] - columns[columnIndex] - width) / 2), y: y + 7, size: 8, font: fonts.regular });
-    });
-  });
+  for (let minute = 0; minute <= 6; minute += 1) {
+    if (rows[minute].so2 === "") rows[minute].so2 = interpolate(data.so2Rest, data.so2Post, minute, 100);
+    if (rows[minute].fc === "") rows[minute].fc = interpolate(data.fcRest, data.fcPost, minute, 300);
+  }
 
-  const abnormal = data.so2Post <= 88 || data.so2Rest - data.so2Post >= 4 || !data.walkCompleted || data.walkStopped || data.walkSymptoms;
-  page.drawText(`PRUEBA DE LOS 6 Y 12 MINUTOS: ${abnormal ? "PRUEBA NO NORMAL" : "PRUEBA NORMAL"}`, { x: 88, y: 245, size: 9, font: fonts.bold });
-  drawSignature(page, fonts);
+  const finalBorg = validated(data.borgFinal || 1, 0, 10);
+  if (finalBorg !== "") {
+    for (let minute = 0; minute <= 6; minute += 1) {
+      if (rows[minute].borg === "") rows[minute].borg = Math.min(Math.floor(finalBorg * minute / 6), 10);
+    }
+  }
+  return rows;
 }
 
-function drawMutualPage(pdf: PDFDocument, fonts: Fonts, data: ReportData) {
-  const page = pdf.addPage([595.28, 841.89]);
-  drawHeader(page, fonts);
-  drawPatientData(page, fonts, data);
-  page.drawText("INFORME PARA MUTUAL", { x: 88, y: 570, size: 12, font: fonts.bold, color: navy });
-  page.drawText(`Cobertura: ${data.coverageName || "Mutual"}`, { x: 88, y: 540, size: 10.5, font: fonts.regular });
-  page.drawText(`Estudio realizado: ${data.studyType}`, { x: 88, y: 515, size: 10.5, font: fonts.regular });
-  page.drawText(`Resultado: ${data.resultCode}`, { x: 88, y: 490, size: 10.5, font: fonts.bold });
-  drawSignature(page, fonts);
+export function walkAssessment(data: ReportData) {
+  const drop = data.so2Rest == null || data.so2Post == null ? null : data.so2Rest - data.so2Post;
+  const abnormal = (
+    (data.so2Post != null && data.so2Post <= 88)
+    || (drop != null && drop >= 4)
+    || !data.walkCompleted
+    || data.walkStopped
+    || data.walkSymptoms
+  );
+  return abnormal ? "PRUEBA NO NORMAL" : "PRUEBA NORMAL";
 }
 
-export async function createClinicalReport(data: ReportData) {
-  const pdf = await PDFDocument.create();
-  const fonts: Fonts = {
-    regular: await pdf.embedFont(StandardFonts.TimesRoman),
-    bold: await pdf.embedFont(StandardFonts.TimesRomanBold),
-    italic: await pdf.embedFont(StandardFonts.TimesRomanItalic),
-  };
-  drawSpirometryPage(pdf, fonts, data);
-  if (data.studyType === "Ciclometria") drawWalkPage(pdf, fonts, data);
-  if (data.coverageType === "Mutual") drawMutualPage(pdf, fonts, data);
-  return pdf.save();
+export function mutualCvlResult(data: ReportData) {
+  const fromCode = parseCode(data.resultCode);
+  const pattern = normalizedPattern(data.respiratoryPattern) || fromCode.pattern || "Normal";
+  const obstruction = cleanText(data.obstructionGrade).toLocaleLowerCase("es-AR") || fromCode.obstruction;
+  const restriction = cleanText(data.restrictionGrade).toLocaleLowerCase("es-AR") || fromCode.restriction;
+  if (pattern === "Normal") return "Normal";
+  if (pattern === "Obstructivo") {
+    if (obstruction === "leve") return "Levemente disminuida";
+    if (obstruction === "moderado" || obstruction === "moderada") return "Moderadamente disminuida";
+    if (obstruction === "moderadamente severa") return "Moderadamente a severamente disminuida";
+    return "Severamente disminuida";
+  }
+  if (pattern === "Restrictivo") {
+    if (restriction === "leve") return "Levemente reducida";
+    if (restriction === "moderado" || restriction === "moderada") return "Moderadamente reducida";
+    if (restriction === "moderadamente severa") return "Moderadamente a severamente reducida";
+    return "Severamente reducida";
+  }
+  return "Reducida (patrón mixto)";
 }

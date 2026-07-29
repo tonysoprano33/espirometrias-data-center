@@ -1,0 +1,323 @@
+@page {
+  size: Letter;
+  margin: 0;
+}
+
+.print-root {
+  min-height: 100vh;
+  color: #000;
+  background: #e9e9e9;
+  font-family: "Times New Roman", Times, serif;
+}
+
+.print-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 18px;
+  border-bottom: 1px solid #d7cec2;
+  background: rgba(245, 241, 234, .96);
+}
+
+.print-button {
+  display: inline-block;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: #0f5a5f;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: none;
+}
+
+.print-button.alt {
+  background: #d67c32;
+}
+
+.print-sheet,
+.print-sheet-pdf {
+  box-sizing: border-box;
+  position: relative;
+  width: 8.5in;
+  min-height: 11in;
+  margin: 14px auto;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .10);
+  page-break-after: always;
+}
+
+.print-sheet {
+  padding: .8in 1.2in .6in;
+}
+
+.print-sheet-pdf {
+  padding: 0;
+  overflow: hidden;
+}
+
+.print-header-box {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0 auto;
+  padding: 8pt 10pt;
+  border: 1.5px solid #1f77ff;
+  text-align: center;
+}
+
+.print-header-box strong {
+  display: block;
+  color: #283c5a;
+  font-size: 14pt;
+  line-height: 1.08;
+}
+
+.print-header-box span {
+  display: block;
+  margin-top: 1px;
+  font-size: 11pt;
+  line-height: 1.08;
+}
+
+.print-date {
+  margin-top: 15px;
+  margin-bottom: 25px;
+  font-size: 16pt;
+  font-weight: bold;
+  text-align: right;
+}
+
+.print-line-item {
+  margin-top: 15px;
+  font-size: 16pt;
+  line-height: 1.35;
+}
+
+.print-line-item strong {
+  color: #283c5a;
+  text-decoration: underline;
+}
+
+.print-dni-line {
+  margin-top: 18px;
+  margin-bottom: 18px;
+}
+
+.print-dni-value,
+.print-patient-value {
+  font-size: 16pt;
+  font-weight: bold;
+}
+
+.print-dni-value {
+  letter-spacing: .01em;
+}
+
+.print-sheet h2 {
+  margin: 35px 0 15px;
+  color: #283c5a;
+  font-size: 18pt;
+  text-decoration: underline;
+}
+
+.print-sheet > p {
+  margin: 15px 0;
+  font-size: 16pt;
+  line-height: 1.6;
+}
+
+.print-emphasis {
+  font-size: 18pt !important;
+  font-weight: bold;
+  line-height: 1.6;
+}
+
+.print-spirometry-result {
+  max-width: 100%;
+  text-align: justify;
+  white-space: pre-line;
+}
+
+.print-clinical-note {
+  margin-top: 40px !important;
+  margin-bottom: 15px !important;
+  font-size: 16pt !important;
+  font-style: italic;
+  font-weight: bold;
+}
+
+.print-so2-fc {
+  display: flex;
+  gap: 76px;
+  margin-top: 45px !important;
+  margin-bottom: 20px !important;
+}
+
+.print-bronchodilator {
+  color: #b54123;
+}
+
+.print-walk-comments p {
+  margin: 5px 0 5px .3in;
+  font-size: 10pt;
+  line-height: 1.2;
+}
+
+.print-sheet table {
+  width: 100%;
+  margin: 10px auto 0;
+  border-collapse: collapse;
+}
+
+.print-sheet th,
+.print-sheet td {
+  padding: 3px 6px;
+  border: 1px solid #000;
+  font-size: 10pt;
+  line-height: 1.12;
+  text-align: center;
+}
+
+.print-sheet th {
+  background: #eff6fb;
+  font-weight: bold;
+}
+
+.print-signature {
+  position: absolute;
+  right: 0;
+  bottom: .48in;
+  left: 0;
+  color: #555;
+  font-size: 9pt;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.print-sheet-pdf canvas,
+.print-sheet-pdf img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 11in;
+  object-fit: contain;
+}
+
+.print-walk-result {
+  margin-top: 20px !important;
+  font-size: 11pt !important;
+  font-weight: bold;
+}
+
+.print-mutual-sheet {
+  padding: .6in .9in .5in;
+}
+
+.print-mutual-sheet .print-date {
+  margin-top: 4px;
+  margin-bottom: 6px;
+  font-size: 11pt;
+}
+
+.print-mutual-sheet .print-line-item {
+  margin-top: 4px;
+  font-size: 11pt;
+  line-height: 1.15;
+}
+
+.print-mutual-sheet .print-dni-line {
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.print-mutual-sheet .print-dni-value,
+.print-mutual-sheet .print-patient-value {
+  font-size: 11pt;
+  font-weight: normal;
+}
+
+.print-mutual-sheet h2 {
+  margin: 8px 0 5px;
+  color: #000;
+  font-size: 12pt;
+}
+
+.print-mutual-sheet > p {
+  margin: 4px 0;
+  font-size: 10pt;
+  line-height: 1.18;
+}
+
+.print-mutual-comments p {
+  margin: 3px 0 3px .25in;
+}
+
+.print-mutual-emphasis {
+  font-size: 11pt !important;
+  font-weight: bold;
+}
+
+.print-mutual-sheet .print-signature {
+  bottom: .38in;
+}
+
+.print-page-break {
+  page-break-before: always;
+}
+
+.print-source-loading,
+.print-source-error {
+  display: grid;
+  place-content: center;
+  min-height: 9.4in;
+  gap: 8px;
+  color: #52666e;
+  text-align: center;
+}
+
+.print-source-error {
+  color: #a23630;
+}
+
+.print-blocked-sheet h1 {
+  margin: 0 0 24px;
+  color: #283c5a;
+  font-size: 24pt;
+}
+
+.print-blocked-sheet p,
+.print-blocked-sheet li {
+  font-size: 14pt;
+  line-height: 1.45;
+}
+
+@media (max-width: 850px) {
+  .print-sheet,
+  .print-sheet-pdf {
+    width: 100%;
+    min-height: 129.4vw;
+    margin: 0 auto 12px;
+  }
+}
+
+@media print {
+  .print-root {
+    background: #fff;
+  }
+
+  .print-toolbar {
+    display: none;
+  }
+
+  .print-sheet,
+  .print-sheet-pdf {
+    float: none;
+    width: 8.5in;
+    min-height: 11in;
+    margin: 0 auto;
+    box-shadow: none;
+  }
+}

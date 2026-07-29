@@ -49,8 +49,8 @@ export default async function AgendaPage() {
   return <main className="shell">
     <section className={`card agenda-card ${profile.role === "secretaria" ? "secretary-agenda" : "espirometrista-agenda"}`}>
       <div className="agenda-head"><div><p className="pill">Agenda {today.split("-").reverse().join("/")}</p><h1 className="section-title">Pacientes del dia</h1></div>
-        {profile.role !== "secretaria" && (entries.length > 0 && entries.every((entry) => entry.can_print)
-          ? <Link className="button alt print-day-button" href={`/api/print-day?date=${today}`} target="_blank">Imprimir todo el dia</Link>
+        {profile.role !== "secretaria" && (entries.length > 0
+          ? <Link className="button alt print-day-button" href={`/imprimir-dia?date=${today}`} target="_blank">Imprimir todo el dia</Link>
           : <span className="button alt print-day-button is-disabled" title="Todavia no hay pacientes listos para imprimir">Imprimir todo el dia</span>)}
       </div>
       {error && <p className="notice error">No se pudo cargar la agenda: {error.message}</p>}
