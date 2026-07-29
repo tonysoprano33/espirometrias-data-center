@@ -611,3 +611,496 @@ h2 { margin-bottom: 0; font-size: 1.18rem; text-transform: capitalize; }
 .document-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .document-actions a { padding: 7px 9px; border-radius: 8px; color: #fff; background: #087f9b; font: 800 .72rem "Trebuchet MS", sans-serif; text-decoration: none; }
 .document-actions a + a { color: #7a4c00; background: #fff0cf; }
+
+/* Medical review mirrors the compact workflow used by the validated legacy screen. */
+main.shell.doctor-review-page {
+  width: min(100% - 18px, 2040px);
+  max-width: none;
+  display: grid;
+  gap: 10px;
+  padding: 9px 0 20px;
+}
+.doctor-review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 10px;
+  border: 1px solid #cfe2e7;
+  border-radius: 14px;
+  background: rgba(255,255,255,.94);
+}
+.doctor-review-header h1 {
+  margin: 0;
+  color: #123f54;
+  font-size: clamp(1.45rem, 2.2vw, 2.1rem);
+  line-height: 1.05;
+}
+.doctor-review-header p {
+  margin: 5px 0 0;
+  color: #55737e;
+  font: 800 .75rem "Trebuchet MS", sans-serif;
+}
+.review-file-options { position: relative; flex: 0 0 auto; }
+.review-file-options summary {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 11px;
+  border: 1px solid #cfdee2;
+  border-radius: 9px;
+  color: #4f6c77;
+  background: #f5fafb;
+  cursor: pointer;
+  font: 900 .7rem "Trebuchet MS", sans-serif;
+  list-style: none;
+}
+.review-file-options > div {
+  position: absolute;
+  z-index: 8;
+  top: 42px;
+  right: 0;
+  min-width: 190px;
+  display: grid;
+  gap: 6px;
+  padding: 9px;
+  border: 1px solid #c6dee4;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 14px 30px rgba(17,64,81,.18);
+}
+.review-file-options a {
+  padding: 8px 9px;
+  border-radius: 7px;
+  color: #0b6e88;
+  background: #edf9fc;
+  font: 800 .7rem "Trebuchet MS", sans-serif;
+  text-decoration: none;
+}
+.review-queue-banner {
+  position: sticky;
+  z-index: 5;
+  top: 6px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 13px;
+  border: 1px solid #c9e2e7;
+  border-radius: 13px;
+  background: linear-gradient(100deg, #e4f8fd 0%, #fffdf6 58%, #fff6e5 100%);
+  box-shadow: 0 5px 16px rgba(22,75,92,.08);
+}
+.review-queue-banner > div:first-child { display: grid; gap: 3px; }
+.review-queue-banner > div:first-child small {
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 99px;
+  color: #18708a;
+  background: #effbfe;
+  font: 900 .61rem "Trebuchet MS", sans-serif;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.review-queue-banner > div:first-child strong {
+  color: #163f52;
+  font-size: 1rem;
+}
+.review-queue-banner > div:first-child span {
+  color: #69818a;
+  font: 700 .67rem "Trebuchet MS", sans-serif;
+}
+.review-queue-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 8px;
+}
+.review-queue-controls > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+.review-queue-controls a,
+.review-queue-controls .navigation-disabled {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border-radius: 9px;
+  color: #fff;
+  background: linear-gradient(135deg, #2387a4, #56aec5);
+  font: 900 .72rem "Trebuchet MS", sans-serif;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.review-queue-controls a.next {
+  background: linear-gradient(135deg, #df7c0b, #f3a328);
+}
+.review-queue-controls .navigation-disabled {
+  color: #73858b;
+  background: #f0f4f5;
+}
+.review-queue-controls small {
+  max-width: 190px;
+  overflow: hidden;
+  color: #425f69;
+  font: 800 .66rem "Trebuchet MS", sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.review-queue-controls small b {
+  color: #08718c;
+  font-variant-numeric: tabular-nums;
+}
+.doctor-review-page .medical-control-banner {
+  margin: 0;
+  padding: 10px;
+  font-size: .82rem;
+}
+.review-workspace {
+  display: grid;
+  grid-template-columns: minmax(680px, 1.72fr) minmax(350px, .68fr);
+  gap: 13px;
+  align-items: start;
+}
+.pdf-review-card {
+  min-width: 0;
+  overflow: hidden;
+  padding: 7px;
+  border: 1px solid #d3e4e8;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(18,72,91,.06);
+}
+.pdf-page-frame { min-width: 0; }
+.pdf-page-label {
+  display: block;
+  padding: 0 2px 6px;
+  color: #526f7b;
+  font: 700 .7rem "Trebuchet MS", sans-serif;
+}
+.pdf-page-viewport {
+  height: min(calc(100vh - 124px), 1002px);
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  border: 1px solid #d0e0e4;
+  border-radius: 11px;
+  background: #fff;
+}
+.pdf-page-canvas,
+.pdf-page-image {
+  display: block;
+  width: 79%;
+  max-width: 920px;
+  height: auto;
+  margin: -72px auto 0;
+  background: #fff;
+}
+.pdf-page-viewport .document-empty {
+  width: 100%;
+  min-height: 500px;
+  margin: 0;
+}
+.review-panel-compact {
+  position: sticky;
+  top: 82px;
+  max-height: calc(100vh - 92px);
+  display: grid;
+  gap: 9px;
+  overflow-y: auto;
+  padding-right: 3px;
+  scrollbar-width: thin;
+}
+.review-panel-compact > section,
+.source-file-details {
+  overflow: hidden;
+  border: 1px solid #d3e5e9;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 7px 18px rgba(18,72,91,.05);
+}
+.review-panel-compact > section { padding: 12px; }
+.review-panel-compact h2 {
+  margin: 0 0 9px;
+  color: #16485a;
+  font-size: 1rem;
+}
+.clinical-signs-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.clinical-sign {
+  min-width: 0;
+  padding: 9px 7px;
+  border: 1px solid #dbe8eb;
+  border-radius: 9px;
+  background: #f6fafb;
+  text-align: center;
+}
+.clinical-sign small,
+.clinical-sign strong { display: block; }
+.clinical-sign small {
+  color: #647e87;
+  font: 800 .57rem "Trebuchet MS", sans-serif;
+  text-transform: uppercase;
+}
+.clinical-sign strong {
+  margin-top: 4px;
+  color: #365f6c;
+  font-size: 1.04rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.clinical-sign.ok { border-color: #a8dcc0; background: #eaf8ef; }
+.clinical-sign.ok strong { color: #177044; }
+.clinical-sign.watch { border-color: #efd088; background: #fff6df; }
+.clinical-sign.watch strong { color: #956000; }
+.clinical-sign.alert { border-color: #e9aaa5; background: #fff0ee; }
+.clinical-sign.alert strong { color: #b13f38; }
+.clinical-sign.heart { border-color: #ffd1a3; background: #fff2e5; }
+.clinical-sign.heart strong { color: #9a570b; }
+.walk-clinical-summary {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 9px;
+}
+.walk-clinical-summary.ok { color: #176b41; background: #eaf7ee; }
+.walk-clinical-summary.alert { color: #a33c36; background: #fff0ee; }
+.walk-clinical-summary strong { font-size: .78rem; }
+.walk-clinical-summary span {
+  font: 700 .66rem/1.3 "Trebuchet MS", sans-serif;
+}
+.source-status-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.source-status-card div { display: grid; gap: 2px; }
+.source-status-card small {
+  color: #667f88;
+  font: 800 .59rem "Trebuchet MS", sans-serif;
+  text-transform: uppercase;
+}
+.source-status-card strong { color: #174c5e; font-size: .86rem; }
+.source-status-card span {
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: #8b5a00;
+  background: #fff2d1;
+  font: 900 .62rem "Trebuchet MS", sans-serif;
+}
+.source-status-card.ready { border-left: 5px solid #3aa56c; }
+.source-status-card.missing { border-left: 5px solid #d9685f; }
+.source-file-details > summary {
+  padding: 10px 12px;
+  color: #55727d;
+  background: #f5fafb;
+  cursor: pointer;
+  font: 900 .69rem "Trebuchet MS", sans-serif;
+}
+.source-file-details .source-file-panel {
+  border: 0;
+  border-top: 1px solid #dce9ec;
+  border-radius: 0;
+}
+.medical-decision-panel {
+  display: grid;
+  gap: 9px;
+  border-left: 5px solid #11819c !important;
+}
+.medical-suggestion-card {
+  display: grid;
+  gap: 8px;
+  padding: 11px;
+  border: 2px solid #62b7d5;
+  border-radius: 12px;
+  color: #154d62;
+  background: #e8f8fd;
+}
+.medical-suggestion-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.medical-suggestion-head > div { display: grid; gap: 4px; }
+.medical-suggestion-head small {
+  font: 900 .67rem "Trebuchet MS", sans-serif;
+}
+.medical-suggestion-head strong {
+  width: fit-content;
+  min-width: 48px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  color: #fff;
+  background: #259bbd;
+  font-size: 1.1rem;
+  text-align: center;
+}
+.medical-suggestion-head button {
+  min-height: 36px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: #299fc0;
+  cursor: pointer;
+  font: 900 .7rem "Trebuchet MS", sans-serif;
+}
+.medical-suggestion-card > b { font-size: .86rem; }
+.medical-suggestion-card > p {
+  margin: 0;
+  color: #50717c;
+  font: 700 .75rem/1.35 "Trebuchet MS", sans-serif;
+}
+.measurement-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.measurement-grid > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 8px;
+  border: 1px solid #b8ddea;
+  border-radius: 8px;
+  background: rgba(255,255,255,.8);
+}
+.measurement-grid strong { font-size: .75rem; }
+.measurement-grid span {
+  overflow-wrap: anywhere;
+  color: #345f6d;
+  font: 700 .63rem/1.25 "Trebuchet MS", sans-serif;
+}
+.bronchodilator-reading {
+  display: grid;
+  gap: 2px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  color: #11613e;
+  background: #e7f8ed;
+}
+.bronchodilator-reading strong { font-size: .72rem; }
+.bronchodilator-reading span { font: 700 .64rem/1.3 "Trebuchet MS", sans-serif; }
+.decision-help {
+  color: #577682;
+  font: 700 .64rem/1.3 "Trebuchet MS", sans-serif;
+}
+.final-result-card {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  border: 3px solid #e59020;
+  border-radius: 14px;
+  background: #fff3cf;
+}
+.final-result-card.saved {
+  border-color: #35a669;
+  background: #e9f9ee;
+}
+.final-result-card label {
+  color: #965100;
+  font: 900 .95rem "Trebuchet MS", sans-serif;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.final-result-card.saved label { color: #176b41; }
+.final-result-card input {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px 12px;
+  border: 3px solid #dca900;
+  border-radius: 12px;
+  color: #153f51;
+  background: rgba(255,255,255,.85);
+  font: 900 1.7rem Georgia, serif;
+  text-transform: uppercase;
+}
+.final-result-card.saved input { border-color: #35a669; }
+.final-result-card p {
+  margin: 0;
+  color: #8f4d00;
+  font: 800 .7rem "Trebuchet MS", sans-serif;
+}
+.final-result-card.saved p { color: #176b41; }
+.final-result-card > span {
+  width: fit-content;
+  padding: 5px 8px;
+  border-radius: 99px;
+  color: #8d4c00;
+  background: #ffe5ad;
+  font: 900 .61rem "Trebuchet MS", sans-serif;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.final-result-card.saved > span { color: #176b41; background: #ccefd8; }
+.bronchodilator-confirmed {
+  padding: 9px 10px;
+  border: 1px solid #8ccdad;
+  border-radius: 9px;
+  color: #176b41;
+  background: #e8f8ed;
+  font: 900 .75rem "Trebuchet MS", sans-serif;
+  text-align: center;
+  text-transform: uppercase;
+}
+.save-medical-result {
+  min-height: 48px;
+  border: 0;
+  border-radius: 10px;
+  color: #fff;
+  background: #087f9b;
+  cursor: pointer;
+  font: 900 .9rem "Trebuchet MS", sans-serif;
+  text-transform: uppercase;
+}
+.save-medical-result:disabled { opacity: .55; cursor: not-allowed; }
+.save-result-message {
+  color: #176b41;
+  font: 800 .7rem "Trebuchet MS", sans-serif;
+  text-align: center;
+}
+.review-panel-compact .notes-next {
+  padding: 10px 12px;
+  border-left: 4px solid #4fa8bf;
+}
+.review-panel-compact .notes-next h2 { margin-bottom: 5px; font-size: .82rem; }
+.review-panel-compact .notes-next p { margin: 0; font-size: .76rem; }
+.review-panel-compact .note-editor-next { padding: 10px; }
+.review-panel-compact .note-editor-next textarea { min-height: 58px; }
+
+@media (max-width: 1180px) {
+  .review-workspace { grid-template-columns: minmax(0, 1.45fr) minmax(330px, .75fr); }
+  .pdf-page-canvas, .pdf-page-image { width: 88%; }
+  .clinical-signs-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .measurement-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+  main.shell.doctor-review-page { width: min(100% - 12px, 100%); }
+  .doctor-review-header, .review-queue-banner { align-items: stretch; grid-template-columns: 1fr; }
+  .doctor-review-header { flex-direction: column; }
+  .review-file-options summary { width: 100%; justify-content: center; }
+  .review-file-options > div { left: 0; right: auto; width: 100%; }
+  .review-workspace { grid-template-columns: 1fr; }
+  .review-panel-compact { position: static; max-height: none; overflow: visible; }
+  .pdf-page-viewport { height: min(76vh, 840px); }
+  .pdf-page-canvas, .pdf-page-image { width: 100%; margin-top: -48px; }
+}
+@media (max-width: 560px) {
+  .review-queue-controls { grid-template-columns: 1fr 1fr; }
+  .review-queue-controls a,
+  .review-queue-controls .navigation-disabled { padding: 0 7px; font-size: .63rem; }
+  .doctor-review-header h1 { font-size: 1.35rem; }
+  .clinical-signs-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pdf-page-viewport { height: 66vh; }
+  .final-result-card input { min-height: 54px; font-size: 1.4rem; }
+}
