@@ -61,7 +61,7 @@ export default async function AgendaPage() {
       {profile.role !== "secretaria" && <DrappImport physicians={physicians} />}
       {profile.role === "secretaria" && <SecretaryAgenda entries={entries} />}
       <section className={`agenda-work-grid ${profile.role === "secretaria" ? "is-secretary" : "is-operator"}`} aria-label="Pacientes del dia">
-        <div className="agenda-work-head"><span>Hora</span><span>Paciente</span><span>DNI</span><span>Estudio</span><span>Cobertura</span>{profile.role !== "secretaria" && <><span>Medico derivante</span><span>Signos vitales</span><span>Prueba de caminata</span><span>Resultado</span></>}<span>Asistencia</span>{profile.role !== "secretaria" && <span>Acciones</span>}</div>
+        {profile.role === "secretaria" && <div className="agenda-work-head"><span>Hora</span><span>Paciente</span><span>DNI</span><span>Estudio</span><span>Cobertura</span><span>Asistencia</span></div>}
         {entries.length === 0 ? <p className="empty">Todavia no hay pacientes cargados para hoy.</p> : entries.map((entry) => profile.role !== "secretaria" ? <OperatorAgendaRow key={entry.encounter_id} entry={entry} physicians={physicians} /> : null)}
       </section>
     </section>

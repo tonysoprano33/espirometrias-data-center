@@ -1740,3 +1740,456 @@ main.shell.doctor-review-page {
     justify-content: center;
   }
 }
+
+/* Clinical agenda cards: scan first, edit only when needed. */
+.agenda-work-grid.is-operator {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 14px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.agenda-patient-card {
+  overflow: visible;
+  border: 1px solid #d6e4e8;
+  border-left: 5px solid #aab9bf;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 5px 18px rgba(24, 67, 82, .06);
+}
+.agenda-patient-card.no_llego { border-left-color: #c9d0d4; }
+.agenda-patient-card.esperando { border-left-color: #e59a26; }
+.agenda-patient-card.atendido { border-left-color: #36a369; }
+.agenda-patient-main {
+  display: grid;
+  grid-template-columns: 88px minmax(210px, 1.7fr) minmax(155px, 1fr) 118px 120px 126px 94px;
+  gap: 12px;
+  align-items: center;
+  min-height: 70px;
+  padding: 12px 16px 8px;
+}
+.agenda-patient-time {
+  color: #12495e;
+  font: 900 .9rem "Trebuchet MS", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.agenda-patient-identity,
+.agenda-patient-study {
+  min-width: 0;
+}
+.agenda-patient-identity strong,
+.agenda-patient-identity span,
+.agenda-patient-study strong,
+.agenda-patient-study span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agenda-patient-identity strong {
+  color: #123d4e;
+  font: 900 1rem "Trebuchet MS", sans-serif;
+}
+.agenda-patient-identity span,
+.agenda-patient-study span {
+  margin-top: 4px;
+  color: #6b8088;
+  font: 700 .78rem "Trebuchet MS", sans-serif;
+}
+.agenda-patient-study strong {
+  color: #255568;
+  font: 900 .86rem "Trebuchet MS", sans-serif;
+}
+.agenda-result-badge,
+.agenda-state-badge {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font: 900 .86rem "Trebuchet MS", sans-serif;
+  white-space: nowrap;
+}
+.agenda-result-badge.has-result {
+  color: #725700;
+  border: 1px solid #e2bd39;
+  background: #fff5bd;
+}
+.agenda-result-badge.missing {
+  color: #718289;
+  background: #eff3f5;
+}
+.agenda-state-badge {
+  color: #50676f;
+  background: #f1f4f5;
+}
+.agenda-state-badge i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #aab7bc;
+}
+.agenda-state-badge.esperando { color: #8c5a00; background: #fff5d8; }
+.agenda-state-badge.esperando i { background: #e79b21; }
+.agenda-state-badge.atendido { color: #176c42; background: #e7f8ed; }
+.agenda-state-badge.atendido i { background: #35a465; }
+.agenda-primary-action button,
+.agenda-primary-action a {
+  display: inline-flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 9px;
+  color: #fff;
+  background: #087f9b;
+  box-shadow: 0 5px 12px rgba(8, 127, 155, .18);
+  cursor: pointer;
+  font: 900 .8rem "Trebuchet MS", sans-serif;
+  text-decoration: none;
+}
+.agenda-primary-action button:hover,
+.agenda-primary-action a:hover { background: #066d86; }
+.agenda-primary-action button:disabled { cursor: wait; opacity: .6; }
+.agenda-expand-button {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #c5dce3;
+  border-radius: 9px;
+  color: #24596c;
+  background: #f7fbfc;
+  cursor: pointer;
+  font: 800 .76rem "Trebuchet MS", sans-serif;
+}
+.agenda-expand-button:hover { border-color: #76b9c9; background: #edf8fa; }
+.agenda-patient-summary {
+  display: grid;
+  grid-template-columns: minmax(160px, .8fr) minmax(220px, 1.15fr) minmax(220px, 1.15fr) minmax(250px, 1.5fr) auto;
+  gap: 10px 18px;
+  align-items: center;
+  margin: 0 16px;
+  padding: 9px 0 12px;
+  border-top: 1px solid #edf2f3;
+  color: #355b6a;
+  font: 700 .8rem "Trebuchet MS", sans-serif;
+}
+.agenda-patient-summary > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+.agenda-patient-summary b {
+  color: #71868e;
+  font-size: .68rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.agenda-summary-vitals em {
+  padding: 5px 7px;
+  border-radius: 7px;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.agenda-summary-vitals em.normal { color: #116f6d; background: #dcf6f3; }
+.agenda-summary-vitals em.caution { color: #9a5c04; background: #fff0d7; }
+.agenda-summary-vitals em.alert { color: #a83d35; background: #ffe4df; }
+.agenda-summary-vitals em.empty { color: #718289; background: #f0f4f5; }
+.agenda-walk-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agenda-card-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  justify-self: end;
+  font-size: .76rem;
+  white-space: nowrap;
+}
+.agenda-card-save.ok { color: #278259; }
+.agenda-card-save.error { color: #b54239; }
+.agenda-card-save button {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid #e0a39d;
+  border-radius: 7px;
+  color: #9e362f;
+  background: #fff3f1;
+  cursor: pointer;
+  font: 900 .74rem "Trebuchet MS", sans-serif;
+}
+.agenda-patient-details {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px;
+  border-top: 1px solid #dce9ec;
+  background: #f7fafb;
+}
+.agenda-detail-section {
+  padding: 14px;
+  border: 1px solid #dce8eb;
+  border-radius: 10px;
+  background: #fff;
+}
+.agenda-detail-identification { grid-column: span 7; }
+.agenda-detail-vitals { grid-column: span 5; }
+.agenda-detail-walk { grid-column: span 7; }
+.agenda-detail-result { grid-column: span 5; }
+.agenda-detail-heading {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 11px;
+}
+.agenda-detail-heading h3 {
+  margin: 0;
+  color: #153f51;
+  font: 900 .9rem "Trebuchet MS", sans-serif;
+}
+.agenda-detail-heading span {
+  color: #778a91;
+  font: 700 .7rem "Trebuchet MS", sans-serif;
+}
+.agenda-detail-heading button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid #aed5de;
+  border-radius: 8px;
+  color: #12677f;
+  background: #effafd;
+  cursor: pointer;
+  font: 900 .72rem "Trebuchet MS", sans-serif;
+}
+.agenda-detail-grid {
+  display: grid;
+  grid-template-columns: 110px minmax(180px, 1.3fr) minmax(130px, .7fr) repeat(2, minmax(130px, .8fr)) minmax(180px, 1fr);
+  gap: 9px;
+}
+.agenda-detail-section label > span {
+  display: block;
+  margin-bottom: 5px;
+  color: #5c7782;
+  font: 900 .66rem "Trebuchet MS", sans-serif;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.agenda-detail-section input:not([type="checkbox"]),
+.agenda-detail-section select {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid #c9dde3;
+  border-radius: 8px;
+  color: #143f51;
+  background: #fff;
+  font: 800 .82rem "Trebuchet MS", sans-serif;
+}
+.agenda-detail-section input:focus,
+.agenda-detail-section select:focus {
+  outline: 3px solid rgba(8, 127, 155, .12);
+  border-color: #5baabe;
+}
+.agenda-vitals-editor {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.agenda-vitals-editor fieldset {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #dce9ec;
+  border-radius: 9px;
+}
+.agenda-vitals-editor legend {
+  padding: 0 5px;
+  color: #315d6d;
+  font: 900 .72rem "Trebuchet MS", sans-serif;
+}
+.agenda-vitals-editor input { text-align: center; }
+.agenda-walk-readout {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #26586a;
+  background: #edf7f9;
+  font: 900 .84rem "Trebuchet MS", sans-serif;
+}
+.agenda-walk-controls {
+  display: grid;
+  grid-template-columns: 120px 120px repeat(4, minmax(110px, auto));
+  gap: 8px;
+  align-items: end;
+  margin-top: 10px;
+}
+.agenda-walk-controls > label:has(input[type="checkbox"]) {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border: 1px solid #d9e5e8;
+  border-radius: 8px;
+  color: #41646f;
+  background: #f7fafb;
+  font: 800 .72rem "Trebuchet MS", sans-serif;
+}
+.agenda-walk-controls > label.active { color: #176d43; border-color: #9fd5b3; background: #eaf8ef; }
+.agenda-walk-controls > label.warning { color: #9c5d05; border-color: #efc680; background: #fff6e6; }
+.agenda-detail-result > label { display: block; }
+.agenda-detail-result > label input { border: 2px solid #dfb500; background: #fff8d5; }
+.agenda-attendance-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 10px;
+}
+.agenda-attendance-picker button {
+  min-height: 38px;
+  border: 1px solid #d6e1e4;
+  border-radius: 8px;
+  color: #5a727b;
+  background: #f6f8f9;
+  cursor: pointer;
+  font: 800 .72rem "Trebuchet MS", sans-serif;
+}
+.agenda-attendance-picker button.active.no_llego { color: #a4493f; border-color: #efbdb4; background: #fff0ec; }
+.agenda-attendance-picker button.active.esperando { color: #8c5a00; border-color: #edcb6b; background: #fff8dd; }
+.agenda-attendance-picker button.active.atendido { color: #176d42; border-color: #9fdbb4; background: #e9faee; }
+.agenda-detail-footer {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.agenda-control-today {
+  padding: 8px 11px;
+  border: 1px solid #e8bd55;
+  border-radius: 8px;
+  color: #8b5b00;
+  background: #fff4c9;
+  font: 900 .74rem "Trebuchet MS", sans-serif;
+}
+.agenda-more-actions {
+  position: relative;
+  margin-left: auto;
+}
+.agenda-more-actions summary {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  padding: 0 13px;
+  border: 1px solid #c7dce2;
+  border-radius: 8px;
+  color: #285b6d;
+  background: #fff;
+  cursor: pointer;
+  font: 900 .74rem "Trebuchet MS", sans-serif;
+  list-style: none;
+}
+.agenda-more-actions summary::-webkit-details-marker { display: none; }
+.agenda-more-actions > div {
+  position: absolute;
+  z-index: 20;
+  right: 0;
+  bottom: calc(100% + 7px);
+  display: grid;
+  width: 210px;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid #d3e1e5;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(19, 55, 69, .16);
+}
+.agenda-more-actions a,
+.agenda-more-actions > div > button,
+.agenda-more-actions .agenda-delete-action button {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  color: #245b6e;
+  background: transparent;
+  cursor: pointer;
+  font: 800 .76rem "Trebuchet MS", sans-serif;
+  text-decoration: none;
+}
+.agenda-more-actions a:hover,
+.agenda-more-actions > div > button:hover { background: #edf7f9; }
+.agenda-more-actions .agenda-delete-action { display: block; }
+.agenda-more-actions .agenda-delete-action button { width: 100%; color: #a43f37; }
+.agenda-more-actions .agenda-delete-action button:hover { background: #fff0ed; }
+
+@media (max-width: 1300px) {
+  .agenda-patient-main {
+    grid-template-columns: 80px minmax(190px, 1.5fr) minmax(145px, 1fr) 105px 112px 118px 88px;
+    gap: 8px;
+  }
+  .agenda-patient-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .agenda-card-save { grid-column: 1 / -1; justify-self: start; }
+  .agenda-detail-identification,
+  .agenda-detail-vitals,
+  .agenda-detail-walk,
+  .agenda-detail-result { grid-column: 1 / -1; }
+}
+@media (max-width: 900px) {
+  .agenda-patient-main {
+    grid-template-columns: 74px minmax(0, 1fr) auto;
+    padding: 12px;
+  }
+  .agenda-patient-time { grid-column: 1; grid-row: 1; }
+  .agenda-patient-identity { grid-column: 2; grid-row: 1; }
+  .agenda-expand-button { grid-column: 3; grid-row: 1; }
+  .agenda-patient-study { grid-column: 1 / 3; grid-row: 2; }
+  .agenda-result-badge { grid-column: 1; grid-row: 3; }
+  .agenda-state-badge { grid-column: 2; grid-row: 3; justify-self: start; }
+  .agenda-primary-action { grid-column: 3; grid-row: 2 / 4; align-self: stretch; }
+  .agenda-primary-action button,
+  .agenda-primary-action a { height: 100%; min-height: 74px; }
+  .agenda-patient-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-inline: 12px; }
+  .agenda-walk-summary { white-space: normal; }
+  .agenda-patient-details { grid-template-columns: 1fr; padding: 12px; }
+  .agenda-detail-identification,
+  .agenda-detail-vitals,
+  .agenda-detail-walk,
+  .agenda-detail-result { grid-column: 1; }
+  .agenda-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .agenda-walk-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .agenda-patient-main { grid-template-columns: 70px minmax(0, 1fr); }
+  .agenda-expand-button { grid-column: 1 / -1; grid-row: 5; }
+  .agenda-patient-study { grid-column: 1 / -1; }
+  .agenda-primary-action { grid-column: 1 / -1; grid-row: 4; }
+  .agenda-primary-action button,
+  .agenda-primary-action a { min-height: 42px; }
+  .agenda-patient-summary,
+  .agenda-detail-grid,
+  .agenda-vitals-editor,
+  .agenda-attendance-picker { grid-template-columns: 1fr; }
+  .agenda-summary-vitals { flex-wrap: wrap; }
+  .agenda-detail-heading { align-items: flex-start; flex-direction: column; }
+}
