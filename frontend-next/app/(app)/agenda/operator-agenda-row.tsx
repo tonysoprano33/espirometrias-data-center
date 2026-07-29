@@ -303,6 +303,7 @@ export function OperatorAgendaRow({ entry, physicians: initialPhysicians }: Prop
     </div>
 
     <div className="agenda-actions">
+      <Link className="edit-action" href={`/atenciones/${entry.encounter_id}/editar`}>Editar</Link>
       {canPrint
         ? <button type="button" className="print-action" onClick={() => void printEncounter()} disabled={isSaving}>{isSaving ? "Guardando..." : "Imprimir"}</button>
         : <span className="print-action is-disabled" title="Completar DNI y resultado">Imprimir no disponible</span>}

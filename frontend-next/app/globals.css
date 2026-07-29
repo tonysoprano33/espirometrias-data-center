@@ -1140,3 +1140,198 @@ main.shell.doctor-review-page {
   .pdf-page-viewport { height: 66vh; }
   .final-result-card input { min-height: 54px; font-size: 1.4rem; }
 }
+
+/* Complete encounter editor: mirrors the proven Django workflow without autosave. */
+.clinical-edit-shell {
+  width: min(1540px, calc(100% - 32px));
+  margin: 24px auto 48px;
+}
+.clinical-edit-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+.clinical-edit-heading h1 {
+  margin: 4px 0 6px;
+  font-size: clamp(2rem, 4vw, 3.7rem);
+  line-height: .98;
+}
+.clinical-edit-heading p,
+.clinical-edit-card-title h2 { margin: 0; }
+.clinical-edit-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(340px, .95fr);
+  gap: 16px;
+}
+.clinical-edit-card {
+  border: 1px solid #cfe2e8;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .94);
+  padding: 22px;
+  box-shadow: 0 14px 34px rgba(15, 73, 93, .08);
+}
+.clinical-edit-card-wide { margin-bottom: 16px; }
+.clinical-edit-card-title { margin-bottom: 18px; }
+.clinical-edit-card-title h2 { color: #113a4b; font-size: 1.35rem; }
+.clinical-edit-grid { display: grid; gap: 14px; }
+.clinical-edit-grid-identification {
+  grid-template-columns: minmax(240px, 2fr) minmax(160px, .8fr) minmax(130px, .55fr) minmax(240px, 1.2fr);
+}
+.clinical-edit-grid-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.clinical-edit-card label,
+.clinical-status-picker legend {
+  color: #345b6b;
+  font: 800 .78rem "Trebuchet MS", sans-serif;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+.clinical-edit-card input:not([type="checkbox"]):not([type="radio"]),
+.clinical-edit-card select {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 7px;
+  border: 1px solid #c7dce4;
+  border-radius: 13px;
+  background: #fbfdfe;
+  color: #123c4d;
+  padding: 10px 13px;
+  font: 700 1rem "Trebuchet MS", sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.clinical-edit-card input:focus,
+.clinical-edit-card select:focus {
+  border-color: #0787a0;
+  outline: 3px solid rgba(7, 135, 160, .15);
+}
+.clinical-edit-card small {
+  display: block;
+  margin-top: 5px;
+  color: #6c8490;
+  font: 500 .76rem "Trebuchet MS", sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.clinical-choice-stack { display: grid; gap: 10px; }
+.clinical-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 68px;
+  border: 1px solid #d6e4e9;
+  border-radius: 15px;
+  padding: 12px 14px;
+  background: #f9fcfd;
+  cursor: pointer;
+}
+.clinical-choice input {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  accent-color: #087f97;
+}
+.clinical-choice span,
+.clinical-choice strong { display: block; }
+.clinical-choice strong {
+  color: #123e50;
+  font-size: .95rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.clinical-choice-broncho {
+  border-color: #f0cf8f;
+  background: linear-gradient(110deg, #fffdf7, #fff3dd);
+}
+.clinical-choice-success {
+  border-color: #bfe1ce;
+  background: linear-gradient(110deg, #f7fdf9, #e9f8ef);
+}
+.clinical-choice-warning {
+  border-color: #f1d2cb;
+  background: linear-gradient(110deg, #fffafa, #fff0ed);
+}
+.clinical-status-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  border: 0;
+  padding: 8px 0 0;
+  margin: 0;
+}
+.clinical-status-picker legend { margin-bottom: 8px; }
+.clinical-status-picker label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  border: 1px solid #d4e3e8;
+  border-radius: 12px;
+  background: white;
+  cursor: pointer;
+}
+.clinical-vitals-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.input-with-suffix { display: flex; align-items: center; gap: 8px; }
+.input-with-suffix span { margin-top: 7px; color: #54717e; font-weight: 700; }
+.clinical-edit-actions {
+  position: sticky;
+  bottom: 14px;
+  z-index: 10;
+  display: flex;
+  gap: 10px;
+  width: fit-content;
+  margin-top: 18px;
+  border: 1px solid #cfe0e5;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .94);
+  padding: 10px;
+  box-shadow: 0 16px 40px rgba(13, 68, 88, .16);
+  backdrop-filter: blur(12px);
+}
+.form-alert { border-radius: 13px; padding: 12px 15px; font-weight: 800; }
+.form-alert-success { border: 1px solid #b6dfc6; background: #eaf8ef; color: #157142; }
+.form-alert-error { border: 1px solid #efc3bd; background: #fff0ee; color: #ad3228; }
+.agenda-actions .edit-action {
+  border: 1px solid #b9dce7;
+  border-radius: 8px;
+  background: #effafd;
+  color: #086d83;
+  padding: 8px 11px;
+  font-weight: 900;
+  text-decoration: none;
+}
+.patient-history-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.patient-history-actions a {
+  border: 1px solid #c7dde5;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #f7fbfc;
+  color: #086b81;
+  font-weight: 800;
+  text-decoration: none;
+}
+@media (max-width: 1100px) {
+  .clinical-edit-columns { grid-template-columns: 1fr; }
+  .clinical-edit-grid-identification { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 680px) {
+  .clinical-edit-shell { width: min(100% - 18px, 1540px); margin-top: 14px; }
+  .clinical-edit-heading { display: grid; }
+  .clinical-edit-card { padding: 17px; border-radius: 17px; }
+  .clinical-edit-grid-identification,
+  .clinical-edit-grid-three,
+  .clinical-vitals-grid,
+  .clinical-status-picker { grid-template-columns: 1fr; }
+  .clinical-edit-actions { width: 100%; }
+  .clinical-edit-actions .button { flex: 1; }
+}
