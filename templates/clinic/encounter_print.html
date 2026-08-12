@@ -272,6 +272,9 @@
         {% if bronchodilator_positive %}
             <p class="emphasis" style="color:#b54123;">Broncodilatador Positivo</p>
         {% endif %}
+        {% if dx_epoc %}
+            <p class="emphasis" style="color:#285a96;">DX: EPOC</p>
+        {% endif %}
         {% if not is_normal %}
             <p class="clinical-note">Por antecedentes clinicos del paciente, sugiero control.</p>
         {% endif %}

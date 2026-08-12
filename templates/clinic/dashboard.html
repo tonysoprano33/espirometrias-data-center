@@ -2739,13 +2739,13 @@
                             </form>
                         </td>
                         <td class="bronchodilator-cell" data-label="Bronco">
-                            <form method="post" class="bronchodilator-reminder" data-bronchodilator-timer-form data-bronchodilator-due-at="{% if encounter.bronchodilator_administered_at %}{{ encounter.bronchodilator_administered_at|date:'c' }}{% endif %}">
+                            <form method="post" class="bronchodilator-reminder" data-bronchodilator-timer-form data-bronchodilator-due-at="{{ encounter.bronchodilator_timer_due_at|default:'' }}">
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="start_bronchodilator_timer">
                                 <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
                                 <input type="hidden" name="bronchodilator_wait_minutes" value="10">
                                 <button type="submit" class="button small" data-bronchodilator-start>Bronco</button>
-                                <span class="bronchodilator-reminder-label" data-bronchodilator-label{% if not encounter.bronchodilator_administered_at %} hidden{% endif %}>{% if encounter.bronchodilator_administered_at %}10 min{% endif %}</span>
+                                <span class="bronchodilator-reminder-label" data-bronchodilator-label{% if not encounter.bronchodilator_timer_active %} hidden{% endif %}>{{ encounter.bronchodilator_timer_label }}</span>
                             </form>
                         </td>
                         <td class="vitals-cell" data-label="SO2 / FC post">

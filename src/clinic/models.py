@@ -211,7 +211,7 @@ class Encounter(TimeStampedModel):
     first_vitals_recorded_at = models.DateTimeField("Primeros signos cargados el", blank=True, null=True)
     discharged_at = models.DateTimeField("Finalizo la atencion el", blank=True, null=True)
     bronchodilator_administered_at = models.DateTimeField("Broncodilatador aplicado el", blank=True, null=True)
-    bronchodilator_wait_minutes = models.PositiveSmallIntegerField("Espera de broncodilatador", default=15)
+    bronchodilator_wait_minutes = models.PositiveSmallIntegerField("Espera de broncodilatador", default=10)
     technician_notes = models.TextField("Notas del espirometrista", blank=True)
     medical_control_today = models.BooleanField("Control medico hoy", default=False)
     created_by = models.ForeignKey(
@@ -331,6 +331,7 @@ class SpirometryResult(TimeStampedModel):
         blank=True,
     )
     bronchodilator_positive = models.BooleanField("Broncodilatador positivo", default=False)
+    dx_epoc = models.BooleanField("DX: EPOC", default=False)
     suggested_bronchodilator_positive = models.BooleanField(
         "Broncodilatador positivo sugerido",
         blank=True,

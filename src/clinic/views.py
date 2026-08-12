@@ -1246,7 +1246,7 @@ def get_operational_minutes(started_at, finished_at):
 def get_bronchodilator_timer_payload(encounter, *, now=None):
     now = now or timezone.now()
     started_at = encounter.bronchodilator_administered_at
-    wait_minutes = int(encounter.bronchodilator_wait_minutes or 15)
+    wait_minutes = int(encounter.bronchodilator_wait_minutes or 10)
     if not started_at:
         return {
             "bronchodilator_timer_active": False,
@@ -1733,7 +1733,8 @@ def save_quick_encounter(
     result_code = form.cleaned_data.get("respiratory_result") or ""
     result = apply_result_code_to_spirometry(encounter, result_code)
     result.bronchodilator_positive = bool(form.cleaned_data.get("bronchodilator_positive"))
-    result.save(update_fields=["bronchodilator_positive", "updated_at"])
+    result.dx_epoc = bool(form.cleaned_data.get("dx_epoc"))
+    result.save(update_fields=["bronchodilator_positive", "dx_epoc", "updated_at"])
     record_encounter_event(
         encounter,
         EncounterEventType.CREATED if is_new else EncounterEventType.UPDATED,
@@ -3358,6 +3359,7 @@ def build_print_context_for_encounter(encounter):
     grado_rest = (getattr(result, "restriction_grade", "") or "Leve").strip().lower()
     informe = construir_informe_espirometria(patron, grado_obst, grado_rest)
     broncodilatador_positivo = bool(getattr(result, "bronchodilator_positive", False))
+    dx_epoc = bool(getattr(result, "dx_epoc", False))
 
     so2 = limpiar_entero(getattr(vital, "so2_rest", ""), default="") if vital else ""
     fc = limpiar_entero(getattr(vital, "fc_rest", ""), default="") if vital else ""
@@ -3395,6 +3397,7 @@ def build_print_context_for_encounter(encounter):
         "report_text": informe,
         "is_normal": patron == "Normal",
         "bronchodilator_positive": broncodilatador_positivo,
+        "dx_epoc": dx_epoc,
         "pattern": patron,
         "include_walk": include_walk,
         "walk_rows": walk_rows,
@@ -3501,6 +3504,8 @@ def dashboard(request):
         encounter.complete_report_url = latest_report_info["complete_report_url"]
         encounter.mutual_report_url = latest_report_info["mutual_report_url"]
         encounter.detail_url = latest_report_info["detail_url"]
+        for key, value in get_bronchodilator_timer_payload(encounter).items():
+            setattr(encounter, key, value)
     stats_map = Counter(encounter.status for encounter in today_encounters)
     status_cards = [
         {"value": value, "label": label, "total": stats_map.get(value, 0), "css_class": get_status_badge_class(value)}
@@ -3697,14 +3702,8 @@ def dashboard(request):
                 .prefetch_related("generated_reports__attachment"),
                 pk=request.POST.get("encounter_id"),
             )
-            raw_wait_minutes = str(request.POST.get("bronchodilator_wait_minutes", "15")).strip()
-            if raw_wait_minutes not in {"10", "15"}:
-                message = "Elegí una espera de 10 o 15 minutos."
-                if is_ajax_request(request):
-                    return JsonResponse({"ok": False, "message": message}, status=400)
-                messages.error(request, message)
-                return redirect("clinic:dashboard")
-            encounter.bronchodilator_wait_minutes = int(raw_wait_minutes)
+            # This is a fixed visual reminder, not a clinical workflow restriction.
+            encounter.bronchodilator_wait_minutes = 10
             encounter.bronchodilator_administered_at = timezone.now()
             encounter.updated_by = request.user
             encounter.save(
@@ -5599,6 +5598,7 @@ def encounter_edit(request, pk):
                 "borg_final": getattr(walk, "borg_final", 1),
                 "respiratory_result": current_result,
                 "bronchodilator_positive": bool(getattr(spirometry, "bronchodilator_positive", False)),
+                "dx_epoc": bool(getattr(spirometry, "dx_epoc", False)),
                 "medical_control_today": encounter.medical_control_today,
                 "attended": encounter.attended,
                 "no_show": encounter.no_show,

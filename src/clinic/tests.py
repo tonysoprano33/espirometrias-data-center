@@ -2844,6 +2844,18 @@ class PrintReportViewTests(TestCase):
         positive_text = "\n".join(paragraph.text for paragraph in positive_doc.paragraphs)
         self.assertIn("Broncodilatador Positivo", positive_text)
 
+    def test_epoc_dx_appears_only_when_marked_in_first_report_page(self):
+        result = self.encounter.spirometry_result
+        negative_doc = Document(BytesIO(build_reports_for_encounter(self.encounter)[0].bytes_content))
+        negative_text = "\n".join(paragraph.text for paragraph in negative_doc.paragraphs)
+        self.assertNotIn("DX: EPOC", negative_text)
+
+        result.dx_epoc = True
+        result.save(update_fields=["dx_epoc", "updated_at"])
+        positive_doc = Document(BytesIO(build_reports_for_encounter(self.encounter)[0].bytes_content))
+        positive_text = "\n".join(paragraph.text for paragraph in positive_doc.paragraphs)
+        self.assertIn("DX: EPOC", positive_text)
+
     def test_spirometry_only_never_adds_walk_page(self):
         self.encounter.study_type = StudyType.ESPIROMETRIA
         self.encounter.save(update_fields=["study_type", "updated_at"])

@@ -351,6 +351,13 @@
                             <span>Si lo marcás, en la primera página del informe aparece abajo de SO2 / FC como aviso clínico.</span>
                         </span>
                     </label>
+                    <label class="toggle-card primary" for="{{ form.dx_epoc.id_for_label }}">
+                        {{ form.dx_epoc }}
+                        <span class="toggle-copy">
+                            <strong>DX: EPOC</strong>
+                            <span>Si lo marcás, aparece en la primera hoja del informe junto al resultado clínico.</span>
+                        </span>
+                    </label>
                     <label class="toggle-card" for="{{ form.medical_control_today.id_for_label }}">
                         {{ form.medical_control_today }}
                         <span class="toggle-copy">
@@ -374,6 +381,7 @@
                     </label>
                 </div>
                 {% if form.bronchodilator_positive.errors %}<div class="field-error">{{ form.bronchodilator_positive.errors|join:", " }}</div>{% endif %}
+                {% if form.dx_epoc.errors %}<div class="field-error">{{ form.dx_epoc.errors|join:", " }}</div>{% endif %}
                 {% if form.attended.errors %}<div class="field-error">{{ form.attended.errors|join:", " }}</div>{% endif %}
                 {% if form.no_show.errors %}<div class="field-error">{{ form.no_show.errors|join:", " }}</div>{% endif %}
             </section>

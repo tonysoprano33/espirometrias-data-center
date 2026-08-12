@@ -288,7 +288,15 @@ def agregar_salto_pagina(doc: Document):
     doc.add_page_break()
 
 
-def agregar_seccion_espirometria(doc: Document, so2: str, fc: str, informe: str, es_normal: bool, broncodilatador_positivo: bool = False):
+def agregar_seccion_espirometria(
+    doc: Document,
+    so2: str,
+    fc: str,
+    informe: str,
+    es_normal: bool,
+    broncodilatador_positivo: bool = False,
+    dx_epoc: bool = False,
+):
     t = doc.add_paragraph()
     t.paragraph_format.space_before = Pt(18)
     t.paragraph_format.space_after = Pt(12)
@@ -326,6 +334,16 @@ def agregar_seccion_espirometria(doc: Document, so2: str, fc: str, informe: str,
         bronco_run.font.size = Pt(15)
         bronco_run.bold = True
         bronco_run.font.color.rgb = RGBColor(200, 50, 50)
+
+    if dx_epoc:
+        epoc_p = doc.add_paragraph()
+        epoc_p.paragraph_format.space_before = Pt(4)
+        epoc_p.paragraph_format.space_after = Pt(12)
+        epoc_run = epoc_p.add_run("DX: EPOC")
+        epoc_run.font.name = "Times New Roman"
+        epoc_run.font.size = Pt(15)
+        epoc_run.bold = True
+        epoc_run.font.color.rgb = RGBColor(40, 90, 150)
 
     if not es_normal:
         rec = doc.add_paragraph()
@@ -694,6 +712,7 @@ def _single_page_spirometry_artifact(
     informe: str,
     es_normal: bool,
     broncodilatador_positivo: bool,
+    dx_epoc: bool,
     nombre_archivo_seguro: str,
     fecha_archivo: str,
 ) -> GeneratedArtifact:
@@ -707,7 +726,7 @@ def _single_page_spirometry_artifact(
     crear_encabezado(doc)
     agregar_fecha(doc, fecha_impresion)
     agregar_datos_paciente(doc, nombre, dni, deriva)
-    agregar_seccion_espirometria(doc, so2, fc, informe, es_normal, broncodilatador_positivo)
+    agregar_seccion_espirometria(doc, so2, fc, informe, es_normal, broncodilatador_positivo, dx_epoc)
     agregar_firma(doc, as_footer=True)
 
     return GeneratedArtifact(
@@ -757,6 +776,7 @@ def build_reports_for_encounter(encounter, *, include_mutual=None) -> list[Gener
     grado_obst = (getattr(result, "obstruction_grade", "") or "Leve").strip().lower()
     grado_rest = (getattr(result, "restriction_grade", "") or "Leve").strip().lower()
     broncodilatador_positivo = bool(getattr(result, "bronchodilator_positive", False))
+    dx_epoc = bool(getattr(result, "dx_epoc", False))
     informe = construir_informe_espirometria(patron, grado_obst, grado_rest)
     incluir_caminata = _encounter_has_walk_data(encounter)
 
@@ -791,6 +811,7 @@ def build_reports_for_encounter(encounter, *, include_mutual=None) -> list[Gener
                 informe=informe,
                 es_normal=es_normal,
                 broncodilatador_positivo=broncodilatador_positivo,
+                dx_epoc=dx_epoc,
                 nombre_archivo_seguro=nombre_archivo_seguro,
                 fecha_archivo=fecha_archivo,
             )
@@ -807,7 +828,7 @@ def build_reports_for_encounter(encounter, *, include_mutual=None) -> list[Gener
     crear_encabezado(doc_normal)
     agregar_fecha(doc_normal, fecha_impresion)
     agregar_datos_paciente(doc_normal, nombre, dni, deriva)
-    agregar_seccion_espirometria(doc_normal, so2, fc, informe, es_normal, broncodilatador_positivo)
+    agregar_seccion_espirometria(doc_normal, so2, fc, informe, es_normal, broncodilatador_positivo, dx_epoc)
 
     walk_rows = build_walk_measurement_rows(vital, walk)
     so2_vals = [row["so2"] for row in walk_rows]
