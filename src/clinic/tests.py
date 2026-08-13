@@ -1801,6 +1801,68 @@ class DoctorReviewViewTests(TestCase):
         SpirometryResult.objects.create(encounter=self.encounter, respiratory_pattern="Normal")
         self.assertEqual(get_result_file_status(self.encounter, attachment)["key"], "resolved")
 
+    def test_failed_attachment_with_stored_reading_is_reported_as_detected(self):
+        attachment = Attachment.objects.create(
+            encounter=self.encounter,
+            file_kind=AttachmentKind.PDF_RESULTADO,
+            original_name="resultado.pdf",
+            file="encounters/test/resultado.pdf",
+            mime_type="application/pdf",
+            uploaded_by=self.user,
+            analysis_status="failed",
+            analysis_error="Secondary profile OCR failed",
+        )
+        SpirometryResult.objects.create(
+            encounter=self.encounter,
+            suggested_code="RMOS",
+            measured_values={"fvc": {"best": 1.89}},
+            extracted_source="server-pdf-text",
+        )
+
+        self.assertEqual(get_result_file_status(self.encounter, attachment)["key"], "detected")
+
+    def test_saving_medical_result_does_not_reanalyze_existing_pdf(self):
+        self.client.force_login(self.user)
+        self.patient.birth_date = date(1950, 1, 2)
+        self.patient.gender = "Femenino"
+        self.patient.bmi = "24.10"
+        self.patient.save(update_fields=["birth_date", "gender", "bmi", "updated_at"])
+        Attachment.objects.create(
+            encounter=self.encounter,
+            file_kind=AttachmentKind.PDF_RESULTADO,
+            original_name="resultado.pdf",
+            file="encounters/test/resultado.pdf",
+            mime_type="application/pdf",
+            uploaded_by=self.user,
+            analysis_status="detected",
+        )
+
+        with patch("clinic.views.analyze_result_attachment") as analyze_mock:
+            response = self.client.post(
+                reverse("clinic:doctor_review_detail", args=[self.encounter.pk]),
+                {"respiratory_result": "RMOS"},
+            )
+
+        self.assertRedirects(response, reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+        analyze_mock.assert_not_called()
+        self.encounter.refresh_from_db()
+        self.assertEqual(self.encounter.status, EncounterStatus.REVISADA)
+        self.assertEqual(self.encounter.spirometry_result.respiratory_pattern, "Mixto")
+
+    def test_review_repairs_missing_walk_defaults_for_cyclometry(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        walk = WalkTest.objects.get(encounter=self.encounter)
+        self.assertEqual(walk.distance_meters, 200)
+        self.assertTrue(walk.completed)
+        self.assertFalse(walk.stopped)
+        self.assertFalse(walk.symptoms)
+        self.assertEqual(walk.borg_final, 1)
+        self.assertEqual(response.context["review_vitals"]["walk"]["borg_final"], 1)
+
     def test_retry_read_updates_file_state_without_saving_medical_result(self):
         grant_clinic_permissions(self.user, "manage_agenda")
         self.client.force_login(self.user)

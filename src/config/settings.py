@@ -201,6 +201,9 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
 SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", str(IS_PRODUCTION)).lower() == "true"
 SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", str(IS_PRODUCTION)).lower() == "true"
+SESSION_COOKIE_AGE = int(env_value("SESSION_COOKIE_AGE", str(60 * 60 * 24 * 30)) or str(60 * 60 * 24 * 30))
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_SAVE_EVERY_REQUEST = True
 CSRF_COOKIE_SECURE = os.getenv("CSRF_COOKIE_SECURE", str(IS_PRODUCTION)).lower() == "true"
 SECURE_HSTS_SECONDS = int(env_value("SECURE_HSTS_SECONDS", "3600" if IS_PRODUCTION else "0") or "0")
 SECURE_HSTS_INCLUDE_SUBDOMAINS = False
@@ -216,9 +219,6 @@ if IS_PRODUCTION and (DEBUG or SECRET_KEY == "dev-secret-key-change-me"):
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "clinic:dashboard"
 LOGOUT_REDIRECT_URL = "login"
-# Temporary shared access code for the three clinic work-station accounts.
-# It is intentionally fixed while the Render environment still has the legacy
-# value, so a login cannot silently restore the previous password.
-ROLE_SESSION_PASSWORD = "123"
+ROLE_SESSION_PASSWORD = env_value("ROLE_SESSION_PASSWORD", "espirometriamarconi123")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

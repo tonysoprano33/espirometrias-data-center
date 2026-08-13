@@ -4,6 +4,7 @@ from collections import Counter
 from datetime import date, datetime, time as datetime_time, timedelta
 import hashlib
 import json
+import logging
 import mimetypes
 from pathlib import Path
 import re
@@ -87,6 +88,9 @@ from .services import (
     normalizar_patron,
 )
 from .roles import WORK_MODES, fixed_work_mode_for_user, get_request_work_mode
+
+
+logger = logging.getLogger(__name__)
 
 
 SPANISH_MONTHS = [
@@ -299,14 +303,26 @@ def build_analysis_for_uploaded_result(attachment, analysis_payload_json: str = 
                 if extracted_text
                 else {"source": "server-pdf-ocr"}
             )
-            snapshot = extract_patient_snapshot_from_pdf(str(attachment_path), attachment_id=attachment.pk)
+            try:
+                snapshot = extract_patient_snapshot_from_pdf(str(attachment_path), attachment_id=attachment.pk)
+            except Exception:
+                # Profile OCR is supplementary and must not invalidate values
+                # already extracted from the PDF text layer.
+                logger.exception("Could not extract patient snapshot from attachment %s", attachment.pk)
+                snapshot = {}
             if snapshot:
                 analysis["snapshot"] = snapshot
             if not analysis.get("code"):
-                suggestion = build_spirometry_suggestion_from_pdf(
-                    str(attachment_path),
-                    attachment_id=attachment.pk,
-                )
+                try:
+                    suggestion = build_spirometry_suggestion_from_pdf(
+                        str(attachment_path),
+                        attachment_id=attachment.pk,
+                    )
+                except Exception:
+                    if not analysis_has_detected_data(analysis):
+                        raise
+                    logger.exception("Could not run OCR fallback for attachment %s", attachment.pk)
+                    suggestion = {}
                 if suggestion:
                     analysis.update(suggestion)
                     analysis["source"] = "server-pdf-ocr"
@@ -340,13 +356,6 @@ def get_result_file_status(encounter, attachment=None) -> dict:
             or result.extracted_source
         )
     )
-    if attachment.analysis_status == AttachmentAnalysisStatus.FAILED:
-        return {
-            "key": "failed",
-            "label": "Falló la lectura",
-            "detail": attachment.analysis_error or "No se detectaron datos legibles. Podés reintentar la lectura.",
-            "can_retry": True,
-        }
     if get_result_code_from_encounter(encounter):
         return {
             "key": "resolved",
@@ -360,6 +369,13 @@ def get_result_file_status(encounter, attachment=None) -> dict:
             "label": "Datos detectados",
             "detail": "Datos leídos. Falta que el médico confirme el resultado final.",
             "can_retry": False,
+        }
+    if attachment.analysis_status == AttachmentAnalysisStatus.FAILED:
+        return {
+            "key": "failed",
+            "label": "Falló la lectura",
+            "detail": attachment.analysis_error or "No se detectaron datos legibles. Podés reintentar la lectura.",
+            "can_retry": True,
         }
     return {
         "key": "uploaded",
@@ -388,12 +404,20 @@ def analyze_result_attachment(encounter, attachment, analysis_payload_json=""):
             )
             return {}, {}, [], False, "No se detectaron datos clínicos legibles."
 
-        snapshot, changed_fields, patient_identity_mismatch = apply_profile_analysis_to_encounter(encounter, analysis)
-        if analysis_has_detected_data(analysis):
-            store_spirometry_analysis(encounter, analysis)
+        store_spirometry_analysis(encounter, analysis)
+        try:
+            snapshot, changed_fields, patient_identity_mismatch = apply_profile_analysis_to_encounter(encounter, analysis)
+        except Exception:
+            # Demographic enrichment is useful, but it is not part of deciding
+            # whether the spirometry file itself was read successfully.
+            logger.exception("Could not apply patient profile for encounter %s", encounter.pk)
+            snapshot = analysis.get("snapshot") or {}
+            changed_fields = []
+            patient_identity_mismatch = False
         save_attachment_analysis_status(attachment, AttachmentAnalysisStatus.DETECTED)
         return analysis, snapshot, changed_fields, patient_identity_mismatch, ""
     except Exception:
+        logger.exception("Could not analyze attachment %s for encounter %s", attachment.pk, encounter.pk)
         error_message = "No se pudieron leer datos automáticamente. El archivo quedó guardado y podés reintentar."
         save_attachment_analysis_status(attachment, AttachmentAnalysisStatus.FAILED, error_message)
         return {}, {}, [], False, error_message
@@ -410,7 +434,7 @@ def apply_result_code_to_spirometry(encounter, result_code: str):
         obstruction_grade = parsed["obstruction_grade"]
         restriction_grade = parsed["restriction_grade"]
 
-    result, _ = SpirometryResult.objects.get_or_create(encounter=encounter)
+    result, _ = SpirometryResult.objects.get_or_create(encounter=encounter, defaults={"dx_epoc": False})
     result.respiratory_pattern = pattern
     result.obstruction_grade = obstruction_grade
     result.restriction_grade = restriction_grade
@@ -422,7 +446,7 @@ def store_spirometry_analysis(encounter, analysis: dict):
     if not analysis:
         return None
 
-    result, _ = SpirometryResult.objects.get_or_create(encounter=encounter)
+    result, _ = SpirometryResult.objects.get_or_create(encounter=encounter, defaults={"dx_epoc": False})
     stored_values = dict(analysis.get("values") or {})
     bronchodilator_reason = analysis.get("bronchodilator_reason", "") or ""
     if bronchodilator_reason:
@@ -782,6 +806,24 @@ def get_review_borg_tone(value) -> str:
     if borg_value >= 4:
         return "watch"
     return "ok"
+
+
+def ensure_default_walk_test(encounter):
+    """Repair legacy cyclometry encounters that predate walk-test defaults."""
+    if encounter.study_type != StudyType.CICLOMETRIA:
+        return None
+    walk, _ = WalkTest.objects.get_or_create(
+        encounter=encounter,
+        defaults={
+            "distance_meters": 200,
+            "completed": True,
+            "stopped": False,
+            "symptoms": False,
+            "borg_final": 1,
+        },
+    )
+    encounter.walk_test = walk
+    return walk
 
 
 def build_review_vitals_context(encounter) -> dict:
@@ -5837,6 +5879,7 @@ def doctor_review_detail_api(request, pk):
         Encounter.objects.select_related("patient", "spirometry_result", "vital_signs", "walk_test").prefetch_related("attachments"),
         pk=pk,
     )
+    ensure_default_walk_test(encounter)
     attachment = get_latest_result_attachment(encounter)
     file_status = get_result_file_status(encounter, attachment)
     suggestion = build_stored_suggestion_context(getattr(encounter, "spirometry_result", None)) or {}
@@ -6004,6 +6047,7 @@ def doctor_review_detail(request, pk):
         ).prefetch_related("attachments"),
         pk=pk,
     )
+    ensure_default_walk_test(encounter)
 
     current_result = get_result_code_from_encounter(encounter)
     can_edit_bronchodilator = (
@@ -6098,7 +6142,16 @@ def doctor_review_detail(request, pk):
                     extraction_message = f" Sugerencia automatica: {analysis.get('summary')}."
                 elif file_kind == AttachmentKind.FOTO_RESULTADO:
                     extraction_message = " Foto cargada correctamente."
-            else:
+            elif not all(
+                [
+                    encounter.patient.birth_date,
+                    encounter.patient.gender,
+                    encounter.patient.bmi is not None,
+                ]
+            ):
+                # Older records may have a stored PDF but incomplete profile
+                # data. Enrichment remains best-effort and never blocks the
+                # physician from saving the final result.
                 pdf_attachment = get_latest_result_attachment(encounter)
                 if pdf_attachment:
                     analysis, snapshot, changed_fields, patient_identity_mismatch, reading_error = analyze_result_attachment(
@@ -6108,13 +6161,8 @@ def doctor_review_detail(request, pk):
                     )
                     if reading_error:
                         messages.warning(request, reading_error)
-                    elif snapshot and not patient_identity_mismatch:
-                        extracted_name = snapshot.get("full_name") or encounter.patient.full_name
-                        extracted_code = snapshot.get("patient_code") or snapshot.get("dni") or "-"
-                        extraction_message = f" PDF revisado: {extracted_name} / doc {extracted_code}."
-                        if changed_fields:
-                            extraction_message += f" Datos actualizados: {', '.join(changed_fields)}."
-
+                    elif snapshot and not patient_identity_mismatch and changed_fields:
+                        extraction_message = f" Datos actualizados: {', '.join(changed_fields)}."
             result_code = form.cleaned_data.get("respiratory_result") or current_result or ""
             if not result_code:
                 messages.success(
