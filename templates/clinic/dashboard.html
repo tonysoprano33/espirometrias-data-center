@@ -2739,7 +2739,7 @@
                             </form>
                         </td>
                         <td class="bronchodilator-cell" data-label="Bronco">
-                            <form method="post" class="bronchodilator-reminder" data-bronchodilator-reminder data-bronchodilator-timer-form data-bronchodilator-due-at="" data-bronchodilator-started-at="{% if encounter.bronchodilator_administered_at %}{{ encounter.bronchodilator_administered_at|date:'c' }}{% endif %}" data-bronchodilator-wait-minutes="{{ encounter.bronchodilator_wait_minutes|default:'10' }}">
+                            <form method="post" class="bronchodilator-reminder" data-bronchodilator-timer-form data-bronchodilator-due-at="{% if encounter.bronchodilator_administered_at %}{{ encounter.bronchodilator_administered_at|date:'c' }}{% endif %}">
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="start_bronchodilator_timer">
                                 <input type="hidden" name="encounter_id" value="{{ encounter.pk }}">
@@ -3365,7 +3365,6 @@
             reminder.classList.toggle("is-active", Boolean(payload.bronchodilator_timer_active));
             reminder.classList.toggle("is-ready", Boolean(payload.bronchodilator_timer_ready));
             reminder.dataset.bronchodilatorDueAt = payload.bronchodilator_timer_due_at || "";
-            reminder.dataset.bronchodilatorStartedAt = "";
             if (label) {
                 label.textContent = payload.bronchodilator_timer_label || "";
                 label.hidden = !payload.bronchodilator_timer_active;
@@ -4021,7 +4020,6 @@
             if (payload.bronchodilator_timer_ready) addClass(reminder, "is-ready");
             else removeClass(reminder, "is-ready");
             reminder.setAttribute("data-bronchodilator-due-at", payload.bronchodilator_timer_due_at || "");
-            reminder.setAttribute("data-bronchodilator-started-at", "");
             if (label) {
                 label.innerHTML = escapeHtml(payload.bronchodilator_timer_label || "");
                 label.hidden = !payload.bronchodilator_timer_active;
@@ -4038,14 +4036,6 @@
                 var dueAt = reminder.getAttribute("data-bronchodilator-due-at") || "";
                 var dueMilliseconds = dueAt ? new Date(dueAt).getTime() : NaN;
                 var remainingSeconds;
-                if (isNaN(dueMilliseconds)) {
-                    var startedAt = reminder.getAttribute("data-bronchodilator-started-at") || "";
-                    var startedMilliseconds = startedAt ? new Date(startedAt).getTime() : NaN;
-                    var waitMinutes = parseInt(reminder.getAttribute("data-bronchodilator-wait-minutes") || "10", 10);
-                    if (!isNaN(startedMilliseconds) && !isNaN(waitMinutes) && waitMinutes > 0) {
-                        dueMilliseconds = startedMilliseconds + waitMinutes * 60 * 1000;
-                    }
-                }
                 if (!label || isNaN(dueMilliseconds)) {
                     if (label) label.hidden = true;
                     continue;
