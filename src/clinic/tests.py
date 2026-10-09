@@ -770,6 +770,8 @@ class DashboardInlineUpdateTests(TestCase):
         self.encounter.refresh_from_db()
         self.assertEqual(self.encounter.bronchodilator_administered_at, timer_time)
         self.assertEqual(self.encounter.bronchodilator_wait_minutes, 10)
+        self.assertEqual(self.encounter.status, EncounterStatus.PENDIENTE)
+        self.assertFalse(self.encounter.no_show)
         self.assertTrue(response.json()["bronchodilator_timer_active"])
         self.assertEqual(response.json()["bronchodilator_timer_label"], "Bronco: 10 min")
         self.assertTrue(response.json()["bronchodilator_timer_due_at"].startswith("2026-06-05T11:10"))
@@ -910,6 +912,22 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertIn('<th class="col-vitals">Bronco</th>', html)
         self.assertIn('data-bronchodilator-timer-form', html)
         self.assertNotIn('<span class="waiting-elapsed"', html)
+
+    def test_bronchodilator_countdown_renders_start_time_and_matching_selector(self):
+        started_at = timezone.make_aware(datetime(2026, 6, 5, 11, 0))
+        self.encounter.bronchodilator_administered_at = started_at
+        self.encounter.bronchodilator_wait_minutes = 10
+        self.encounter.save(update_fields=["bronchodilator_administered_at", "bronchodilator_wait_minutes", "updated_at"])
+
+        with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
+            response = self.client.get(reverse("clinic:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn("data-bronchodilator-reminder data-bronchodilator-timer-form", html)
+        self.assertIn(f'data-bronchodilator-started-at="{started_at.isoformat()}"', html)
+        self.assertIn('data-bronchodilator-wait-minutes="10"', html)
+        self.assertIn('querySelectorAll("[data-bronchodilator-reminder]")', html)
 
     def test_next_agenda_api_returns_today_rows_and_summary(self):
         with patch("clinic.views.timezone.localdate", return_value=date(2026, 6, 5)):
