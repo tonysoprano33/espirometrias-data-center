@@ -3478,7 +3478,9 @@ def dashboard(request):
         "no_show": True,
     }
     today_encounters = (
-        Encounter.objects.select_related("patient", "referring_physician", "vital_signs", "spirometry_result")
+        Encounter.objects.select_related(
+            "patient", "referring_physician", "vital_signs", "spirometry_result", "walk_test"
+        )
         .prefetch_related("attachments", "generated_reports__attachment")
         .filter(encounter_date=today)
         .order_by("encounter_time", "created_at")
