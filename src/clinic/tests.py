@@ -20,6 +20,7 @@ from .pdf_intake import (
     build_spirometry_analysis,
     snapshot_with_computed_age,
     extract_patient_snapshot_from_text,
+    extract_spirometry_numbers_from_pdf,
     extract_spirometry_numbers_from_text,
 )
 from .services import build_reports_for_encounter, build_walk_measurement_rows, construir_informe_espirometria, normalizar_medico
@@ -205,6 +206,19 @@ class BronchodilatorAnalysisTests(SimpleTestCase):
 
         self.assertFalse(analysis["bronchodilator_positive"])
         self.assertEqual(analysis["bronchodilator_reason"], "")
+
+    def test_exactly_ten_percent_and_old_basal_cutoff_are_not_positive(self):
+        for metric in (
+            {"predicted": 3.0, "best": 1.5, "post": 1.8},
+            {"predicted": 3.0, "best": 1.5, "post": 1.7, "change_percent": 19},
+            {"best": 1.5, "post": 1.8, "change_percent": 20},
+        ):
+            with self.subTest(metric=metric):
+                self.assertFalse(build_spirometry_analysis({"fev1": metric})["bronchodilator_positive"])
+
+    def test_positive_response_just_above_ten_percent_is_not_rounded_away(self):
+        analysis = build_spirometry_analysis({"fev1": {"predicted": 2.99, "best": 1.5, "post": 1.8}})
+        self.assertTrue(analysis["bronchodilator_positive"])
 
 
 class CoverageInferenceTests(SimpleTestCase):
@@ -1588,6 +1602,49 @@ class DoctorReviewViewTests(TestCase):
             updated_by=self.user,
         )
 
+    def test_review_refreshes_legacy_suggestion_without_changing_manual_result(self):
+        self.client.force_login(self.user)
+        result = SpirometryResult.objects.create(
+            encounter=self.encounter,
+            respiratory_pattern="Obstructivo",
+            obstruction_grade="Leve",
+            suggested_code="RM",
+            suggested_bronchodilator_positive=True,
+            suggested_bronchodilator_reason="Lectura anterior incorrecta.",
+        )
+        Attachment.objects.create(
+            encounter=self.encounter,
+            file_kind=AttachmentKind.PDF_RESULTADO,
+            original_name="estudio.pdf",
+            file="encounters/test/estudio.pdf",
+            mime_type="application/pdf",
+        )
+        extracted_text = (
+            "Parametros LLN Teor. Best %Teor. Z-score PRE #1 PRE #2 PRE #3 POST %Teor. %Cam\n"
+            "FVC L -0,03 0,60 0,75 125 0,41 0,75 0,73 122 -3\n"
+            "FEV1 L 0,18 0,65 0,75 115 0,41 0,75 0,73 112 -3\n"
+            "FEV1/FVC % 85 97 100 103 0,32 100 100 103 0"
+        )
+        review_url = reverse("clinic:doctor_review_detail", args=[self.encounter.pk])
+        with (
+            patch("clinic.views.build_result_preview_images", return_value=[]),
+            patch("clinic.pdf_intake.extract_pdf_text_content", return_value=extracted_text) as extract,
+        ):
+            first_response = self.client.get(review_url)
+            second_response = self.client.get(review_url)
+
+        extract.assert_called_once()
+        for response in (first_response, second_response):
+            suggestion = response.context["spirometry_suggestion"]
+            self.assertEqual(suggestion["values"]["fev1"]["best"], 0.75)
+            self.assertEqual(suggestion["values"]["fev1"]["post"], 0.73)
+            self.assertFalse(suggestion["bronchodilator_positive"])
+            self.assertNotContains(response, "Lectura anterior incorrecta.")
+        result.refresh_from_db()
+        self.assertFalse(result.suggested_bronchodilator_positive)
+        self.assertFalse(result.bronchodilator_positive)
+        self.assertEqual(result.respiratory_pattern, "Obstructivo")
+
     def test_list_defaults_to_buenos_aires_calendar_date(self):
         self.client.force_login(self.user)
 
@@ -2462,6 +2519,56 @@ class DrappImportDeduplicationTests(TestCase):
 
 
 class SpirometryPdfParsingTests(SimpleTestCase):
+    def test_low_lln_and_z_score_do_not_shift_best_or_post_columns(self):
+        analysis = build_analysis_from_text(
+            "Parametros LLN Teór. Best %Teór. Z-score PRE #1 PRE #2 PRE #3 POST %Teór. %Cam\n"
+            "FVC L -0,03 0,60 0,75* 125 0,41 0,75 0,73* 122 -3\n"
+            "FEV1 L 0,18 0,65 0,75* 115 0,41 0,75 0,73* 112 -3\n"
+            "FEV1/FVC % 85 97 100* 103 0,32 100 100* 103 0"
+        )
+        self.assertEqual(analysis["values"]["fvc"]["lln"], -0.03)
+        self.assertEqual(analysis["values"]["fev1"]["lln"], 0.18)
+        for key in ("fvc", "fev1"):
+            self.assertEqual(analysis["values"][key]["best"], 0.75)
+            self.assertEqual(analysis["values"][key]["post"], 0.73)
+        self.assertFalse(analysis["bronchodilator_positive"])
+
+    def test_post_measurement_requires_column_header_and_consistent_triplet(self):
+        pre_header = "Parametros LLN Teor. Best %Teor. Z-score PRE #1 PRE #2 PRE #3"
+        incomplete_row = "FEV1 L 1,6 2,5 2,0 80 -1,1 2,0 1,98 1,95"
+        valid_post_row = incomplete_row + " 2,30 92 15"
+        for header, row, expected_post in (
+            (pre_header, valid_post_row, None),
+            (pre_header + " POST %Teor. %Cam", incomplete_row, None),
+            (pre_header + " POST %Teor. %Cam", incomplete_row + " 92 15", None),
+            (pre_header + " POST %Teor. %Cam", valid_post_row, 2.3),
+        ):
+            with self.subTest(row=row, expected_post=expected_post):
+                values = extract_spirometry_numbers_from_text(f"{header}\n{row}")
+                self.assertEqual(values["fev1"]["best"], 2.0)
+                self.assertEqual(values["fev1"]["post"], expected_post)
+                self.assertEqual(build_spirometry_analysis(values)["bronchodilator_positive"], expected_post is not None)
+
+    def test_ocr_reads_labeled_post_without_using_fixed_column_positions(self):
+        rows = [
+            ("Parametros", "LLN", "Teor.", "Best", "%Teor.", "Z-score", "PRE #1", "POST", "%Teor.", "%Cam"),
+            ("FEV1", "1,6", "2,5", "2,0", "80", "-1,1", "2,0", "2,30", "92", "15"),
+        ]
+        items = [
+            {"text": value, "norm": value.upper(), "x": 100 + column * 105, "y": 1400 + row * 30}
+            for row, values in enumerate(rows)
+            for column, value in enumerate(values)
+        ]
+        with (
+            patch("clinic.pdf_intake.extract_pdf_text_content", return_value=""),
+            patch("clinic.pdf_intake.ocr_items_from_pdf", return_value=items),
+        ):
+            values = extract_spirometry_numbers_from_pdf("scan.pdf")
+
+        self.assertEqual(values["fev1"]["best"], 2.0)
+        self.assertEqual(values["fev1"]["post"], 2.3)
+        self.assertTrue(build_spirometry_analysis(values)["bronchodilator_positive"])
+
     def test_restrictive_pdf_table_is_not_called_normal(self):
         analysis = build_analysis_from_text(
             "\n".join(

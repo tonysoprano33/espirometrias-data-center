@@ -63,6 +63,7 @@ from .models import (
     WalkTest,
 )
 from .pdf_intake import (
+    SPIROMETRY_ANALYSIS_VERSION,
     apply_snapshot_to_encounter_patient,
     build_analysis_from_browser_payload,
     build_analysis_from_text,
@@ -425,6 +426,7 @@ def store_spirometry_analysis(encounter, analysis: dict):
 
     result, _ = SpirometryResult.objects.get_or_create(encounter=encounter)
     stored_values = dict(analysis.get("values") or {})
+    stored_values["_analysis_version"] = SPIROMETRY_ANALYSIS_VERSION
     bronchodilator_reason = analysis.get("bronchodilator_reason", "") or ""
     if bronchodilator_reason:
         stored_values["_bronchodilator_reason"] = bronchodilator_reason
@@ -499,6 +501,7 @@ def build_stored_suggestion_context(spirometry_result):
     if legacy_probability_phrase and stored_summary.startswith(legacy_probability_phrase):
         reason = stored_summary[len(legacy_probability_phrase):].lstrip(". ").strip()
     stored_values = spirometry_result.measured_values or {}
+    current_analysis = stored_values.get("_analysis_version") == SPIROMETRY_ANALYSIS_VERSION
     return {
         "code": spirometry_result.suggested_code,
         "reason": reason,
@@ -507,11 +510,8 @@ def build_stored_suggestion_context(spirometry_result):
         "probability_phrase": probability_phrase,
         "values": stored_values,
         "source": spirometry_result.extracted_source or "",
-        "bronchodilator_positive": bool(spirometry_result.suggested_bronchodilator_positive),
-        "bronchodilator_reason": (
-            spirometry_result.suggested_bronchodilator_reason
-            or stored_values.get("_bronchodilator_reason", "")
-        ),
+        "bronchodilator_positive": current_analysis and bool(spirometry_result.suggested_bronchodilator_positive),
+        "bronchodilator_reason": spirometry_result.suggested_bronchodilator_reason if current_analysis else "",
     }
 
 
@@ -6183,7 +6183,10 @@ def doctor_review_detail(request, pk):
     pdf_attachment_url = safe_attachment_url(pdf_attachment)
     pdf_preview_pages = []
     preview_error = ""
-    spirometry_suggestion = build_stored_suggestion_context(getattr(encounter, "spirometry_result", None))
+    spirometry_result = getattr(encounter, "spirometry_result", None)
+    stored_values = getattr(spirometry_result, "measured_values", None) or {}
+    needs_reanalysis = stored_values.get("_analysis_version") != SPIROMETRY_ANALYSIS_VERSION
+    spirometry_suggestion = build_stored_suggestion_context(spirometry_result)
     review_queue = build_doctor_review_queue(encounter.encounter_date, encounter)
     next_review_encounter = review_queue["next_encounter"]
     if pdf_attachment:
@@ -6191,7 +6194,8 @@ def doctor_review_detail(request, pk):
             pdf_preview_pages = build_result_preview_images(pdf_attachment)
         except Exception as error:
             preview_error = str(error)
-        if pdf_attachment.file_kind == AttachmentKind.PDF_RESULTADO and not spirometry_suggestion:
+        if pdf_attachment.file_kind == AttachmentKind.PDF_RESULTADO and (needs_reanalysis or not spirometry_suggestion):
+            spirometry_suggestion = None
             try:
                 with local_field_file_path(pdf_attachment.file) as attachment_path:
                     generated_suggestion = build_spirometry_suggestion_from_pdf(

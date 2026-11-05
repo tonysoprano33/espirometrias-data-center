@@ -1197,13 +1197,15 @@
                     <div class="measurement-grid">
                         <div>
                             <strong>FVC</strong><br>
-                            Best {{ spirometry_suggestion.values.fvc.best|default:"-" }} |
+                            PRE (Best) {{ spirometry_suggestion.values.fvc.best|default:"-" }} L |
+                            POST {{ spirometry_suggestion.values.fvc.post|default:"-" }} L<br>
                             LLN {{ spirometry_suggestion.values.fvc.lln|default:"-" }} |
                             % {{ spirometry_suggestion.values.fvc.percent|default:"-" }}
                         </div>
                         <div>
                             <strong>FEV1</strong><br>
-                            Best {{ spirometry_suggestion.values.fev1.best|default:"-" }} |
+                            PRE (Best) {{ spirometry_suggestion.values.fev1.best|default:"-" }} L |
+                            POST {{ spirometry_suggestion.values.fev1.post|default:"-" }} L<br>
                             LLN {{ spirometry_suggestion.values.fev1.lln|default:"-" }} |
                             % {{ spirometry_suggestion.values.fev1.percent|default:"-" }}
                         </div>

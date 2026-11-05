@@ -19,6 +19,7 @@ except Exception as error:  # pragma: no cover - fallback defensivo
 
 OCR_ROW_TOLERANCE = 18
 SUGGESTION_PROBABILITY_CAP = 90
+SPIROMETRY_ANALYSIS_VERSION = 2
 
 
 def collapse_spaces(value: str) -> str:
@@ -181,7 +182,7 @@ def line_matches_spirometry_label(line: str, label: str) -> bool:
             return False
         return bool(re.search(r"\bFEV1\b", text, flags=re.IGNORECASE)) or normalized.startswith("FEV1")
     if label == "FVC":
-        return bool(re.search(r"\bFVC\b", text, flags=re.IGNORECASE)) or normalized.startswith("FVC")
+        return bool(re.match(r"^\s*FVC\b", text, flags=re.IGNORECASE))
     return False
 
 
@@ -224,41 +225,44 @@ def is_plausible_ratio(value) -> bool:
     return value is not None and 20 <= float(value) <= 130
 
 
-def infer_measurement_values_from_numbers(numbers: list[float]) -> dict:
-    if not numbers:
-        return {"lln": None, "predicted": None, "best": None, "percent": None, "post": None, "post_percent": None, "change_percent": None}
+def matches_printed_percent(value: float, reference: float, percent: float) -> bool:
+    # The PDF shows volumes to two decimals and percentages as whole numbers.
+    if reference <= 0.005:
+        return False
+    low = 100 * (value - 0.005) / (reference + 0.005) - 0.5
+    high = 100 * (value + 0.005) / (reference - 0.005) + 0.5
+    return low <= percent <= high
 
-    values = {"lln": None, "predicted": None, "best": None, "percent": None, "post": None, "post_percent": None, "change_percent": None}
-    if len(numbers) >= 3 and all(is_plausible_volume(number) for number in numbers[:3]):
-        values["lln"], values["predicted"], values["best"] = numbers[:3]
-        if len(numbers) >= 4 and 15 <= numbers[3] <= 180:
-            values["percent"] = numbers[3]
-    else:
-        decimal_candidates = [number for number in numbers if is_plausible_volume(number)]
-        if len(decimal_candidates) >= 1:
-            values["lln"] = decimal_candidates[0]
-        if len(decimal_candidates) >= 2:
-            values["predicted"] = decimal_candidates[1]
-        if len(decimal_candidates) >= 3:
-            values["best"] = decimal_candidates[2]
 
-    if values["percent"] is None and values["predicted"] and values["best"]:
-        values["percent"] = round((values["best"] / values["predicted"]) * 100, 1)
+def infer_measurement_values_from_numbers(numbers: list[float], *, has_post_columns: bool = False) -> dict:
+    values = dict.fromkeys(("lln", "predicted", "best", "percent", "post", "post_percent", "change_percent"))
+    if len(numbers) < 3:
+        return values
 
-    if len(numbers) >= 7:
-        post_candidate = numbers[-3]
-        post_percent_candidate = numbers[-2]
-        change_candidate = numbers[-1]
-        if is_plausible_volume(post_candidate):
-            values["post"] = post_candidate
-        if 15 <= post_percent_candidate <= 180:
-            values["post_percent"] = post_percent_candidate
-        if -100 <= change_candidate <= 200:
-            values["change_percent"] = change_candidate
+    lln, predicted, best = numbers[:3]
+    if not is_plausible_volume(predicted) or not is_plausible_volume(best) or not -8.5 <= lln <= predicted:
+        return values
+
+    percent = numbers[3] if len(numbers) >= 4 else None
+    values.update(lln=lln, predicted=predicted, best=best, percent=round(100 * best / predicted, 1))
+    if percent is not None and matches_printed_percent(best, predicted, percent):
+        values["percent"] = percent
+
+        # This report layout ends with POST, %Teór. and %Cam. Empty PRE
+        # maneuver cells disappear from extracted text, so verify the whole
+        # POST triplet before treating any trailing number as a measurement.
+        if has_post_columns and len(numbers) >= 7:
+            post, post_percent, change = numbers[-3:]
+            if (
+                is_plausible_volume(post)
+                and matches_printed_percent(post, predicted, post_percent)
+                and matches_printed_percent(post, best, change + 100)
+            ):
+                values.update(post=post, post_percent=post_percent, change_percent=change)
     return values
 
 
-def infer_ratio_values_from_numbers(numbers: list[float]) -> dict:
+def infer_ratio_values_from_numbers(numbers: list[float], *, has_post_columns: bool = False) -> dict:
     values = {"lln": None, "predicted": None, "best": None, "percent": None, "post": None, "post_percent": None, "change_percent": None}
     ratio_candidates = [number for number in numbers if is_plausible_ratio(number)]
     if len(ratio_candidates) >= 1:
@@ -271,7 +275,7 @@ def infer_ratio_values_from_numbers(numbers: list[float]) -> dict:
         values["best"] = ratio_candidates[1]
     if len(numbers) >= 4 and 20 <= numbers[3] <= 180:
         values["percent"] = numbers[3]
-    if len(numbers) >= 7:
+    if has_post_columns and len(numbers) >= 7:
         post_candidate = numbers[-3]
         post_percent_candidate = numbers[-2]
         change_candidate = numbers[-1]
@@ -292,7 +296,10 @@ def spirometry_values_are_plausible(values: dict) -> bool:
     if not any(is_plausible_volume(row.get("best")) or is_plausible_volume(row.get("predicted")) for row in volume_rows):
         return False
     for row in volume_rows:
-        for key in ["lln", "predicted", "best"]:
+        lln = row.get("lln")
+        if lln is not None and not -8.5 <= float(lln) <= 8.5:
+            return False
+        for key in ("predicted", "best"):
             value = row.get(key)
             if value is not None and not is_plausible_volume(value):
                 return False
@@ -314,9 +321,14 @@ def extract_spirometry_numbers_from_text(raw_text: str) -> dict:
     ratio_line = extract_line_for_labels(raw_text, ["FEV1/FVC", "FEV1FVC"])
     fev1_line = extract_line_for_labels(raw_text, ["FEV1"])
 
-    fvc = infer_measurement_values_from_numbers(extract_numbers_from_line(fvc_line))
-    fev1 = infer_measurement_values_from_numbers(extract_numbers_from_line(fev1_line))
-    ratio = infer_ratio_values_from_numbers(extract_numbers_from_line(ratio_line))
+    post_header = re.compile(r"\bPOST\s+%?\s*TE[OÓ]R\.?\s+%?\s*CAM\b", re.IGNORECASE)
+    has_post_columns = any(
+        re.search(r"\bBEST\b", line, flags=re.IGNORECASE) and post_header.search(line)
+        for line in split_text_lines(raw_text)
+    )
+    fvc = infer_measurement_values_from_numbers(extract_numbers_from_line(fvc_line), has_post_columns=has_post_columns)
+    fev1 = infer_measurement_values_from_numbers(extract_numbers_from_line(fev1_line), has_post_columns=has_post_columns)
+    ratio = infer_ratio_values_from_numbers(extract_numbers_from_line(ratio_line), has_post_columns=has_post_columns)
 
     return {
         "fvc": fvc,
@@ -469,13 +481,25 @@ def extract_spirometry_numbers_from_pdf(pdf_path: str, attachment_id: int | None
         "fev1_fvc": row_items_for_parameter(items, "FEV1FVC"),
     }
 
+    best_header = find_first_text(items, lambda item: item["y"] > 1100 and re.search(r"\bBEST\b", item["text"], re.I))
+    if best_header:
+        header = [item for item in items if abs(item["y"] - best_header["y"]) <= OCR_ROW_TOLERANCE]
+        def ordered_text(row):
+            return " ".join(item["text"] for item in sorted(row, key=lambda item: item["x"]))
+
+        table = [ordered_text(header)]
+        for key, label in (("fvc", "FVC"), ("fev1", "FEV1"), ("fev1_fvc", "FEV1/FVC")):
+            table.append(f"{label} {ordered_text(rows[key])}")
+        labeled_values = extract_spirometry_numbers_from_text("\n".join(table))
+        if spirometry_values_are_plausible(labeled_values):
+            return labeled_values
+
+    # The fallback coordinates locate baseline values in older scans. They
+    # do not identify a POST column, so leave the post measurements empty.
     fvc_predicted = value_near_column(rows["fvc"], 436, 0.3, 8)
     fvc_best = value_near_column(rows["fvc"], 529, 0.3, 8)
     fvc_lln = value_near_column(rows["fvc"], 338, 0.3, 8)
     fvc_percent = value_near_column(rows["fvc"], 634, 20, 160)
-    fvc_post = value_near_column(rows["fvc"], 1138, 0.3, 8)
-    fvc_post_percent = value_near_column(rows["fvc"], 1242, 20, 160)
-    fvc_change_percent = value_near_column(rows["fvc"], 1342, -100, 200)
     if fvc_percent is None and fvc_predicted and fvc_best:
         fvc_percent = round((fvc_best / fvc_predicted) * 100, 1)
 
@@ -483,9 +507,6 @@ def extract_spirometry_numbers_from_pdf(pdf_path: str, attachment_id: int | None
     fev1_best = value_near_column(rows["fev1"], 529, 0.3, 8)
     fev1_lln = value_near_column(rows["fev1"], 338, 0.3, 8)
     fev1_percent = value_near_column(rows["fev1"], 634, 20, 160)
-    fev1_post = value_near_column(rows["fev1"], 1138, 0.3, 8)
-    fev1_post_percent = value_near_column(rows["fev1"], 1242, 20, 160)
-    fev1_change_percent = value_near_column(rows["fev1"], 1342, -100, 200)
     if fev1_percent is None and fev1_predicted and fev1_best:
         fev1_percent = round((fev1_best / fev1_predicted) * 100, 1)
 
@@ -493,9 +514,6 @@ def extract_spirometry_numbers_from_pdf(pdf_path: str, attachment_id: int | None
     ratio_best = value_near_column(rows["fev1_fvc"], 529, 20, 120)
     ratio_lln = value_near_column(rows["fev1_fvc"], 338, 20, 120)
     ratio_percent = value_near_column(rows["fev1_fvc"], 634, 20, 160)
-    ratio_post = value_near_column(rows["fev1_fvc"], 1138, 20, 130)
-    ratio_post_percent = value_near_column(rows["fev1_fvc"], 1242, 20, 160)
-    ratio_change_percent = value_near_column(rows["fev1_fvc"], 1342, -100, 200)
     if ratio_percent is None and ratio_predicted and ratio_best:
         ratio_percent = round((ratio_best / ratio_predicted) * 100, 1)
 
@@ -505,27 +523,27 @@ def extract_spirometry_numbers_from_pdf(pdf_path: str, attachment_id: int | None
             "predicted": fvc_predicted,
             "best": fvc_best,
             "percent": fvc_percent,
-            "post": fvc_post,
-            "post_percent": fvc_post_percent,
-            "change_percent": fvc_change_percent,
+            "post": None,
+            "post_percent": None,
+            "change_percent": None,
         },
         "fev1": {
             "lln": fev1_lln,
             "predicted": fev1_predicted,
             "best": fev1_best,
             "percent": fev1_percent,
-            "post": fev1_post,
-            "post_percent": fev1_post_percent,
-            "change_percent": fev1_change_percent,
+            "post": None,
+            "post_percent": None,
+            "change_percent": None,
         },
         "fev1_fvc": {
             "lln": ratio_lln,
             "predicted": ratio_predicted,
             "best": ratio_best,
             "percent": ratio_percent,
-            "post": ratio_post,
-            "post_percent": ratio_post_percent,
-            "change_percent": ratio_change_percent,
+            "post": None,
+            "post_percent": None,
+            "change_percent": None,
         },
     }
 
@@ -538,29 +556,17 @@ def detect_bronchodilator_response(values: dict) -> tuple[bool, str]:
     for label, metric in metrics:
         pre_value = metric.get("best")
         post_value = metric.get("post")
-        change_percent = metric.get("change_percent")
-        if pre_value is None or post_value is None:
+        predicted = metric.get("predicted")
+        if not all(is_plausible_volume(value) for value in (pre_value, post_value, predicted)):
             continue
-        absolute_change = round(float(post_value) - float(pre_value), 2)
-        predicted_value = metric.get("predicted")
-        predicted_change_percent = None
-        if predicted_value not in [None, 0]:
-            predicted_change_percent = round((absolute_change / float(predicted_value)) * 100, 1)
-        computed_change_percent = None
-        if pre_value not in [None, 0]:
-            computed_change_percent = round((absolute_change / float(pre_value)) * 100, 1)
-        effective_change_percent = change_percent if change_percent is not None else computed_change_percent
-        if effective_change_percent is None:
-            continue
-        if predicted_change_percent is not None and predicted_change_percent > 10:
+
+        change = Decimal(str(post_value)) - Decimal(str(pre_value))
+        reference = Decimal(str(predicted))
+        if change * 10 > reference:
+            percent = change * 100 / reference
             return True, (
-                f"Broncodilatador positivo (criterio ERS/ATS 2022): {label} sube de "
-                f"{pre_value} a {post_value} L ({predicted_change_percent}% del valor predicho)."
-            )
-        if absolute_change >= 0.2 and float(effective_change_percent) >= 12:
-            return True, (
-                f"Broncodilatador positivo (criterio clasico): {label} sube de {pre_value} a {post_value} L "
-                f"({absolute_change:.2f} L; {effective_change_percent}% respecto del basal)."
+                f"Broncodilatador positivo (criterio ERS/ATS 2022): {label} de "
+                f"{pre_value} L (PRE) a {post_value} L (POST), +{percent:.2f}% del valor predicho."
             )
     return False, ""
 
