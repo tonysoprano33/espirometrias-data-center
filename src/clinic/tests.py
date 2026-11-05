@@ -2521,7 +2521,11 @@ class DrappImportDeduplicationTests(TestCase):
 class SpirometryPdfParsingTests(SimpleTestCase):
     def test_low_lln_and_z_score_do_not_shift_best_or_post_columns(self):
         analysis = build_analysis_from_text(
-            "Parametros LLN Teór. Best %Teór. Z-score PRE #1 PRE #2 PRE #3 POST %Teór. %Cam\n"
+            "%Teór. %Cam\n"
+            "Parametros LLN Teór. %Teór. Z-score PRE #1 PRE #2 PRE #3 POST\n"
+            "PRE\n"
+            "Teóricos\n"
+            "Best\n"
             "FVC L -0,03 0,60 0,75* 125 0,41 0,75 0,73* 122 -3\n"
             "FEV1 L 0,18 0,65 0,75* 115 0,41 0,75 0,73* 112 -3\n"
             "FEV1/FVC % 85 97 100* 103 0,32 100 100* 103 0"

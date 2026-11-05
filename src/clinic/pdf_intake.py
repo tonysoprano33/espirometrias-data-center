@@ -19,7 +19,7 @@ except Exception as error:  # pragma: no cover - fallback defensivo
 
 OCR_ROW_TOLERANCE = 18
 SUGGESTION_PROBABILITY_CAP = 90
-SPIROMETRY_ANALYSIS_VERSION = 2
+SPIROMETRY_ANALYSIS_VERSION = 3
 
 
 def collapse_spaces(value: str) -> str:
@@ -321,11 +321,18 @@ def extract_spirometry_numbers_from_text(raw_text: str) -> dict:
     ratio_line = extract_line_for_labels(raw_text, ["FEV1/FVC", "FEV1FVC"])
     fev1_line = extract_line_for_labels(raw_text, ["FEV1"])
 
-    post_header = re.compile(r"\bPOST\s+%?\s*TE[OÓ]R\.?\s+%?\s*CAM\b", re.IGNORECASE)
-    has_post_columns = any(
-        re.search(r"\bBEST\b", line, flags=re.IGNORECASE) and post_header.search(line)
-        for line in split_text_lines(raw_text)
-    )
+    lines = split_text_lines(raw_text)
+    post_summary = re.compile(r"%?\s*TE[OÓ]R\.?\s+%?\s*CAM\b", re.IGNORECASE)
+    has_post_columns = False
+    for index, line in enumerate(lines):
+        if not re.search(r"\b(?:LLN|LIN)\b.*\bPOST\b", line, re.IGNORECASE):
+            continue
+        # Some PDFs emit Best and the two post percentages on separate lines
+        # immediately around the rest of the table header.
+        header = "\n".join(lines[max(0, index - 4):index + 5])
+        if re.search(r"\bBEST\b", header, re.IGNORECASE) and post_summary.search(header):
+            has_post_columns = True
+            break
     fvc = infer_measurement_values_from_numbers(extract_numbers_from_line(fvc_line), has_post_columns=has_post_columns)
     fev1 = infer_measurement_values_from_numbers(extract_numbers_from_line(fev1_line), has_post_columns=has_post_columns)
     ratio = infer_ratio_values_from_numbers(extract_numbers_from_line(ratio_line), has_post_columns=has_post_columns)
