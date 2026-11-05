@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from io import BytesIO
 import json
 from unittest.mock import patch
@@ -761,7 +761,6 @@ class DashboardInlineUpdateTests(TestCase):
                 {
                     "action": "start_bronchodilator_timer",
                     "encounter_id": self.encounter.pk,
-                    "bronchodilator_wait_minutes": "10",
                 },
                 HTTP_X_REQUESTED_WITH="XMLHttpRequest",
             )
@@ -771,8 +770,28 @@ class DashboardInlineUpdateTests(TestCase):
         self.assertEqual(self.encounter.bronchodilator_administered_at, timer_time)
         self.assertEqual(self.encounter.bronchodilator_wait_minutes, 10)
         self.assertTrue(response.json()["bronchodilator_timer_active"])
-        self.assertEqual(response.json()["bronchodilator_timer_label"], "Bronco: 10 min")
+        self.assertEqual(response.json()["bronchodilator_timer_label"], "0 min")
+        self.assertEqual(self.encounter.status, EncounterStatus.PENDIENTE)
         self.assertTrue(response.json()["bronchodilator_timer_due_at"].startswith("2026-06-05T11:10"))
+
+    def test_bronchodilator_timer_renders_elapsed_minutes_from_persisted_start(self):
+        started_at = timezone.make_aware(datetime(2026, 6, 5, 11, 0))
+        self.encounter.bronchodilator_administered_at = started_at
+        self.encounter.save(update_fields=["bronchodilator_administered_at"])
+        due_at = (started_at + timedelta(minutes=10)).astimezone(UTC).isoformat(timespec="milliseconds")
+
+        for seconds, label, ready in ((119, "1 min", False), (599, "9 min", False), (600, "10 min (listo)", True)):
+            with self.subTest(seconds=seconds), patch(
+                "clinic.views.timezone.now", return_value=started_at + timedelta(seconds=seconds)
+            ):
+                response = self.client.get(reverse("clinic:dashboard"))
+
+            self.assertContains(response, f'data-bronchodilator-label>{label}</span>')
+            self.assertContains(response, f'data-bronchodilator-due-at="{due_at}"')
+            if ready:
+                self.assertContains(response, 'class="bronchodilator-reminder is-active is-ready"')
+            else:
+                self.assertNotContains(response, 'class="bronchodilator-reminder is-active is-ready"')
 
     def test_bronchodilator_timer_can_be_cancelled(self):
         self.encounter.bronchodilator_administered_at = timezone.now()
@@ -2843,6 +2862,44 @@ class PrintReportViewTests(TestCase):
         positive_doc = Document(BytesIO(build_reports_for_encounter(self.encounter)[0].bytes_content))
         positive_text = "\n".join(paragraph.text for paragraph in positive_doc.paragraphs)
         self.assertIn("Broncodilatador Positivo", positive_text)
+
+    def test_epoc_edit_controls_first_page_of_printed_and_generated_reports(self):
+        grant_clinic_permissions(self.user, "manage_agenda")
+        edit_url = reverse("clinic:encounter_edit", args=[self.encounter.pk])
+        print_url = reverse("clinic:encounter_print", args=[self.encounter.pk])
+        daily_url = reverse("clinic:daily_print")
+        label = "<strong>DX: EPOC</strong>"
+        form_data = {
+            "patient_name": self.patient.full_name,
+            "patient_dni": self.patient.dni,
+            "study_type": self.encounter.study_type,
+            "coverage_type": self.encounter.coverage_type,
+            "respiratory_result": "N",
+            "so2_rest": 88,
+            "fc_rest": 64,
+        }
+
+        self.assertContains(self.client.get(edit_url), label)
+        self.assertNotContains(self.client.get(print_url), label)
+        self.assertEqual(self.client.post(edit_url, {**form_data, "dx_epoc": "on"}).status_code, 302)
+        self.encounter.refresh_from_db()
+        self.assertTrue(self.encounter.spirometry_result.dx_epoc)
+        self.assertTrue(self.client.get(edit_url).context["form"]["dx_epoc"].value())
+
+        with patch("clinic.views.timezone.localdate", return_value=self.encounter.encounter_date):
+            daily_response = self.client.get(daily_url)
+        for response in (self.client.get(print_url), daily_response):
+            self.assertContains(response, label, count=1)
+            html = response.content.decode()
+            self.assertLess(html.index("SO2: 88%"), html.index(label))
+            self.assertLess(html.index(label), html.index('class="signature">'))
+
+        report = Document(BytesIO(build_reports_for_encounter(self.encounter)[0].bytes_content))
+        epoc = next(paragraph for paragraph in report.paragraphs if paragraph.text == "DX: EPOC")
+        self.assertTrue(epoc.runs[0].bold)
+
+        self.assertEqual(self.client.post(edit_url, form_data).status_code, 302)
+        self.assertNotContains(self.client.get(print_url), label)
 
     def test_spirometry_only_never_adds_walk_page(self):
         self.encounter.study_type = StudyType.ESPIROMETRIA

@@ -285,6 +285,9 @@
             <h2>Resultado Espirometria Computarizada</h2>
             <p class="emphasis spirometry-result">{{ packet.report_text }}</p>
             <p class="emphasis so2-fc-line">SO2: {{ packet.so2 }}% &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; FC: {{ packet.fc }}</p>
+            {% if packet.dx_epoc %}
+                <p class="emphasis"><strong>DX: EPOC</strong></p>
+            {% endif %}
             {% if packet.bronchodilator_positive %}
                 <p class="emphasis" style="color:#b54123;">Broncodilatador Positivo</p>
             {% endif %}

@@ -44,6 +44,7 @@ from .forms import (
 )
 from .file_utils import local_field_file_path
 from .models import (
+    BRONCHODILATOR_WAIT_MINUTES,
     Attachment,
     AttachmentAnalysisStatus,
     AttachmentKind,
@@ -1246,7 +1247,7 @@ def get_operational_minutes(started_at, finished_at):
 def get_bronchodilator_timer_payload(encounter, *, now=None):
     now = now or timezone.now()
     started_at = encounter.bronchodilator_administered_at
-    wait_minutes = int(encounter.bronchodilator_wait_minutes or 15)
+    wait_minutes = BRONCHODILATOR_WAIT_MINUTES
     if not started_at:
         return {
             "bronchodilator_timer_active": False,
@@ -1258,16 +1259,16 @@ def get_bronchodilator_timer_payload(encounter, *, now=None):
         }
 
     due_at = started_at + timedelta(minutes=wait_minutes)
-    remaining_seconds = max(0, int((due_at - now).total_seconds()))
-    remaining_minutes = (remaining_seconds + 59) // 60
-    is_ready = remaining_seconds == 0
+    elapsed_seconds = max(0, (now - started_at).total_seconds())
+    elapsed_minutes = min(wait_minutes, int(elapsed_seconds // 60))
+    is_ready = now >= due_at
     return {
         "bronchodilator_timer_active": True,
         "bronchodilator_timer_ready": is_ready,
-        "bronchodilator_timer_remaining_minutes": remaining_minutes,
-        "bronchodilator_timer_label": "Bronco: listo" if is_ready else f"Bronco: {remaining_minutes} min",
+        "bronchodilator_timer_remaining_minutes": wait_minutes - elapsed_minutes,
+        "bronchodilator_timer_label": f"{elapsed_minutes} min" + (" (listo)" if is_ready else ""),
         "bronchodilator_wait_minutes": wait_minutes,
-        "bronchodilator_timer_due_at": due_at.isoformat(),
+        "bronchodilator_timer_due_at": due_at.isoformat(timespec="milliseconds"),
     }
 
 
@@ -1733,7 +1734,11 @@ def save_quick_encounter(
     result_code = form.cleaned_data.get("respiratory_result") or ""
     result = apply_result_code_to_spirometry(encounter, result_code)
     result.bronchodilator_positive = bool(form.cleaned_data.get("bronchodilator_positive"))
-    result.save(update_fields=["bronchodilator_positive", "updated_at"])
+    result_fields = ["bronchodilator_positive", "updated_at"]
+    if not is_new:
+        result.dx_epoc = form.cleaned_data["dx_epoc"]
+        result_fields.append("dx_epoc")
+    result.save(update_fields=result_fields)
     record_encounter_event(
         encounter,
         EncounterEventType.CREATED if is_new else EncounterEventType.UPDATED,
@@ -3358,6 +3363,7 @@ def build_print_context_for_encounter(encounter):
     grado_rest = (getattr(result, "restriction_grade", "") or "Leve").strip().lower()
     informe = construir_informe_espirometria(patron, grado_obst, grado_rest)
     broncodilatador_positivo = bool(getattr(result, "bronchodilator_positive", False))
+    dx_epoc = bool(getattr(result, "dx_epoc", False))
 
     so2 = limpiar_entero(getattr(vital, "so2_rest", ""), default="") if vital else ""
     fc = limpiar_entero(getattr(vital, "fc_rest", ""), default="") if vital else ""
@@ -3395,6 +3401,7 @@ def build_print_context_for_encounter(encounter):
         "report_text": informe,
         "is_normal": patron == "Normal",
         "bronchodilator_positive": broncodilatador_positivo,
+        "dx_epoc": dx_epoc,
         "pattern": patron,
         "include_walk": include_walk,
         "walk_rows": walk_rows,
@@ -3503,6 +3510,7 @@ def dashboard(request):
         encounter.complete_report_url = latest_report_info["complete_report_url"]
         encounter.mutual_report_url = latest_report_info["mutual_report_url"]
         encounter.detail_url = latest_report_info["detail_url"]
+        encounter.bronchodilator_timer = get_bronchodilator_timer_payload(encounter)
     stats_map = Counter(encounter.status for encounter in today_encounters)
     status_cards = [
         {"value": value, "label": label, "total": stats_map.get(value, 0), "css_class": get_status_badge_class(value)}
@@ -3699,14 +3707,7 @@ def dashboard(request):
                 .prefetch_related("generated_reports__attachment"),
                 pk=request.POST.get("encounter_id"),
             )
-            raw_wait_minutes = str(request.POST.get("bronchodilator_wait_minutes", "15")).strip()
-            if raw_wait_minutes not in {"10", "15"}:
-                message = "Elegí una espera de 10 o 15 minutos."
-                if is_ajax_request(request):
-                    return JsonResponse({"ok": False, "message": message}, status=400)
-                messages.error(request, message)
-                return redirect("clinic:dashboard")
-            encounter.bronchodilator_wait_minutes = int(raw_wait_minutes)
+            encounter.bronchodilator_wait_minutes = BRONCHODILATOR_WAIT_MINUTES
             encounter.bronchodilator_administered_at = timezone.now()
             encounter.updated_by = request.user
             encounter.save(
@@ -5601,6 +5602,7 @@ def encounter_edit(request, pk):
                 "borg_final": getattr(walk, "borg_final", 1),
                 "respiratory_result": current_result,
                 "bronchodilator_positive": bool(getattr(spirometry, "bronchodilator_positive", False)),
+                "dx_epoc": bool(getattr(spirometry, "dx_epoc", False)),
                 "medical_control_today": encounter.medical_control_today,
                 "attended": encounter.attended,
                 "no_show": encounter.no_show,
