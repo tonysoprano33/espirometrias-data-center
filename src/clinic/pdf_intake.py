@@ -3,11 +3,15 @@ import unicodedata
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
+from hashlib import sha256
 import json
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from django.conf import settings
 import pypdfium2 as pdfium
+
+from .file_utils import local_field_file_path
 
 try:
     from rapidocr_onnxruntime import RapidOCR
@@ -83,27 +87,43 @@ def ensure_first_page_preview(pdf_path: str, attachment_id: int | None = None) -
     return preview_path
 
 
-def ensure_pdf_preview_pages(pdf_path: str, attachment_id: int | None = None) -> list[Path]:
-    output_dir_name = f"attachment_{attachment_id}" if attachment_id else "adhoc"
-    preview_dir = Path(settings.MEDIA_ROOT) / "previews" / output_dir_name
-    preview_dir.mkdir(parents=True, exist_ok=True)
-    existing = sorted(preview_dir.glob("page-*.png"))
-    if existing:
-        return existing
-
-    document = pdfium.PdfDocument(str(pdf_path))
+def ensure_pdf_preview_pages(field_file, *, attachment_id: int) -> list[Path]:
+    source_key = sha256(field_file.name.encode("utf-8")).hexdigest()[:16]
+    preview_dir = Path(settings.MEDIA_ROOT) / "previews" / f"attachment_{attachment_id}" / f"pdf-{source_key}"
+    page_count_path = preview_dir / "page-count"
     try:
-        for page_index in range(len(document)):
-            page = document[page_index]
-            try:
-                bitmap = page.render(scale=2.4)
-                image = bitmap.to_pil()
-                image.save(preview_dir / f"page-{page_index + 1}.png")
-            finally:
-                page.close()
-    finally:
-        document.close()
-    return sorted(preview_dir.glob("page-*.png"))
+        page_count = int(page_count_path.read_text(encoding="ascii"))
+        cached_pages = [preview_dir / f"page-{number}.png" for number in range(1, page_count + 1)]
+        if cached_pages and all(page.is_file() for page in cached_pages):
+            return cached_pages
+    except (OSError, ValueError):
+        pass
+
+    with local_field_file_path(field_file) as pdf_path:
+        if not pdf_path.is_file():
+            return []
+
+        preview_dir.mkdir(parents=True, exist_ok=True)
+        with pdfium.PdfDocument(str(pdf_path)) as document, TemporaryDirectory(dir=preview_dir) as staging:
+            staging_dir = Path(staging)
+            pages = []
+            for page_index in range(len(document)):
+                page_path = preview_dir / f"page-{page_index + 1}.png"
+                page = document[page_index]
+                try:
+                    bitmap = page.render(scale=2.4)
+                    bitmap.to_pil().save(staging_dir / page_path.name)
+                finally:
+                    page.close()
+                pages.append(page_path)
+
+            # Publish the count last. OCR's first-page preview lives outside this set.
+            for page_path in pages:
+                (staging_dir / page_path.name).replace(page_path)
+            staged_count = staging_dir / page_count_path.name
+            staged_count.write_text(str(len(pages)), encoding="ascii")
+            staged_count.replace(page_count_path)
+            return pages
 
 
 def extract_pdf_text_content(pdf_path: str) -> str:
@@ -1178,8 +1198,6 @@ def apply_snapshot_to_encounter_patient(encounter, snapshot: dict, *, update_ful
 def ingest_pdf_attachment_into_patient(attachment):
     if not attachment or not getattr(attachment, "file", None):
         return {}, []
-    from .file_utils import local_field_file_path
-
     with local_field_file_path(attachment.file) as attachment_path:
         snapshot = extract_patient_snapshot_from_pdf(str(attachment_path), attachment_id=attachment.pk)
     encounter = attachment.encounter

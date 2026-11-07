@@ -157,10 +157,7 @@ def build_pdf_preview_images(attachment):
     if not attachment or not getattr(attachment, "file", None):
         return []
 
-    with local_field_file_path(attachment.file) as attachment_path:
-        if not attachment_path.exists():
-            return []
-        existing = ensure_pdf_preview_pages(str(attachment_path), attachment_id=attachment.pk)
+    existing = ensure_pdf_preview_pages(attachment.file, attachment_id=attachment.pk)
 
     if settings.USE_SUPABASE_STORAGE:
         return [
@@ -172,10 +169,11 @@ def build_pdf_preview_images(attachment):
         ]
 
     prefix = media_url_prefix().rstrip("/")
+    media_root = Path(settings.MEDIA_ROOT)
     return [
         {
             "index": index + 1,
-            "url": f"{prefix}/previews/attachment_{attachment.pk}/{image_path.name}",
+            "url": f"{prefix}/{image_path.relative_to(media_root).as_posix()}",
         }
         for index, image_path in enumerate(existing)
     ]

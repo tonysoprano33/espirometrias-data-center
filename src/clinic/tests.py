@@ -1,17 +1,21 @@
 from datetime import UTC, date, datetime, time, timedelta
 from io import BytesIO
 import json
-from unittest.mock import patch
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from docx import Document
 from PIL import Image
+import pypdfium2 as pdfium
 
 from .forms import DrappImportForm, parse_result_code, validate_clinical_upload
 from .models import Attachment, AttachmentKind, CoverageType, Encounter, EncounterStatus, GeneratedReport, Patient, ReferringPhysician, ReportType, SpirometryResult, StudyType, VitalSigns, WalkTest, attachment_upload_to, safe_attachment_filename
@@ -27,6 +31,7 @@ from .services import build_reports_for_encounter, build_walk_measurement_rows, 
 from .views import (
     build_drapp_import_preview,
     build_operational_time_summary,
+    build_pdf_preview_images,
     extract_drapp_rows_from_browser_ocr,
     extract_drapp_rows_from_ocr_lines,
     extract_drapp_rows_from_text,
@@ -2516,6 +2521,60 @@ class DrappImportDeduplicationTests(TestCase):
         )
 
         self.assertEqual(unique, [first])
+
+
+class PdfPreviewCacheTests(SimpleTestCase):
+    def pdf_bytes(self, page_count):
+        content = BytesIO()
+        with pdfium.PdfDocument.new() as document:
+            for _ in range(page_count):
+                document.new_page(100, 100).close()
+            document.save(content)
+        return content.getvalue()
+
+    def test_complete_preview_reuses_pages_without_reopening_remote_pdf(self):
+        storage = Mock()
+        storage.path.side_effect = NotImplementedError
+        original = self.pdf_bytes(2)
+        field = SimpleNamespace(name="synthetic.pdf", storage=storage, open=Mock(side_effect=lambda _: BytesIO(original)))
+        attachment = SimpleNamespace(pk=123, file=field)
+
+        with TemporaryDirectory() as root, override_settings(MEDIA_ROOT=root, USE_SUPABASE_STORAGE=True):
+            # OCR may have already saved only the first page.
+            legacy_dir = Path(root) / "previews" / "attachment_123"
+            legacy_dir.mkdir(parents=True)
+            Image.new("RGB", (1, 1)).save(legacy_dir / "page-1.png")
+
+            first = build_pdf_preview_images(attachment)
+            self.assertEqual([page["index"] for page in first], [1, 2])
+            self.assertTrue(all(page["url"].startswith("data:image/png;base64,") for page in first))
+            self.assertEqual(build_pdf_preview_images(attachment), first)
+            field.open.assert_called_once_with("rb")
+
+            next(legacy_dir.glob("pdf-*/page-2.png")).unlink()
+            self.assertEqual(build_pdf_preview_images(attachment), first)
+            self.assertEqual(field.open.call_count, 2)
+
+            replacement = self.pdf_bytes(1)
+            field.name = "synthetic-replacement.pdf"
+            field.open.side_effect = lambda _: BytesIO(replacement)
+            self.assertEqual([page["index"] for page in build_pdf_preview_images(attachment)], [1])
+            self.assertEqual(field.open.call_count, 3)
+
+    def test_local_preview_urls_follow_numeric_page_order(self):
+        with TemporaryDirectory() as root, override_settings(MEDIA_ROOT=root, MEDIA_URL="/media/", USE_SUPABASE_STORAGE=False):
+            source = Path(root) / "synthetic.pdf"
+            source.write_bytes(self.pdf_bytes(12))
+            storage = Mock()
+            storage.path.return_value = str(source)
+            field = SimpleNamespace(name=source.name, storage=storage, open=Mock())
+            attachment = SimpleNamespace(pk=124, file=field)
+
+            pages = build_pdf_preview_images(attachment)
+            self.assertEqual([page["url"].rsplit("/", 1)[1] for page in pages], [f"page-{i}.png" for i in range(1, 13)])
+            for page in pages:
+                self.assertTrue((Path(root) / page["url"].removeprefix("/media/")).is_file())
+            field.open.assert_not_called()
 
 
 class SpirometryPdfParsingTests(SimpleTestCase):
