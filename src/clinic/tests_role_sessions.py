@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -25,6 +27,28 @@ class FixedRoleSessionTests(TestCase):
         self.assertTrue(technician.has_perm("clinic.manage_agenda"))
         self.assertTrue(technician.has_perm("clinic.review_medically"))
         self.assertTrue(technician.has_perm("clinic.view_clinical_statistics"))
+
+    def test_login_page_does_not_reprovision_reserved_accounts(self):
+        with patch("clinic.auth_views.provision_role_session_accounts") as provision_accounts:
+            response = self.client.get(reverse("login"))
+
+        self.assertEqual(response.status_code, 200)
+        provision_accounts.assert_not_called()
+
+    def test_login_repairs_a_missing_reserved_account(self):
+        self.User.objects.get(username="medico").delete()
+
+        with patch(
+            "clinic.auth_views.provision_role_session_accounts",
+            wraps=provision_role_session_accounts,
+        ) as provision_accounts:
+            response = self.client.post(
+                reverse("login"),
+                {"username": "medico", "password": "123"},
+            )
+
+        self.assertRedirects(response, reverse("clinic:doctor_review_list"))
+        provision_accounts.assert_called_once_with()
 
     def test_secretary_role_ignores_a_stale_browser_mode_after_reload(self):
         self.client.force_login(self.User.objects.get(username="secretaria"))
