@@ -3507,6 +3507,40 @@ def render_dashboard_response(
     return render(request, "clinic/dashboard.html", context)
 
 
+def get_agenda_encounters_queryset():
+    return (
+        Encounter.objects.select_related(
+            "patient", "referring_physician", "vital_signs", "spirometry_result", "walk_test"
+        )
+        .defer(
+            "technician_notes",
+            "spirometry_result__suggested_bronchodilator_reason",
+            "spirometry_result__physician_comment",
+            "spirometry_result__measured_values",
+            "spirometry_result__suggested_summary",
+            "walk_test__minute_readings",
+        )
+        .prefetch_related(
+            Prefetch(
+                "attachments",
+                queryset=Attachment.objects.only("id", "encounter_id", "file_kind", "created_at"),
+            ),
+            Prefetch(
+                "generated_reports",
+                queryset=GeneratedReport.objects.select_related("attachment").only(
+                    "id",
+                    "encounter_id",
+                    "report_type",
+                    "created_at",
+                    "attachment_id",
+                    "attachment__id",
+                    "attachment__original_name",
+                ),
+            ),
+        )
+    )
+
+
 @login_required
 def dashboard(request):
     purge_expired_recycle_bin()
@@ -3526,13 +3560,8 @@ def dashboard(request):
         "attended": False,
         "no_show": True,
     }
-    today_encounters = (
-        Encounter.objects.select_related(
-            "patient", "referring_physician", "vital_signs", "spirometry_result", "walk_test"
-        )
-        .prefetch_related("attachments", "generated_reports__attachment")
-        .filter(encounter_date=today)
-        .order_by("encounter_time", "created_at")
+    today_encounters = get_agenda_encounters_queryset().filter(encounter_date=today).order_by(
+        "encounter_time", "created_at"
     )
     today_encounters = unique_encounters_by_patient_day(today_encounters)
     today_encounters = sort_dashboard_encounters(today_encounters)
@@ -4021,12 +4050,7 @@ def dashboard(request):
 @login_required
 def dashboard_rows_state(request):
     today = timezone.localdate()
-    encounters = (
-        Encounter.objects.select_related("patient", "referring_physician", "spirometry_result", "vital_signs", "walk_test")
-        .prefetch_related("attachments", "generated_reports__attachment")
-        .filter(encounter_date=today)
-        .order_by("created_at")
-    )
+    encounters = get_agenda_encounters_queryset().filter(encounter_date=today).order_by("created_at")
     encounters = unique_encounters_by_patient_day(encounters)
     rows = get_row_state_payloads(encounters)
     return JsonResponse(

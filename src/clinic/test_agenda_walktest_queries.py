@@ -6,7 +6,23 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import CoverageType, Encounter, EncounterStatus, Patient, StudyType, WalkTest
+from .models import (
+    Attachment,
+    AttachmentKind,
+    CoverageType,
+    Encounter,
+    EncounterStatus,
+    GeneratedReport,
+    Patient,
+    ReportType,
+    RespiratoryPattern,
+    SeverityGrade,
+    SpirometryResult,
+    StudyType,
+    VitalSigns,
+    WalkTest,
+)
+from .views import get_agenda_encounters_queryset
 
 
 class AgendaWalkTestQueryTests(TestCase):
@@ -133,3 +149,61 @@ class AgendaWalkTestQueryTests(TestCase):
         response = self.client.get(reverse("clinic:dashboard_rows_state"))
 
         self.assertEqual(response.status_code, 302)
+
+    def test_agenda_loads_only_lightweight_study_and_report_fields(self):
+        patient = Patient.objects.create(full_name="PACIENTE CON INFORME", dni="90123456")
+        encounter = Encounter.objects.create(
+            patient=patient,
+            encounter_date=timezone.localdate(),
+            study_type=StudyType.ESPIROMETRIA,
+            coverage_type=CoverageType.PARTICULAR,
+            status=EncounterStatus.PENDIENTE,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        VitalSigns.objects.create(encounter=encounter, so2_rest=96, fc_rest=72)
+        SpirometryResult.objects.create(
+            encounter=encounter,
+            respiratory_pattern=RespiratoryPattern.OBSTRUCTIVO,
+            obstruction_grade=SeverityGrade.LEVE,
+            measured_values={"large": "M" * 12000},
+            suggested_summary="S" * 12000,
+            suggested_bronchodilator_reason="B" * 12000,
+            physician_comment="C" * 12000,
+        )
+        WalkTest.objects.create(
+            encounter=encounter,
+            minute_readings=[{"minute": minute, "notes": "R" * 1200} for minute in range(1, 7)],
+        )
+        attachment = Attachment.objects.create(
+            encounter=encounter,
+            file_kind=AttachmentKind.PDF_RESULTADO,
+            original_name="resultado.pdf",
+            file="results/resultado.pdf",
+            mime_type="application/pdf",
+            uploaded_by=self.user,
+        )
+        GeneratedReport.objects.create(
+            encounter=encounter,
+            report_type=ReportType.COMPLETO,
+            attachment=attachment,
+            source_snapshot={"large": "P" * 12000},
+        )
+
+        agenda_encounter = get_agenda_encounters_queryset().get(pk=encounter.pk)
+        self.assertIn("technician_notes", agenda_encounter.get_deferred_fields())
+        self.assertIn("measured_values", agenda_encounter.spirometry_result.get_deferred_fields())
+        self.assertIn("minute_readings", agenda_encounter.walk_test.get_deferred_fields())
+        report = agenda_encounter.generated_reports.all()[0]
+        self.assertIn("source_snapshot", report.get_deferred_fields())
+
+        page = self.client.get(reverse("clinic:dashboard"))
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "Abrir completo")
+
+        poll = self.client.get(reverse("clinic:dashboard_rows_state"))
+        self.assertEqual(poll.status_code, 200)
+        row = next(item for item in poll.json()["rows"] if item["encounter_id"] == encounter.pk)
+        self.assertTrue(row["has_generated_reports"])
+        self.assertTrue(row["complete_report_url"])
+        self.assertTrue(row["result_code"])
