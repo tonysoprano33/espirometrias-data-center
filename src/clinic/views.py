@@ -3523,7 +3523,9 @@ def get_agenda_encounters_queryset():
         .prefetch_related(
             Prefetch(
                 "attachments",
-                queryset=Attachment.objects.only("id", "encounter_id", "file_kind", "created_at"),
+                queryset=Attachment.objects.filter(
+                    file_kind__in=[AttachmentKind.PDF_RESULTADO, AttachmentKind.FOTO_RESULTADO]
+                ).only("id", "encounter_id", "file_kind", "created_at"),
             ),
             Prefetch(
                 "generated_reports",

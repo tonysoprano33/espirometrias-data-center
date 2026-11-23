@@ -175,7 +175,7 @@ class AgendaWalkTestQueryTests(TestCase):
             encounter=encounter,
             minute_readings=[{"minute": minute, "notes": "R" * 1200} for minute in range(1, 7)],
         )
-        attachment = Attachment.objects.create(
+        result_attachment = Attachment.objects.create(
             encounter=encounter,
             file_kind=AttachmentKind.PDF_RESULTADO,
             original_name="resultado.pdf",
@@ -183,10 +183,18 @@ class AgendaWalkTestQueryTests(TestCase):
             mime_type="application/pdf",
             uploaded_by=self.user,
         )
+        report_attachment = Attachment.objects.create(
+            encounter=encounter,
+            file_kind=AttachmentKind.INFORME_PDF,
+            original_name="informe.pdf",
+            file="reports/informe.pdf",
+            mime_type="application/pdf",
+            uploaded_by=self.user,
+        )
         GeneratedReport.objects.create(
             encounter=encounter,
             report_type=ReportType.COMPLETO,
-            attachment=attachment,
+            attachment=report_attachment,
             source_snapshot={"large": "P" * 12000},
         )
 
@@ -194,8 +202,14 @@ class AgendaWalkTestQueryTests(TestCase):
         self.assertIn("technician_notes", agenda_encounter.get_deferred_fields())
         self.assertIn("measured_values", agenda_encounter.spirometry_result.get_deferred_fields())
         self.assertIn("minute_readings", agenda_encounter.walk_test.get_deferred_fields())
+        self.assertEqual(
+            {item.file_kind for item in agenda_encounter.attachments.all()},
+            {AttachmentKind.PDF_RESULTADO},
+        )
         report = agenda_encounter.generated_reports.all()[0]
         self.assertIn("source_snapshot", report.get_deferred_fields())
+        self.assertEqual(report.attachment.original_name, "informe.pdf")
+        self.assertIn("file", report.attachment.get_deferred_fields())
 
         page = self.client.get(reverse("clinic:dashboard"))
         self.assertEqual(page.status_code, 200)
