@@ -430,6 +430,35 @@
         padding: 8px;
         min-width: 0;
     }
+    .pdf-preview-loading {
+        min-height: min(calc(100vh - 72px), 1002px);
+        border: 1px dashed var(--line);
+        border-radius: 12px;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        text-align: center;
+    }
+    .pdf-preview-loading p {
+        margin: 0;
+    }
+    .pdf-preview-spinner {
+        width: 30px;
+        height: 30px;
+        border: 3px solid #d8e3e8;
+        border-top-color: #0d6f8a;
+        border-radius: 50%;
+        animation: pdf-preview-spin .8s linear infinite;
+    }
+    @keyframes pdf-preview-spin {
+        to { transform: rotate(360deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .pdf-preview-spinner { animation: none; }
+    }
     .pdf-page-stack {
         display: grid;
         gap: 10px;
@@ -1053,33 +1082,25 @@
 </section>
 
 <section class="panel-grid review-workspace">
-    <article class="card pdf-review-card">
+    <article
+        class="card pdf-review-card"
         {% if pdf_attachment %}
-            {% if pdf_preview_pages %}
-                <div class="pdf-page-stack">
-                    {% for page in pdf_preview_pages %}
-                        <figure class="pdf-page-frame{% if not result_attachment_is_image and page.index == 1 %} spirometry-primary{% endif %}">
-                            <div class="muted pdf-page-label">
-                                {% if result_attachment_is_image %}Foto del resultado{% else %}Pagina {{ page.index }}{% endif %}
-                            </div>
-                            <div class="pdf-page-viewport">
-                                <img
-                                    class="pdf-page-image"
-                                    src="{{ page.url }}"
-                                    alt="{% if result_attachment_is_image %}Foto del resultado{% else %}Vista previa pagina {{ page.index }}{% endif %}">
-                            </div>
-                        </figure>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <div class="card" style="margin:0;background:#fff7ed;border-color:#f3d1b1;">
-                    <h2 class="section-title">No se pudo mostrar el archivo aca</h2>
-                    <p class="muted">Usa "Abrir archivo grande" para verlo en una ventana aparte.</p>
-                    {% if preview_error %}
-                        <p class="muted" style="font-size:.9rem;">{{ preview_error }}</p>
-                    {% endif %}
-                </div>
-            {% endif %}
+            data-preview-endpoint="{% url 'clinic:doctor_review_preview_api' encounter.pk %}"
+            data-is-image="{{ result_attachment_is_image|yesno:'1,0' }}"
+        {% endif %}
+    >
+        {% if pdf_attachment %}
+            <div class="pdf-preview-loading" data-preview-loading role="status" aria-live="polite">
+                <span class="pdf-preview-spinner" aria-hidden="true"></span>
+                <p class="muted">Preparando vista previa del estudio...</p>
+            </div>
+            <div class="pdf-preview-content" data-preview-content hidden></div>
+            <div class="card pdf-preview-error" data-preview-error hidden style="margin:0;background:#fff7ed;border-color:#f3d1b1;">
+                <h2 class="section-title">No se pudo mostrar el archivo acá</h2>
+                <p class="muted">Usa "Abrir archivo grande" para verlo en una ventana aparte.</p>
+                <p class="muted" data-preview-error-message style="font-size:.9rem;"></p>
+                <a class="button" data-preview-open-link href="{{ pdf_attachment_url }}" target="_blank" rel="noopener">Abrir archivo grande</a>
+            </div>
         {% else %}
             <div class="card" style="margin:0;background:#fff7ed;border-color:#f3d1b1;">
                 <h2 class="section-title">Todavia no hay PDF o foto cargada</h2>
@@ -1150,19 +1171,22 @@
                 {% endif %}
             </section>
         {% endif %}
-        <section class="file-reading-status {{ file_status.key }}" aria-label="Estado del archivo">
-            <span class="file-status-label">{{ file_status.label }}</span>
+        <section
+            class="file-reading-status {{ file_status.key }}"
+            data-file-status
+            data-can-edit="{{ can_edit_bronchodilator|yesno:'1,0' }}"
+            aria-label="Estado del archivo"
+        >
+            <span class="file-status-label" data-file-status-label>{{ file_status.label }}</span>
             <div>
                 <strong>Estado del PDF o foto</strong>
-                <p>{{ file_status.detail }}</p>
+                <p data-file-status-detail>{{ file_status.detail }}</p>
             </div>
-            {% if file_status.can_retry and can_edit_bronchodilator %}
-                <form method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="retry_pdf_analysis">
-                    <button class="button alt" type="submit">Reintentar lectura</button>
-                </form>
-            {% endif %}
+            <form method="post" data-file-retry-form {% if not file_status.can_retry or not can_edit_bronchodilator %}hidden{% endif %}>
+                {% csrf_token %}
+                <input type="hidden" name="action" value="retry_pdf_analysis">
+                <button class="button alt" type="submit">Reintentar lectura</button>
+            </form>
         </section>
         <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
@@ -1185,7 +1209,12 @@
                     </div>
                 </details>
             {% endif %}
-            {% if spirometry_suggestion %}
+            <div data-suggestion-container>
+            {% if needs_auto_analysis %}
+                <div class="suggestion-box" role="status" aria-live="polite">
+                    <p class="muted" style="margin:0;line-height:1.25;">Preparando lectura automática del archivo...</p>
+                </div>
+            {% elif spirometry_suggestion %}
                 <div class="suggestion-box">
                     <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
                         <div>
@@ -1224,6 +1253,7 @@
                     {% endif %}
                 </div>
             {% endif %}
+            </div>
             <div class="form-grid" style="grid-template-columns:1fr;">
                 <div class="field doctor-result-field{% if current_result %} is-saved{% endif %}" data-doctor-result-field data-saved-value="{{ current_result|default:'' }}">
                     <label for="{{ form.respiratory_result.id_for_label }}">Resultado final del medico</label>
@@ -1284,8 +1314,6 @@
     </aside>
 </section>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
     (function () {
         var resultInputs = document.querySelectorAll("[data-result-code]");
@@ -1558,6 +1586,33 @@
                 .join("\n");
         }
 
+        function loadBrowserLibrary(globalName, source) {
+            var loaded = window[globalName] || globalThis[globalName];
+            var promiseKey = "__clinicLibraryPromise_" + globalName;
+            if (loaded) return Promise.resolve(loaded);
+            if (window[promiseKey]) return window[promiseKey];
+
+            var script = document.createElement("script");
+            script.src = source;
+            script.async = true;
+            window[promiseKey] = new Promise(function (resolve, reject) {
+                script.onload = function () {
+                    var library = window[globalName] || globalThis[globalName];
+                    if (library) resolve(library);
+                    else reject(new Error("No se pudo inicializar la lectura automatica."));
+                };
+                script.onerror = function () {
+                    reject(new Error("No se pudo descargar el componente de lectura automatica."));
+                };
+                document.head.appendChild(script);
+            }).catch(function (error) {
+                delete window[promiseKey];
+                script.remove();
+                throw error;
+            });
+            return window[promiseKey];
+        }
+
         function groupPdfTextItems(items, pageNumber) {
             var grouped = [];
             for (var i = 0; i < items.length; i += 1) {
@@ -1603,10 +1658,10 @@
         }
 
         async function extractPdfPayload(file) {
-            var pdfjsLib = window.pdfjsLib || globalThis.pdfjsLib;
-            if (!pdfjsLib) {
-                throw new Error("No se pudo cargar el lector PDF del navegador.");
-            }
+            var pdfjsLib = await loadBrowserLibrary(
+                "pdfjsLib",
+                "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.js"
+            );
             pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.js";
             var buffer = await file.arrayBuffer();
             var pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
@@ -1623,10 +1678,14 @@
             }
 
             var ocrLines = [];
+            var tesseract = await loadBrowserLibrary(
+                "Tesseract",
+                "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"
+            );
             for (var index = 1; index <= Math.min(pdf.numPages, 2); index += 1) {
                 var ocrPage = await pdf.getPage(index);
                 var canvas = await renderPdfPageToCanvas(ocrPage);
-                var result = await window.Tesseract.recognize(canvas, "spa+eng");
+                var result = await tesseract.recognize(canvas, "spa+eng");
                 var extractedLines = (((result || {}).data || {}).lines || []).map(function (line) {
                     return {
                         page: index,
@@ -1644,7 +1703,11 @@
         }
 
         async function extractImagePayload(file) {
-            var result = await window.Tesseract.recognize(file, "spa+eng");
+            var tesseract = await loadBrowserLibrary(
+                "Tesseract",
+                "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"
+            );
+            var result = await tesseract.recognize(file, "spa+eng");
             var lines = (((result || {}).data || {}).lines || []).map(function (line) {
                 return {
                     page: 1,
@@ -1709,6 +1772,216 @@
                     });
             });
         }
+    })();
+</script>
+<script>
+    (function () {
+        var previewCard = document.querySelector("[data-preview-endpoint]");
+        if (!previewCard) return;
+
+        var previewLoading = previewCard.querySelector("[data-preview-loading]");
+        var previewContent = previewCard.querySelector("[data-preview-content]");
+        var previewError = previewCard.querySelector("[data-preview-error]");
+        var previewErrorMessage = previewCard.querySelector("[data-preview-error-message]");
+        var fileStatus = document.querySelector("[data-file-status]");
+        var suggestionContainer = document.querySelector("[data-suggestion-container]");
+        var endpoint = previewCard.getAttribute("data-preview-endpoint");
+        var csrfInput = document.querySelector("input[name='csrfmiddlewaretoken']");
+        var loadingMessage = previewLoading ? previewLoading.querySelector("p") : null;
+        var analysisIsPending = !!(suggestionContainer && suggestionContainer.querySelector("[role='status']"));
+        var loadingTimer = window.setTimeout(function () {
+            if (previewLoading && !previewLoading.hidden && loadingMessage) {
+                loadingMessage.textContent = "La ficha ya está lista. La vista previa del estudio sigue cargando...";
+            }
+        }, 8000);
+
+        function showPreviewError(message) {
+            if (previewLoading) previewLoading.hidden = true;
+            if (previewContent) previewContent.hidden = true;
+            if (previewErrorMessage) previewErrorMessage.textContent = message || "";
+            if (previewError) previewError.hidden = false;
+        }
+
+        function renderPreviewPages(payload) {
+            var pages = Array.isArray(payload.pages) ? payload.pages : [];
+            var isImage = !!payload.is_image;
+            if (!pages.length) {
+                showPreviewError(payload.preview_error || "Usa Abrir archivo grande para verlo en una ventana aparte.");
+                return;
+            }
+
+            var stack = document.createElement("div");
+            stack.className = "pdf-page-stack";
+            pages.forEach(function (page, index) {
+                var pageIndex = Number(page.index || index + 1);
+                var figure = document.createElement("figure");
+                figure.className = "pdf-page-frame" + (!isImage && pageIndex === 1 ? " spirometry-primary" : "");
+
+                var label = document.createElement("div");
+                label.className = "muted pdf-page-label";
+                label.textContent = isImage ? "Foto del resultado" : "Pagina " + String(pageIndex);
+
+                var viewport = document.createElement("div");
+                viewport.className = "pdf-page-viewport";
+
+                var image = document.createElement("img");
+                image.className = "pdf-page-image";
+                image.src = String(page.url || "");
+                image.alt = isImage ? "Foto del resultado" : "Vista previa pagina " + String(pageIndex);
+                image.loading = index === 0 ? "eager" : "lazy";
+
+                viewport.appendChild(image);
+                figure.appendChild(label);
+                figure.appendChild(viewport);
+                stack.appendChild(figure);
+            });
+
+            previewContent.replaceChildren(stack);
+            previewContent.hidden = false;
+            previewError.hidden = true;
+            previewLoading.hidden = true;
+        }
+
+        function formatMeasurement(value) {
+            if (value === null || value === undefined || value === "" || value === 0) return "-";
+            return String(value);
+        }
+
+        function appendMeasurement(grid, title, lines) {
+            var item = document.createElement("div");
+            var heading = document.createElement("strong");
+            heading.textContent = title;
+            item.appendChild(heading);
+            lines.forEach(function (line) {
+                item.appendChild(document.createElement("br"));
+                item.appendChild(document.createTextNode(line));
+            });
+            grid.appendChild(item);
+        }
+
+        function renderSuggestion(suggestion) {
+            if (!suggestionContainer) return;
+            suggestionContainer.replaceChildren();
+            if (!suggestion || !suggestion.code) return;
+
+            var box = document.createElement("div");
+            box.className = "suggestion-box";
+            var header = document.createElement("div");
+            header.style.cssText = "display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;";
+            var codeWrap = document.createElement("div");
+            var code = document.createElement("span");
+            code.className = "suggestion-code";
+            code.setAttribute("data-suggested-code", "");
+            code.textContent = String(suggestion.code);
+            codeWrap.appendChild(code);
+
+            var useButton = document.createElement("button");
+            useButton.className = "button small alt";
+            useButton.type = "button";
+            useButton.textContent = "Usar sugerido";
+            useButton.addEventListener("click", function () {
+                var resultInput = document.querySelector("[data-result-code]");
+                if (!resultInput) return;
+                resultInput.value = code.textContent.replace(/\s+/g, "");
+                resultInput.dispatchEvent(new Event("input", { bubbles: true }));
+                resultInput.dispatchEvent(new Event("change", { bubbles: true }));
+                resultInput.focus();
+            });
+            header.appendChild(codeWrap);
+            header.appendChild(useButton);
+            box.appendChild(header);
+
+            if (suggestion.reason) {
+                var reason = document.createElement("p");
+                reason.className = "muted";
+                reason.style.cssText = "margin:6px 0 0;line-height:1.25;";
+                reason.textContent = String(suggestion.reason);
+                box.appendChild(reason);
+            }
+
+            var values = suggestion.values || {};
+            var fvc = values.fvc || {};
+            var fev1 = values.fev1 || {};
+            var ratio = values.fev1_fvc || {};
+            var grid = document.createElement("div");
+            grid.className = "measurement-grid";
+            appendMeasurement(grid, "FVC", [
+                "PRE (Best) " + formatMeasurement(fvc.best) + " L | POST " + formatMeasurement(fvc.post) + " L",
+                "LLN " + formatMeasurement(fvc.lln) + " | % " + formatMeasurement(fvc.percent),
+            ]);
+            appendMeasurement(grid, "FEV1", [
+                "PRE (Best) " + formatMeasurement(fev1.best) + " L | POST " + formatMeasurement(fev1.post) + " L",
+                "LLN " + formatMeasurement(fev1.lln) + " | % " + formatMeasurement(fev1.percent),
+            ]);
+            appendMeasurement(grid, "FEV1/FVC", [
+                "Best " + formatMeasurement(ratio.best) + " | LLN " + formatMeasurement(ratio.lln) + " | % " + formatMeasurement(ratio.percent),
+            ]);
+            box.appendChild(grid);
+
+            if (suggestion.bronchodilator_positive) {
+                var bronchodilator = document.createElement("p");
+                bronchodilator.style.margin = "10px 0 0";
+                var bronchodilatorLabel = document.createElement("strong");
+                bronchodilatorLabel.textContent = "Broncodilatador positivo";
+                bronchodilator.appendChild(bronchodilatorLabel);
+                box.appendChild(bronchodilator);
+                if (suggestion.bronchodilator_reason) {
+                    var bronchodilatorReason = document.createElement("p");
+                    bronchodilatorReason.className = "muted";
+                    bronchodilatorReason.style.cssText = "margin:6px 0 0;";
+                    bronchodilatorReason.textContent = String(suggestion.bronchodilator_reason);
+                    box.appendChild(bronchodilatorReason);
+                }
+            }
+
+            suggestionContainer.appendChild(box);
+        }
+
+        function updateFileStatus(status) {
+            if (!fileStatus || !status) return;
+            fileStatus.className = "file-reading-status " + String(status.key || "uploaded");
+            var label = fileStatus.querySelector("[data-file-status-label]");
+            var detail = fileStatus.querySelector("[data-file-status-detail]");
+            var retryForm = fileStatus.querySelector("[data-file-retry-form]");
+            if (label) label.textContent = String(status.label || "Archivo subido");
+            if (detail) detail.textContent = String(status.detail || "");
+            if (retryForm) retryForm.hidden = !(status.can_retry && fileStatus.dataset.canEdit === "1");
+        }
+
+        if (!csrfInput || !endpoint) {
+            showPreviewError("No se pudo cargar la vista previa. Usa Abrir archivo grande para verlo aparte.");
+            return;
+        }
+
+        fetch(endpoint, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Accept": "application/json",
+                "X-CSRFToken": csrfInput.value,
+            },
+        }).then(function (response) {
+            if (!response.ok) throw new Error("No se pudo cargar la vista previa.");
+            return response.json();
+        }).then(function (payload) {
+            window.clearTimeout(loadingTimer);
+            if (!payload || !payload.ok) throw new Error("No se pudo cargar la vista previa.");
+            updateFileStatus(payload.file_status);
+            renderSuggestion(payload.suggestion);
+            renderPreviewPages(payload);
+        }).catch(function () {
+            window.clearTimeout(loadingTimer);
+            showPreviewError("La vista previa está tardando o no se pudo cargar. Usa Abrir archivo grande para verlo aparte.");
+            if (analysisIsPending && suggestionContainer) {
+                suggestionContainer.textContent = "No se pudo actualizar la lectura automática. El archivo quedó guardado; podés reintentar la lectura.";
+                updateFileStatus({
+                    key: "failed",
+                    label: "Falló la lectura",
+                    detail: "No se pudo completar la lectura automática. El archivo quedó guardado y podés reintentar.",
+                    can_retry: true,
+                });
+            }
+        });
     })();
 </script>
 {% endblock %}

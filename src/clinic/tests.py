@@ -1631,20 +1631,32 @@ class DoctorReviewViewTests(TestCase):
             "FEV1/FVC % 85 97 100 103 0,32 100 100 103 0"
         )
         review_url = reverse("clinic:doctor_review_detail", args=[self.encounter.pk])
+        preview_url = reverse("clinic:doctor_review_preview_api", args=[self.encounter.pk])
         with (
             patch("clinic.views.build_result_preview_images", return_value=[]),
             patch("clinic.pdf_intake.extract_pdf_text_content", return_value=extracted_text) as extract,
         ):
             first_response = self.client.get(review_url)
             second_response = self.client.get(review_url)
+            extract.assert_not_called()
+            for response in (first_response, second_response):
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.context["needs_auto_analysis"])
+                self.assertIsNone(response.context["spirometry_suggestion"])
+                self.assertNotContains(response, "Lectura anterior incorrecta.")
 
-        extract.assert_called_once()
-        for response in (first_response, second_response):
-            suggestion = response.context["spirometry_suggestion"]
-            self.assertEqual(suggestion["values"]["fev1"]["best"], 0.75)
-            self.assertEqual(suggestion["values"]["fev1"]["post"], 0.73)
-            self.assertFalse(suggestion["bronchodilator_positive"])
-            self.assertNotContains(response, "Lectura anterior incorrecta.")
+            preview_response = self.client.post(preview_url)
+            self.assertEqual(preview_response.status_code, 200)
+            self.assertTrue(preview_response.json()["ok"])
+            extract.assert_called_once()
+
+            refreshed_response = self.client.get(review_url)
+
+        suggestion = refreshed_response.context["spirometry_suggestion"]
+        self.assertEqual(suggestion["values"]["fev1"]["best"], 0.75)
+        self.assertEqual(suggestion["values"]["fev1"]["post"], 0.73)
+        self.assertFalse(suggestion["bronchodilator_positive"])
+        self.assertNotContains(refreshed_response, "Lectura anterior incorrecta.")
         result.refresh_from_db()
         self.assertFalse(result.suggested_bronchodilator_positive)
         self.assertFalse(result.bronchodilator_positive)
@@ -3180,28 +3192,37 @@ class AttachmentUrlResilienceTests(TestCase):
             side_effect=RuntimeError("storage url unavailable"),
         )
 
-    def test_doctor_review_renders_when_attachment_url_is_unavailable(self):
-        with self.storage_url_failure():
+    def test_doctor_review_defers_storage_url_signing_until_file_open(self):
+        with self.storage_url_failure() as storage_url:
             response = self.client.get(reverse("clinic:doctor_review_detail", args=[self.encounter.pk]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Archivo original no disponible")
+        self.assertContains(response, reverse("clinic:attachment_open", args=[self.attachment.pk]))
+        storage_url.assert_not_called()
 
-    def test_patient_history_renders_when_attachment_url_is_unavailable(self):
-        with self.storage_url_failure():
+    def test_patient_history_defers_storage_url_signing_until_file_open(self):
+        with self.storage_url_failure() as storage_url:
             response = self.client.get(reverse("clinic:patient_detail", args=[self.patient.pk]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Resultado original no disponible")
-        self.assertContains(response, "resultado-storage.png (no disponible)")
+        self.assertContains(response, reverse("clinic:attachment_open", args=[self.attachment.pk]))
+        self.assertContains(response, "resultado-storage.png")
+        storage_url.assert_not_called()
 
-    def test_encounter_detail_renders_when_attachment_url_is_unavailable(self):
-        with self.storage_url_failure():
+    def test_encounter_detail_defers_storage_url_signing_until_file_open(self):
+        with self.storage_url_failure() as storage_url:
             response = self.client.get(reverse("clinic:encounter_detail", args=[self.encounter.pk]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Archivo no disponible")
-        self.assertContains(response, "resultado-storage.png (no disponible)")
+        self.assertContains(response, reverse("clinic:attachment_open", args=[self.attachment.pk]))
+        self.assertContains(response, "resultado-storage.png")
+        storage_url.assert_not_called()
+
+    def test_file_open_reports_when_storage_cannot_sign_the_url(self):
+        with self.storage_url_failure():
+            response = self.client.get(reverse("clinic:attachment_open", args=[self.attachment.pk]))
+
+        self.assertEqual(response.status_code, 404)
 
     def test_print_view_renders_without_broken_original_file_link(self):
         with self.storage_url_failure():

@@ -9,16 +9,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from django.conf import settings
-import pypdfium2 as pdfium
 
 from .file_utils import local_field_file_path
-
-try:
-    from rapidocr_onnxruntime import RapidOCR
-    RAPIDOCR_IMPORT_ERROR = None
-except Exception as error:  # pragma: no cover - fallback defensivo
-    RapidOCR = None
-    RAPIDOCR_IMPORT_ERROR = error
 
 
 OCR_ROW_TOLERANCE = 18
@@ -59,10 +51,21 @@ def looks_like_profile_data(patient) -> bool:
 
 @lru_cache(maxsize=1)
 def get_ocr_engine():
-    if RapidOCR is None:
-        detail = f" Detalle: {RAPIDOCR_IMPORT_ERROR}" if RAPIDOCR_IMPORT_ERROR else ""
-        raise RuntimeError(f"No se pudo cargar el motor OCR para leer imagenes automaticamente.{detail}")
+    try:
+        from rapidocr_onnxruntime import RapidOCR
+    except Exception as error:  # pragma: no cover - fallback defensivo
+        raise RuntimeError(
+            "No se pudo cargar el motor OCR para leer imagenes automaticamente. "
+            f"Detalle: {error}"
+        ) from error
     return RapidOCR()
+
+
+@lru_cache(maxsize=1)
+def _get_pdfium():
+    import pypdfium2
+
+    return pypdfium2
 
 
 def ensure_first_page_preview(pdf_path: str, attachment_id: int | None = None) -> Path:
@@ -73,7 +76,7 @@ def ensure_first_page_preview(pdf_path: str, attachment_id: int | None = None) -
     if preview_path.exists():
         return preview_path
 
-    document = pdfium.PdfDocument(str(pdf_path))
+    document = _get_pdfium().PdfDocument(str(pdf_path))
     try:
         page = document[0]
         try:
@@ -87,7 +90,7 @@ def ensure_first_page_preview(pdf_path: str, attachment_id: int | None = None) -
     return preview_path
 
 
-def ensure_pdf_preview_pages(field_file, *, attachment_id: int) -> list[Path]:
+def ensure_pdf_preview_pages(field_file, *, attachment_id: int, pdf_path=None) -> list[Path]:
     source_key = sha256(field_file.name.encode("utf-8")).hexdigest()[:16]
     preview_dir = Path(settings.MEDIA_ROOT) / "previews" / f"attachment_{attachment_id}" / f"pdf-{source_key}"
     page_count_path = preview_dir / "page-count"
@@ -99,12 +102,11 @@ def ensure_pdf_preview_pages(field_file, *, attachment_id: int) -> list[Path]:
     except (OSError, ValueError):
         pass
 
-    with local_field_file_path(field_file) as pdf_path:
-        if not pdf_path.is_file():
+    def render_preview_pages(source_path):
+        if not source_path.is_file():
             return []
-
         preview_dir.mkdir(parents=True, exist_ok=True)
-        with pdfium.PdfDocument(str(pdf_path)) as document, TemporaryDirectory(dir=preview_dir) as staging:
+        with _get_pdfium().PdfDocument(str(source_path)) as document, TemporaryDirectory(dir=preview_dir) as staging:
             staging_dir = Path(staging)
             pages = []
             for page_index in range(len(document)):
@@ -125,9 +127,15 @@ def ensure_pdf_preview_pages(field_file, *, attachment_id: int) -> list[Path]:
             staged_count.replace(page_count_path)
             return pages
 
+    if pdf_path is not None:
+        return render_preview_pages(Path(pdf_path))
+
+    with local_field_file_path(field_file) as local_path:
+        return render_preview_pages(local_path)
+
 
 def extract_pdf_text_content(pdf_path: str) -> str:
-    document = pdfium.PdfDocument(str(pdf_path))
+    document = _get_pdfium().PdfDocument(str(pdf_path))
     collected_pages = []
     try:
         for page_index in range(len(document)):

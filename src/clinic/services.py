@@ -5,16 +5,32 @@ from datetime import datetime
 from io import BytesIO
 import re
 
-from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml import OxmlElement
-from docx.oxml.ns import qn
-from docx.shared import Inches, Pt, RGBColor
-
 from .models import AttachmentKind
 
 
 DEFAULT_DOCTOR = "DR. GUSTAVO PIGUILLEM"
+
+
+def _load_docx_modules():
+    if "Document" in globals():
+        return
+    from docx import Document
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Inches, Pt, RGBColor
+
+    globals().update(
+        {
+            "Document": Document,
+            "WD_ALIGN_PARAGRAPH": WD_ALIGN_PARAGRAPH,
+            "OxmlElement": OxmlElement,
+            "qn": qn,
+            "Inches": Inches,
+            "Pt": Pt,
+            "RGBColor": RGBColor,
+        }
+    )
 
 
 def sanitizar_nombre_archivo(texto: str) -> str:
@@ -765,6 +781,8 @@ def build_reports_for_encounter(encounter, *, include_mutual=None) -> list[Gener
     nombre = str(patient.full_name or "").strip().upper()
     if not nombre:
         raise ValueError("La atención no tiene nombre de paciente.")
+
+    _load_docx_modules()
 
     fecha_impresion = encounter.encounter_date.strftime("%d/%m/%Y")
     dni = formatear_dni(patient.dni)

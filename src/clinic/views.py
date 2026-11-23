@@ -22,7 +22,7 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, F, Max, OuterRef, Prefetch, Subquery
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -153,11 +153,15 @@ def is_result_image_attachment(attachment) -> bool:
     return mime_type.startswith("image/") or extension in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"}
 
 
-def build_pdf_preview_images(attachment):
+def build_pdf_preview_images(attachment, *, local_pdf_path=None):
     if not attachment or not getattr(attachment, "file", None):
         return []
 
-    existing = ensure_pdf_preview_pages(attachment.file, attachment_id=attachment.pk)
+    existing = ensure_pdf_preview_pages(
+        attachment.file,
+        attachment_id=attachment.pk,
+        pdf_path=local_pdf_path,
+    )
 
     if settings.USE_SUPABASE_STORAGE:
         return [
@@ -191,14 +195,33 @@ def safe_attachment_url(attachment) -> str:
         return ""
 
 
-def build_result_preview_images(attachment):
+def attachment_access_url(attachment) -> str:
+    """Defer remote storage URL signing until the user actually opens the file."""
+    if not attachment or not getattr(attachment, "pk", None):
+        return ""
+    return reverse("clinic:attachment_open", args=[attachment.pk])
+
+
+@login_required
+def attachment_open(request, pk):
+    require_any_clinic_permission(request, "clinic.manage_agenda", "clinic.review_medically")
+    attachment = get_object_or_404(Attachment.objects.select_related("encounter"), pk=pk)
+    file_url = safe_attachment_url(attachment)
+    if not file_url:
+        raise Http404("Archivo no disponible.")
+    response = redirect(file_url)
+    response["Cache-Control"] = "private, no-store"
+    return response
+
+
+def build_result_preview_images(attachment, *, local_pdf_path=None, image_url=None):
     if not attachment or not getattr(attachment, "file", None):
         return []
 
     if is_result_image_attachment(attachment):
-        url = safe_attachment_url(attachment)
+        url = image_url if image_url is not None else attachment_access_url(attachment)
         return [{"index": 1, "url": url}] if url else []
-    return build_pdf_preview_images(attachment)
+    return build_pdf_preview_images(attachment, local_pdf_path=local_pdf_path)
 
 
 def normalize_identity_value(value: str) -> str:
@@ -1041,11 +1064,11 @@ def get_latest_report_info(encounter):
     latest_attachment = getattr(latest_report, "attachment", None)
     complete_attachment = getattr(complete_report, "attachment", None)
     mutual_attachment = getattr(mutual_report, "attachment", None)
-    latest_url = safe_attachment_url(latest_attachment)
+    latest_url = attachment_access_url(latest_attachment)
     latest_name = latest_attachment.original_name if latest_attachment else latest_report.report_type
-    complete_url = safe_attachment_url(complete_attachment)
+    complete_url = attachment_access_url(complete_attachment)
     complete_name = complete_attachment.original_name if complete_attachment else ""
-    mutual_url = safe_attachment_url(mutual_attachment)
+    mutual_url = attachment_access_url(mutual_attachment)
     mutual_name = mutual_attachment.original_name if mutual_attachment else ""
     return {
         "latest_report_url": latest_url,
@@ -1319,13 +1342,21 @@ def parse_optional_time(raw_value):
     return datetime_time(hour, minute)
 
 
-def get_row_state_payload(encounter):
+_DEFAULT_PHYSICIAN_UNSET = object()
+
+
+def get_row_state_payload(encounter, *, default_physician=_DEFAULT_PHYSICIAN_UNSET):
     can_generate_report, report_block_reason = get_report_readiness(encounter)
     can_print_result, print_block_reason = get_print_readiness(encounter)
     inconsistency_flags = get_encounter_inconsistencies(encounter)
     vital = getattr(encounter, "vital_signs", None)
     current_physician = getattr(encounter, "referring_physician", None)
-    default_physician = get_default_physician()
+    if default_physician is _DEFAULT_PHYSICIAN_UNSET:
+        default_physician = get_default_physician()
+    prefetched_reports = getattr(encounter, "_prefetched_objects_cache", {}).get("generated_reports")
+    has_generated_reports = (
+        bool(prefetched_reports) if prefetched_reports is not None else encounter.generated_reports.exists()
+    )
     waiting_minutes = get_operational_minutes(encounter.waiting_started_at, timezone.now())
     is_waiting = not encounter.attended and not encounter.no_show and encounter.waiting_started_at is not None
     payload = {
@@ -1369,12 +1400,20 @@ def get_row_state_payload(encounter):
         "print_block_reason": print_block_reason,
         "inconsistencies": inconsistency_flags,
         "inconsistency_message": "Advertencias: " + " | ".join(inconsistency_flags) if inconsistency_flags else "",
-        "has_generated_reports": encounter.generated_reports.exists(),
-        "report_button_label": "Regenerar informe" if encounter.generated_reports.exists() else "Generar informe",
+        "has_generated_reports": has_generated_reports,
+        "report_button_label": "Regenerar informe" if has_generated_reports else "Generar informe",
     }
     payload.update(get_bronchodilator_timer_payload(encounter))
     payload.update(get_latest_report_info(encounter))
     return payload
+
+
+def get_row_state_payloads(encounters):
+    default_physician = get_default_physician()
+    return [
+        get_row_state_payload(encounter, default_physician=default_physician)
+        for encounter in encounters
+    ]
 
 
 def build_operational_alerts(encounters):
@@ -3371,8 +3410,13 @@ def build_print_context_for_encounter(encounter):
         walk_rows = build_walk_measurement_rows(vital, walk)
 
     pdf_attachment = get_latest_result_attachment(encounter)
+    pdf_attachment_url = safe_attachment_url(pdf_attachment)
     try:
-        pdf_preview_pages = build_result_preview_images(pdf_attachment) if pdf_attachment else []
+        pdf_preview_pages = (
+            build_result_preview_images(pdf_attachment, image_url=pdf_attachment_url)
+            if pdf_attachment
+            else []
+        )
     except Exception:
         pdf_preview_pages = []
     include_mutual_packet = encounter.coverage_type == CoverageType.MUTUAL and include_walk
@@ -3412,7 +3456,7 @@ def build_print_context_for_encounter(encounter):
         "mutual_cvl_result": build_mutual_cvl_result(patron, grado_obst, grado_rest),
         "pdf_preview_pages": pdf_preview_pages,
         "pdf_attachment": pdf_attachment,
-        "pdf_attachment_url": safe_attachment_url(pdf_attachment),
+        "pdf_attachment_url": pdf_attachment_url,
     }
 
 
@@ -3514,7 +3558,7 @@ def dashboard(request):
         {"value": value, "label": label, "total": stats_map.get(value, 0), "css_class": get_status_badge_class(value)}
         for value, label in EncounterStatus.choices
     ]
-    operation_alerts = get_operational_alerts(Encounter.objects.filter(encounter_date=today))
+    operation_alerts = build_operational_alerts(today_encounters)
 
     if request.method == "POST":
         action = request.POST.get("action")
@@ -3979,12 +4023,12 @@ def dashboard_rows_state(request):
     today = timezone.localdate()
     encounters = (
         Encounter.objects.select_related("patient", "referring_physician", "spirometry_result", "vital_signs", "walk_test")
-        .prefetch_related("generated_reports__attachment")
+        .prefetch_related("attachments", "generated_reports__attachment")
         .filter(encounter_date=today)
         .order_by("created_at")
     )
     encounters = unique_encounters_by_patient_day(encounters)
-    rows = [get_row_state_payload(encounter) for encounter in encounters]
+    rows = get_row_state_payloads(encounters)
     return JsonResponse(
         {
             "ok": True,
@@ -4295,7 +4339,7 @@ def calendar_month_api(request):
     range_end = calendar_weeks[-1][-1]
     encounters = unique_encounters_by_patient_day(
         Encounter.objects.select_related("patient", "referring_physician", "spirometry_result", "vital_signs", "walk_test")
-        .prefetch_related("generated_reports__attachment")
+        .prefetch_related("attachments", "generated_reports__attachment")
         .filter(encounter_date__range=(range_start, range_end))
         .order_by("encounter_date", "encounter_time", "created_at")
     )
@@ -4344,7 +4388,7 @@ def calendar_month_api(request):
     if not selected_encounters and not (range_start <= selected_date <= range_end):
         selected_encounters = unique_encounters_by_patient_day(
             Encounter.objects.select_related("patient", "referring_physician", "spirometry_result", "vital_signs", "walk_test")
-            .prefetch_related("generated_reports__attachment")
+            .prefetch_related("attachments", "generated_reports__attachment")
             .filter(encounter_date=selected_date)
             .order_by("encounter_time", "created_at")
         )
@@ -4362,7 +4406,7 @@ def calendar_month_api(request):
             "weekdays": SPANISH_WEEKDAYS,
             "weeks": weeks,
             "summary": summary,
-            "rows": [get_row_state_payload(encounter) for encounter in selected_encounters],
+            "rows": get_row_state_payloads(selected_encounters),
         }
     )
 
@@ -4441,12 +4485,12 @@ def agenda_today_api(request):
     today = timezone.localdate()
     encounters = (
         Encounter.objects.select_related("patient", "referring_physician", "spirometry_result", "vital_signs", "walk_test")
-        .prefetch_related("generated_reports__attachment")
+        .prefetch_related("attachments", "generated_reports__attachment")
         .filter(encounter_date=today)
         .order_by("encounter_time", "created_at")
     )
     encounters = sort_dashboard_encounters(unique_encounters_by_patient_day(encounters))
-    rows = [get_row_state_payload(encounter) for encounter in encounters]
+    rows = get_row_state_payloads(encounters)
     summary = {
         "total": len(rows),
         "attended": sum(1 for row in rows if row["attended"]),
@@ -5037,7 +5081,7 @@ def patient_detail_api(request, pk):
                 },
                 "file": {
                     "present": bool(latest_attachment),
-                    "url": safe_attachment_url(latest_attachment) if latest_attachment else "",
+                    "url": attachment_access_url(latest_attachment) if latest_attachment else "",
                     "name": latest_attachment.original_name if latest_attachment else "",
                     "status": get_result_file_status(encounter, latest_attachment)["label"],
                 },
@@ -5269,7 +5313,7 @@ def patient_detail(request, pk):
         encounter.result_label = get_result_label_from_encounter(encounter)
         encounter.attendance_label = get_attendance_label(encounter)
         encounter.pdf_attachment = get_latest_result_attachment(encounter)
-        encounter.pdf_attachment_url = safe_attachment_url(encounter.pdf_attachment)
+        encounter.pdf_attachment_url = attachment_access_url(encounter.pdf_attachment)
         encounter.progression = progression_map.get(encounter.pk, {"label": "Sin base", "tone": "muted", "detail": ""})
         encounter.suggestion = build_stored_suggestion_context(getattr(encounter, "spirometry_result", None))
         encounter.can_print_result, encounter.print_block_reason = get_print_readiness(encounter, ignore_attendance=True)
@@ -5305,7 +5349,7 @@ def patient_detail(request, pk):
         .order_by("-created_at")
     )
     for attachment in patient_documents:
-        attachment.safe_url = safe_attachment_url(attachment)
+        attachment.safe_url = attachment_access_url(attachment)
     patient_events = (
         EncounterEvent.objects.filter(patient=patient)
         .select_related("actor", "encounter")
@@ -5649,19 +5693,22 @@ def doctor_review_list(request):
     else:
         # Default view: only selected date
         encounters_qs = encounters_qs.filter(encounter_date=selected_date)
-    encounters_qs = unique_encounters_by_patient_day(encounters_qs.order_by("-encounter_date", "-created_at"))
+    encounters = list(unique_encounters_by_patient_day(encounters_qs.order_by("-encounter_date", "-created_at")))
 
     review_cards = []
     counters = {"pending": 0, "missing_pdf": 0, "done": 0}
     done_statuses = get_doctor_review_done_statuses()
 
-    # System-wide counters for the selected date (or all if searching)
-    counter_qs = Encounter.objects.prefetch_related("attachments")
-    if not search_query:
-        counter_qs = counter_qs.filter(encounter_date=selected_date)
-    counter_qs = unique_encounters_by_patient_day(counter_qs.order_by("-encounter_date", "-created_at"))
+    # Search results show system-wide counters; otherwise reuse the selected-day rows.
+    counter_encounters = encounters
+    if search_query:
+        counter_encounters = unique_encounters_by_patient_day(
+            Encounter.objects.select_related("patient")
+            .prefetch_related("attachments")
+            .order_by("-encounter_date", "-created_at")
+        )
 
-    for enc in counter_qs:
+    for enc in counter_encounters:
         has_pdf = encounter_has_review_pdf(enc)
         is_done = enc.status in done_statuses
         if is_done:
@@ -5671,7 +5718,7 @@ def doctor_review_list(request):
         else:
             counters["missing_pdf"] += 1
 
-    for encounter in encounters_qs:
+    for encounter in encounters:
         pdf_attachment = get_latest_result_attachment(encounter)
         file_status = get_result_file_status(encounter, pdf_attachment)
         result_code = get_result_code_from_encounter(encounter)
@@ -5755,18 +5802,15 @@ def doctor_review_queue_api(request):
         page_number = 1
 
     encounters_qs = Encounter.objects.select_related("patient", "spirometry_result").prefetch_related("attachments")
-    counter_qs = Encounter.objects.prefetch_related("attachments")
     if search_query:
         encounter_filter = Q(patient__full_name__icontains=search_query) | Q(patient__dni__icontains=search_query)
         encounters_qs = encounters_qs.filter(encounter_filter)
-        counter_qs = counter_qs.filter(encounter_filter)
     else:
         encounters_qs = encounters_qs.filter(encounter_date=selected_date)
-        counter_qs = counter_qs.filter(encounter_date=selected_date)
-    encounters = unique_encounters_by_patient_day(encounters_qs.order_by("-encounter_date", "-created_at"))
+    encounters = list(unique_encounters_by_patient_day(encounters_qs.order_by("-encounter_date", "-created_at")))
     done_statuses = get_doctor_review_done_statuses()
     counters = {"pending": 0, "missing_pdf": 0, "done": 0}
-    for encounter in unique_encounters_by_patient_day(counter_qs.order_by("-encounter_date", "-created_at")):
+    for encounter in encounters:
         if encounter.status in done_statuses:
             counters["done"] += 1
         elif encounter.attended and encounter_has_review_pdf(encounter):
@@ -5869,7 +5913,7 @@ def doctor_review_detail_api(request, pk):
             "can_edit_file": can_edit_file,
             "file": {
                 "present": bool(attachment),
-                "url": safe_attachment_url(attachment) if attachment else "",
+                "url": attachment_access_url(attachment) if attachment else "",
                 "name": attachment.original_name if attachment else "",
                 "is_image": bool(attachment and is_result_image_attachment(attachment)),
                 "status": file_status,
@@ -5886,6 +5930,83 @@ def doctor_review_detail_api(request, pk):
             "pending_total": queue_info["pending_total"],
         }
     )
+
+
+@login_required
+@permission_required("clinic.review_medically", raise_exception=True)
+@require_POST
+def doctor_review_preview_api(request, pk):
+    """Load the large study preview after the clinical review screen is visible."""
+    encounter = get_object_or_404(
+        Encounter.objects.select_related("patient", "spirometry_result").prefetch_related("attachments"),
+        pk=pk,
+    )
+    attachment = get_latest_result_attachment(encounter)
+    preview_pages = []
+    preview_error = ""
+    suggestion = build_stored_suggestion_context(getattr(encounter, "spirometry_result", None))
+
+    if attachment and is_result_image_attachment(attachment):
+        try:
+            preview_pages = build_result_preview_images(attachment)
+        except Exception:
+            preview_error = "No se pudo mostrar el archivo. Usa Abrir archivo grande para verlo aparte."
+    elif attachment and attachment.file_kind == AttachmentKind.PDF_RESULTADO:
+        spirometry_result = getattr(encounter, "spirometry_result", None)
+        stored_values = getattr(spirometry_result, "measured_values", None) or {}
+        needs_reanalysis = stored_values.get("_analysis_version") != SPIROMETRY_ANALYSIS_VERSION
+        needs_analysis = needs_reanalysis or not suggestion
+
+        if needs_analysis:
+            suggestion = None
+            try:
+                with local_field_file_path(attachment.file) as attachment_path:
+                    try:
+                        preview_pages = build_result_preview_images(
+                            attachment,
+                            local_pdf_path=attachment_path,
+                        )
+                    except Exception:
+                        preview_error = "No se pudo mostrar el archivo. Usa Abrir archivo grande para verlo aparte."
+
+                    generated_suggestion = build_spirometry_suggestion_from_pdf(
+                        str(attachment_path),
+                        attachment_id=attachment.pk,
+                    )
+
+                if generated_suggestion.get("code"):
+                    spirometry_result = store_spirometry_analysis(
+                        encounter,
+                        {**generated_suggestion, "source": "server-pdf-text"},
+                    )
+                    encounter.spirometry_result = spirometry_result
+                    suggestion = build_stored_suggestion_context(spirometry_result)
+                    save_attachment_analysis_status(attachment, AttachmentAnalysisStatus.DETECTED)
+            except Exception:
+                save_attachment_analysis_status(
+                    attachment,
+                    AttachmentAnalysisStatus.FAILED,
+                    "No se pudieron leer datos automáticamente. El archivo quedó guardado y podés reintentar.",
+                )
+                if not preview_error:
+                    preview_error = "No se pudo completar la lectura automática del archivo."
+        else:
+            try:
+                preview_pages = build_result_preview_images(attachment)
+            except Exception:
+                preview_error = "No se pudo mostrar el archivo. Usa Abrir archivo grande para verlo aparte."
+
+    payload = {
+        "ok": True,
+        "pages": preview_pages,
+        "is_image": bool(attachment and is_result_image_attachment(attachment)),
+        "preview_error": preview_error,
+        "file_status": get_result_file_status(encounter, attachment),
+        "suggestion": suggestion,
+    }
+    response = JsonResponse(payload)
+    response["Cache-Control"] = "private, no-store"
+    return response
 
 
 @login_required
@@ -6178,40 +6299,20 @@ def doctor_review_detail(request, pk):
         )
 
     pdf_attachment = get_latest_result_attachment(encounter)
-    pdf_attachment_url = safe_attachment_url(pdf_attachment)
-    pdf_preview_pages = []
-    preview_error = ""
+    pdf_attachment_url = attachment_access_url(pdf_attachment)
     spirometry_result = getattr(encounter, "spirometry_result", None)
     stored_values = getattr(spirometry_result, "measured_values", None) or {}
     needs_reanalysis = stored_values.get("_analysis_version") != SPIROMETRY_ANALYSIS_VERSION
     spirometry_suggestion = build_stored_suggestion_context(spirometry_result)
+    needs_auto_analysis = bool(
+        pdf_attachment
+        and pdf_attachment.file_kind == AttachmentKind.PDF_RESULTADO
+        and (needs_reanalysis or not spirometry_suggestion)
+    )
+    if needs_auto_analysis:
+        spirometry_suggestion = None
     review_queue = build_doctor_review_queue(encounter.encounter_date, encounter)
     next_review_encounter = review_queue["next_encounter"]
-    if pdf_attachment:
-        try:
-            pdf_preview_pages = build_result_preview_images(pdf_attachment)
-        except Exception as error:
-            preview_error = str(error)
-        if pdf_attachment.file_kind == AttachmentKind.PDF_RESULTADO and (needs_reanalysis or not spirometry_suggestion):
-            spirometry_suggestion = None
-            try:
-                with local_field_file_path(pdf_attachment.file) as attachment_path:
-                    generated_suggestion = build_spirometry_suggestion_from_pdf(
-                        str(attachment_path),
-                        attachment_id=pdf_attachment.pk,
-                    )
-                if generated_suggestion.get("code"):
-                    spirometry_suggestion = generated_suggestion
-                    store_spirometry_analysis(encounter, {**spirometry_suggestion, "source": "server-pdf-text"})
-                    save_attachment_analysis_status(pdf_attachment, AttachmentAnalysisStatus.DETECTED)
-            except Exception as error:
-                save_attachment_analysis_status(
-                    pdf_attachment,
-                    AttachmentAnalysisStatus.FAILED,
-                    "No se pudieron leer datos automáticamente. El archivo quedó guardado y podés reintentar.",
-                )
-                if not preview_error:
-                    preview_error = str(error)
     inconsistency_flags = get_encounter_inconsistencies(encounter)
     file_status = get_result_file_status(encounter, pdf_attachment)
     review_vitals = build_review_vitals_context(encounter)
@@ -6229,8 +6330,7 @@ def doctor_review_detail(request, pk):
             "pdf_attachment": pdf_attachment,
             "file_status": file_status,
             "pdf_attachment_url": pdf_attachment_url,
-            "pdf_preview_pages": pdf_preview_pages,
-            "preview_error": preview_error,
+            "needs_auto_analysis": needs_auto_analysis,
             "result_attachment_is_image": bool(pdf_attachment and is_result_image_attachment(pdf_attachment)),
             "result_code_suggestions": RESULT_CODE_SUGGESTIONS,
             "patient_profile_available": looks_like_profile_data(encounter.patient),
@@ -6295,9 +6395,9 @@ def encounter_detail(request, pk):
         pk=pk,
     )
     for attachment in encounter.attachments.all():
-        attachment.safe_url = safe_attachment_url(attachment)
+        attachment.safe_url = attachment_access_url(attachment)
     for report in encounter.generated_reports.all():
-        report.attachment_url = safe_attachment_url(report.attachment)
+        report.attachment_url = attachment_access_url(report.attachment)
     can_generate_report, report_block_reason = get_report_readiness(encounter, ignore_attendance=True)
     can_print_result, print_block_reason = get_print_readiness(encounter, ignore_attendance=True)
     return render(
