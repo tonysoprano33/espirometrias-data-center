@@ -1639,6 +1639,10 @@ class DoctorReviewViewTests(TestCase):
             first_response = self.client.get(review_url)
             second_response = self.client.get(review_url)
             extract.assert_not_called()
+            self.assertRegex(
+                first_response.content.decode("utf-8"),
+                r"\.pdf-preview-loading\[hidden\]\s*\{\s*display:\s*none;\s*\}",
+            )
             for response in (first_response, second_response):
                 self.assertEqual(response.status_code, 200)
                 self.assertTrue(response.context["needs_auto_analysis"])
