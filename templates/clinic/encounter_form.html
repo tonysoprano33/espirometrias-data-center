@@ -359,6 +359,13 @@
                             <span>Aparece debajo de los signos vitales en la primera hoja del informe.</span>
                         </span>
                     </label>
+                    <label class="toggle-card primary" for="{{ form.dx_asma_bronquial.id_for_label }}">
+                        {{ form.dx_asma_bronquial }}
+                        <span class="toggle-copy">
+                            <strong>DX: ASMA BRONQUIAL</strong>
+                            <span>Aparece debajo de los signos vitales en la primera hoja del informe.</span>
+                        </span>
+                    </label>
                     {% endif %}
                     <label class="toggle-card" for="{{ form.medical_control_today.id_for_label }}">
                         {{ form.medical_control_today }}
@@ -384,6 +391,7 @@
                 </div>
                 {% if form.bronchodilator_positive.errors %}<div class="field-error">{{ form.bronchodilator_positive.errors|join:", " }}</div>{% endif %}
                 {% if form.dx_epoc.errors %}<div class="field-error">{{ form.dx_epoc.errors|join:", " }}</div>{% endif %}
+                {% if form.dx_asma_bronquial.errors %}<div class="field-error">{{ form.dx_asma_bronquial.errors|join:", " }}</div>{% endif %}
                 {% if form.attended.errors %}<div class="field-error">{{ form.attended.errors|join:", " }}</div>{% endif %}
                 {% if form.no_show.errors %}<div class="field-error">{{ form.no_show.errors|join:", " }}</div>{% endif %}
             </section>

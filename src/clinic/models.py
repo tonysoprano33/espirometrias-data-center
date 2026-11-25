@@ -335,6 +335,7 @@ class SpirometryResult(TimeStampedModel):
     )
     bronchodilator_positive = models.BooleanField("Broncodilatador positivo", default=False)
     dx_epoc = models.BooleanField("DX: EPOC", default=False)
+    dx_asma_bronquial = models.BooleanField("DX: ASMA BRONQUIAL", default=False)
     suggested_bronchodilator_positive = models.BooleanField(
         "Broncodilatador positivo sugerido",
         blank=True,

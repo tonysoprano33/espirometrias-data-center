@@ -306,6 +306,7 @@ class QuickEncounterForm(forms.Form):
     respiratory_result = forms.CharField(label="Resultado", required=False, max_length=24)
     bronchodilator_positive = forms.BooleanField(label="Broncodilatador positivo", required=False, initial=False)
     dx_epoc = forms.BooleanField(label="DX: EPOC", required=False, initial=False)
+    dx_asma_bronquial = forms.BooleanField(label="DX: ASMA BRONQUIAL", required=False, initial=False)
     medical_control_today = forms.BooleanField(label="Control medico hoy", required=False, initial=False)
     attended = forms.BooleanField(label="Atendido", required=False, initial=False)
     no_show = forms.BooleanField(label="No llego", required=False, initial=True)
@@ -342,9 +343,10 @@ class QuickEncounterForm(forms.Form):
         )
         self.fields["bronchodilator_positive"].widget.attrs.update({"data-nav": "17"})
         self.fields["dx_epoc"].widget.attrs.update({"data-nav": "18"})
-        self.fields["medical_control_today"].widget.attrs.update({"data-nav": "19"})
-        self.fields["attended"].widget.attrs.update({"data-nav": "20"})
-        self.fields["no_show"].widget.attrs.update({"data-nav": "21"})
+        self.fields["dx_asma_bronquial"].widget.attrs.update({"data-nav": "19"})
+        self.fields["medical_control_today"].widget.attrs.update({"data-nav": "20"})
+        self.fields["attended"].widget.attrs.update({"data-nav": "21"})
+        self.fields["no_show"].widget.attrs.update({"data-nav": "22"})
 
     def clean_respiratory_result(self):
         value = self.cleaned_data.get("respiratory_result", "")

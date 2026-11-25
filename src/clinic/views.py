@@ -1774,7 +1774,8 @@ def save_quick_encounter(
     result_fields = ["bronchodilator_positive", "updated_at"]
     if not is_new:
         result.dx_epoc = form.cleaned_data["dx_epoc"]
-        result_fields.append("dx_epoc")
+        result.dx_asma_bronquial = form.cleaned_data["dx_asma_bronquial"]
+        result_fields.extend(["dx_epoc", "dx_asma_bronquial"])
     result.save(update_fields=result_fields)
     record_encounter_event(
         encounter,
@@ -3401,6 +3402,7 @@ def build_print_context_for_encounter(encounter):
     informe = construir_informe_espirometria(patron, grado_obst, grado_rest)
     broncodilatador_positivo = bool(getattr(result, "bronchodilator_positive", False))
     dx_epoc = bool(getattr(result, "dx_epoc", False))
+    dx_asma_bronquial = bool(getattr(result, "dx_asma_bronquial", False))
 
     so2 = limpiar_entero(getattr(vital, "so2_rest", ""), default="") if vital else ""
     fc = limpiar_entero(getattr(vital, "fc_rest", ""), default="") if vital else ""
@@ -3444,6 +3446,7 @@ def build_print_context_for_encounter(encounter):
         "is_normal": patron == "Normal",
         "bronchodilator_positive": broncodilatador_positivo,
         "dx_epoc": dx_epoc,
+        "dx_asma_bronquial": dx_asma_bronquial,
         "pattern": patron,
         "include_walk": include_walk,
         "walk_rows": walk_rows,
@@ -5671,6 +5674,7 @@ def encounter_edit(request, pk):
                 "respiratory_result": current_result,
                 "bronchodilator_positive": bool(getattr(spirometry, "bronchodilator_positive", False)),
                 "dx_epoc": bool(getattr(spirometry, "dx_epoc", False)),
+                "dx_asma_bronquial": bool(getattr(spirometry, "dx_asma_bronquial", False)),
                 "medical_control_today": encounter.medical_control_today,
                 "attended": encounter.attended,
                 "no_show": encounter.no_show,

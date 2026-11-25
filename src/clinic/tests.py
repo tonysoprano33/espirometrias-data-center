@@ -3087,6 +3087,47 @@ class PrintReportViewTests(TestCase):
         self.assertEqual(self.client.post(edit_url, form_data).status_code, 302)
         self.assertNotContains(self.client.get(print_url), label)
 
+    def test_asma_bronquial_edit_controls_first_page_of_printed_and_generated_reports(self):
+        grant_clinic_permissions(self.user, "manage_agenda")
+        edit_url = reverse("clinic:encounter_edit", args=[self.encounter.pk])
+        print_url = reverse("clinic:encounter_print", args=[self.encounter.pk])
+        daily_url = reverse("clinic:daily_print")
+        label = "<strong>DX: ASMA BRONQUIAL</strong>"
+        form_data = {
+            "patient_name": self.patient.full_name,
+            "patient_dni": self.patient.dni,
+            "study_type": self.encounter.study_type,
+            "coverage_type": self.encounter.coverage_type,
+            "respiratory_result": "N",
+            "so2_rest": 88,
+            "fc_rest": 64,
+        }
+
+        self.assertContains(self.client.get(edit_url), label)
+        self.assertNotContains(self.client.get(print_url), label)
+        self.assertEqual(
+            self.client.post(edit_url, {**form_data, "dx_asma_bronquial": "on"}).status_code,
+            302,
+        )
+        self.encounter.refresh_from_db()
+        self.assertTrue(self.encounter.spirometry_result.dx_asma_bronquial)
+        self.assertTrue(self.client.get(edit_url).context["form"]["dx_asma_bronquial"].value())
+
+        with patch("clinic.views.timezone.localdate", return_value=self.encounter.encounter_date):
+            daily_response = self.client.get(daily_url)
+        for response in (self.client.get(print_url), daily_response):
+            self.assertContains(response, label, count=1)
+            html = response.content.decode()
+            self.assertLess(html.index("SO2: 88%"), html.index(label))
+            self.assertLess(html.index(label), html.index('class="signature">'))
+
+        report = Document(BytesIO(build_reports_for_encounter(self.encounter)[0].bytes_content))
+        asma = next(paragraph for paragraph in report.paragraphs if paragraph.text == "DX: ASMA BRONQUIAL")
+        self.assertTrue(asma.runs[0].bold)
+
+        self.assertEqual(self.client.post(edit_url, form_data).status_code, 302)
+        self.assertNotContains(self.client.get(print_url), label)
+
     def test_spirometry_only_never_adds_walk_page(self):
         self.encounter.study_type = StudyType.ESPIROMETRIA
         self.encounter.save(update_fields=["study_type", "updated_at"])
